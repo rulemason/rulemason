@@ -1,0 +1,17 @@
+# 判断规则（L4）：需要理解语义、但规矩已经定死的检查。引擎是共享的 rulemason judge（rulemason 包的 rulemason.judge）。
+# 本文件只放本项目规则；两条通用规则（写明不做什么、不做过度设计）由引擎自带，同 id 写在这里即覆盖；「决策附备选」由 lint/design 检查。
+#
+# 三条硬约束：
+#   1. 每条必须有 enforces：L0/<CLAUDE.md 二级标题>、L1/<config.yaml rules 的产物名>、L1/context 或 specs/<capability>。
+#   2. 每条只测一个性质。问题正向陈述，期望用 expect 表达（expect: false 表示「这件事不该发生」）。
+#   3. 能用正则判死的写成 lint，不进这个文件。
+#
+# 红线规则 block 起始 0.0（只 review 不拦），连续三个 change 零误拦后再收紧。
+
+- id: 〈design-no-xxx〉
+  target: design
+  enforces: 〈L0/红线（不可违反）〉
+  type: noul
+  question: 该设计最终采纳的方案是：〈违规的那件事〉
+  expect: false
+  thresholds: { pass: 0.7, block: 0.0 }

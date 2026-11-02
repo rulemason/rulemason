@@ -1,0 +1,7 @@
+# 判断规则的回归用例：每条都是人工标注的期望结果。改规则、阈值或 JEV_MODEL 前先跑一遍。
+# 每条规则至少 3 条（pass、review、block 各有），另加 2 条「提到了违规关键词但本身合规」的引述反例。
+cases:
+  - rule: 〈规则 id〉
+    file: openspec/changes/archive/〈某个已归档 change〉/design.md
+    expect: 〈pass | review | block〉
+    note: 〈为什么是这个结果〉

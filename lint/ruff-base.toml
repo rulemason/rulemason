@@ -1,0 +1,23 @@
+# ruff 基础规则：代码写法的机械部分（rules/code-style.md）。项目用 extend 继承，只写自己的豁免并注明原因，不写 select。
+
+[lint]
+# 只启用 select 里点名的预览规则（PLW1514）；预览模式也会改变部分稳定规则的行为，升级 ruff 后留意新增报错
+preview = true
+explicit-preview-rules = true
+select = [
+    "ERA001",   # 注释掉的代码（九条第 6 条）
+    "T201",     # print（第 6 条）
+    "BLE001",   # 过宽的 except Exception（第 8 条）
+    "E722",     # 裸 except:（第 8 条）
+    "C901",     # 圈复杂度
+    "F",        # pyflakes：未用导入与变量、未定义名（第 6、9 条）
+    "E701",     # 冒号后接语句写在同一行（附加条款「一行只做一件事」）
+    "E702",     # 一行用分号写多条语句（同上）
+    "RUF021",   # a and b or c 不加括号（附加条款「要停下来想优先级的表达式拆开写」）
+    "PLW1514",  # 读写文本不写 encoding（python.md；Windows 中文版默认按 GBK 读写）
+    "B",        # bugbear：zip 不写 strict、可变默认值等常见坑；框架约定在参数默认值里调函数的，由项目用 extend-immutable-calls 声明
+    "I",        # import 排序
+]
+
+[lint.mccabe]
+max-complexity = 10

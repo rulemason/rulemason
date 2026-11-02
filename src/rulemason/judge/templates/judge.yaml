@@ -1,0 +1,6 @@
+# 判断引擎 rulemason judge 的项目配置：--copy 审哪个文件、什么格式，以及本项目文案禁词
+copy:
+  file: 〈文案文件，相对项目根〉
+  format: 〈json：嵌套 JSON；js-i18n：HTML 内 const I18N 对象〉
+  # lang: 〈js-i18n 格式要审的语言，如 zh-Hans〉
+# banned: [〈本项目文案禁词，没有就删去这一行〉]

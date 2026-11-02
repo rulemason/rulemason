@@ -1,0 +1,738 @@
+"""rulemason init 的测试：预检与 openspec、选工具、生成副本、标记块、补配置、命令表、计划确认与重复运行。"""
+from __future__ import annotations
+
+import builtins
+import json
+import os
+import shutil
+import stat
+
+import pytest
+import yaml
+from conftest import REACT_PACKAGE, commit, git, git_init, run_cli, snapshot, write
+
+from rulemason import check, init, shared, update
+
+PY_PROJECT = {
+    "openspec/config.yaml": "schema: spec-driven\n# 项目注释\ncontext: |\n  项目说明\n",
+    "pyproject.toml": '[project]\nname = "x"\n',
+    "uv.lock": "",
+    "tests/test_x.py": "def test_x():\n    assert True\n",
+    "app/main.py": "x = 1\n",
+}
+
+
+# ---------- 1. 工具 ----------
+
+def _files(root) -> set[str]:
+    """项目里的全部文件（不含 .git/）。"""
+    return {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file() and ".git" not in p.relative_to(root).parts}
+
+
+def _answers(monkeypatch, *answers: str) -> list[str]:
+    """把 input() 换成依次返回 answers；记录提问。"""
+    queue, asked = list(answers), []
+
+    def fake(prompt=""):
+        asked.append(prompt)
+        if not queue:
+            raise AssertionError(f"多问了一句：{prompt}")
+        return queue.pop(0)
+
+    monkeypatch.setattr(builtins, "input", fake)
+    return asked
+
+
+@pytest.fixture
+def tty(monkeypatch):
+    monkeypatch.setattr(init, "interactive", lambda: True)
+
+
+@pytest.fixture
+def project(tmp_path):
+    """有 git、openspec、uv 管理的 Python 项目，已提交。"""
+    root = tmp_path / "proj"
+    git_init(root)
+    for rel, text in PY_PROJECT.items():
+        write(root, rel, text)
+    commit(root)
+    return root
+
+
+def _init(root, tools="claude", yes=True) -> int:
+    return init.run(root, tools, yes)
+
+
+@pytest.fixture
+def fake_openspec(tmp_path, monkeypatch):
+    """替身 openspec：把参数写进项目外的日志；FAKE_OPENSPEC_FAIL=1 时失败且不建目录。"""
+    bin_dir = tmp_path / "bin"
+    log = tmp_path / "openspec-args.txt"
+    script = bin_dir / "openspec"
+    write(bin_dir, "openspec", '#!/bin/sh\necho "$@" > "$FAKE_OPENSPEC_LOG"\n[ "$FAKE_OPENSPEC_FAIL" = 1 ] && exit 3\nmkdir -p openspec\nprintf \'schema: spec-driven\\ncontext: |\\n  Language: zh-CN\\n\' > openspec/config.yaml\n')
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("FAKE_OPENSPEC_LOG", str(log))
+    return log
+
+
+# ---------- 2. 预检与 openspec（4.1） ----------
+
+def test_new_dir_agrees_to_openspec_init(tmp_path, tty, fake_openspec, monkeypatch, capsys):
+    root = tmp_path / "fresh"
+    write(root, "main.py", "x = 1\n")
+    _answers(monkeypatch, "y", "y")
+
+    assert init.run(root, "claude,codex", False) == 0
+
+    args = fake_openspec.read_text(encoding="utf-8").split()
+    assert args[:3] == ["init", "--tools", "claude,codex"] and args[3:] == ["--language", "zh-CN"]
+    assert (root / "AGENTS.md").is_file() and (root / ".rulemason.yaml").is_file()
+    assert "没有 git" in capsys.readouterr().out
+
+
+def test_declining_openspec_init_writes_nothing(tmp_path, tty, fake_openspec, monkeypatch):
+    root = tmp_path / "fresh"
+    write(root, "main.py", "x = 1\n")
+    _answers(monkeypatch, "n")
+
+    assert init.run(root, "claude", False) == 0
+    assert _files(root) == {"main.py"} and not fake_openspec.exists()
+
+
+def test_missing_openspec_command_stops(tmp_path, monkeypatch, capsys):
+    root = tmp_path / "fresh"
+    write(root, "main.py", "x = 1\n")
+    monkeypatch.setattr(init.shutil, "which", lambda name: None)
+
+    assert _init(root) == 1
+    assert "npm install -g @fission-ai/openspec" in capsys.readouterr().out
+    assert _files(root) == {"main.py"}
+
+
+def test_failed_openspec_init_stops(tmp_path, fake_openspec, monkeypatch):
+    root = tmp_path / "fresh"
+    write(root, "main.py", "x = 1\n")
+    monkeypatch.setenv("FAKE_OPENSPEC_FAIL", "1")
+
+    assert _init(root) == 1
+    assert fake_openspec.is_file() and _files(root) == {"main.py"}
+
+
+def test_refuses_rulemason_repo_itself(capsys):
+    before = git(shared.SOURCE_ROOT, "status", "--porcelain")
+    assert _init(shared.SOURCE_ROOT) == 1
+    assert "rulemason 仓库本身" in capsys.readouterr().out
+    assert git(shared.SOURCE_ROOT, "status", "--porcelain") == before
+
+
+def test_legacy_project_stops(project, capsys):
+    write(project, "AGENTS.md", "## Code style\n\n../rulekit/rules/code-style.md\n")
+    before = snapshot(project)
+    assert _init(project) == 1
+    assert "旧接入方式" in capsys.readouterr().out
+    assert snapshot(project) == before
+
+
+# ---------- 3. 选工具（4.2） ----------
+
+def test_interactive_selection_prechecks_existing_dirs(project, monkeypatch, capsys):
+    (project / ".claude").mkdir()
+    (project / ".cursor").mkdir()
+    _answers(monkeypatch, "")
+    assert init.choose_tools(project, None, None) == ["claude", "cursor"]
+    assert "[x] Claude Code" in capsys.readouterr().out
+
+    _answers(monkeypatch, "9", "4，2")
+    assert init.choose_tools(project, None, None) == ["claude", "codex"]
+
+
+def test_tools_flag_does_not_ask(project, monkeypatch):
+    _answers(monkeypatch)                                   # 任何提问都会让测试失败
+    assert init.choose_tools(project, None, "codex, claude") == ["claude", "codex"]
+
+
+def test_non_tty_without_tools_errors(project, monkeypatch):
+    monkeypatch.setattr(init, "interactive", lambda: False)
+    before = snapshot(project)
+    assert init.run(project, None, True) == 2
+    assert snapshot(project) == before
+
+
+# ---------- 4. 生成副本（4.3） ----------
+
+def test_generated_copies_match_shared_source_and_manifest(project):
+    assert _init(project, "claude,codex") == 0
+
+    src = shared.shared_root()
+    for rel in shared.COPIED_SHARED:
+        assert (project / ".rulemason" / rel).read_text(encoding="utf-8") == (src / rel).read_text(encoding="utf-8")
+    for target in (".claude/skills/rulemason", ".agents/skills/rulemason"):
+        for rel in shared.SKILL_FILES:
+            assert (project / target / rel).read_bytes() == (src / "skills/rulemason" / rel).read_bytes()
+    manifest = shared.read_manifest(project)
+    assert manifest["tools"] == ["claude", "codex"] and manifest["rulemason"] == shared.__version__
+    assert manifest["files"] == {rel: shared.sha256_file(project / rel) for rel in shared.generated_files(["claude", "codex"])}
+
+
+# ---------- 5. 标记块（4.4） ----------
+
+def test_existing_agents_content_is_kept_verbatim(project):
+    head = "# 我的项目\n\n自写简介。\n\n## Code style\n"
+    tail = "\n本项目样板：app/main.py。\n\n## 其他\n\n自写内容。\n"
+    write(project, "AGENTS.md", head + tail)
+    write(project, "CLAUDE.md", "自写的 Claude 说明\n")
+
+    assert _init(project, "claude,opencode") == 0
+
+    text = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert text.startswith(head + "\n<!-- rulemason:code-style -->")
+    assert tail in text and ".rulemason/rules/python.md" in text
+    assert "## Workflow gates\n\n<!-- rulemason:workflow-gates -->" in text
+    claude = (project / "CLAUDE.md").read_text(encoding="utf-8")
+    assert claude.startswith("自写的 Claude 说明\n\n<!-- rulemason:claude -->\n@AGENTS.md\n")
+    assert ".rulemason/rules/workflow-gates.md" in (project / "opencode.jsonc").read_text(encoding="utf-8")
+
+
+def test_new_agents_from_template_marks_pending(project):
+    assert _init(project) == 0
+    text = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert text.startswith(f"# {project.name}\n") and text.count("待 /rulemason 补充") == 4
+
+
+def test_unpaired_markers_leave_file_untouched(project, capsys):
+    original = "# x\n\n## Code style\n\n<!-- rulemason:code-style -->\n半个块\n"
+    write(project, "AGENTS.md", original)
+    assert _init(project) == 0
+    assert (project / "AGENTS.md").read_text(encoding="utf-8") == original
+    assert "rulemason:code-style 标记块不成对" in capsys.readouterr().out
+
+
+def test_project_without_python_skips_python_rules(tmp_path):
+    root = tmp_path / "web"
+    git_init(root)
+    write(root, "openspec/config.yaml", "schema: spec-driven\n")
+    assert _init(root, "claude") == 0
+    assert "python.md" not in (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "python.md" not in (root / "CLAUDE.md").read_text(encoding="utf-8")
+    assert not (root / "ruff.toml").exists()
+
+
+# ---------- 6. 补配置（4.5） ----------
+
+def test_config_rules_appended_and_context_kept(project):
+    base = init.check.base_artifact_rules()
+    original = PY_PROJECT["openspec/config.yaml"] + f"rules:\n  proposal:\n    - {base['proposal'][0]}\n    - 项目追加的一条\n"
+    write(project, "openspec/config.yaml", original)
+
+    assert _init(project) == 0
+
+    text = (project / "openspec/config.yaml").read_text(encoding="utf-8")
+    assert text.startswith(PY_PROJECT["openspec/config.yaml"] + "rules:\n  proposal:\n")
+    data = yaml.safe_load(text)
+    assert data["context"] == "项目说明\n"
+    assert data["rules"]["proposal"] == [base["proposal"][0], "项目追加的一条", base["proposal"][1]]
+    assert all(data["rules"][a] == items for a, items in base.items() if a != "proposal")
+
+
+def test_ruff_select_is_reported_not_changed(project, capsys):
+    text = '[project]\nname = "x"\n\n[tool.ruff.lint]\nselect = ["E"]\n'
+    write(project, "pyproject.toml", text)
+    assert _init(project) == 0
+    assert (project / "pyproject.toml").read_text(encoding="utf-8") == text
+    assert "pyproject.toml 写了 select" in capsys.readouterr().out
+    assert not (project / "ruff.toml").exists()
+
+
+def test_ruff_and_eslint_configs_gain_inheritance(project):
+    write(project, "svc/pyproject.toml", '[tool.ruff.lint.per-file-ignores]\n"cli.py" = ["T201"]\n')
+    write(project, "web/eslint.config.mjs", 'import js from "@eslint/js";\n\nexport default [\n  js.configs.recommended,\n];\n')
+    assert _init(project) == 0
+
+    ruff = (project / "svc/pyproject.toml").read_text(encoding="utf-8")
+    assert ruff.startswith('[tool.ruff]\nextend = "../.rulemason/lint/ruff-base.toml"')
+    eslint = (project / "web/eslint.config.mjs").read_text(encoding="utf-8")
+    assert eslint.startswith('import rulemasonBase from "../.rulemason/lint/eslint-base.mjs";\nimport js')
+    assert "export default [\n  { rules: rulemasonBase },\n  js.configs.recommended," in eslint
+
+
+def test_existing_workflow_spec_is_reported_not_changed(project, capsys):
+    write(project, check.WORKFLOW_SPEC, "# workflow-gates Specification\n\n项目自有内容\n")
+    assert _init(project) == 0
+    assert (project / check.WORKFLOW_SPEC).read_text(encoding="utf-8") == "# workflow-gates Specification\n\n项目自有内容\n"
+    assert "需由 /rulemason 合并" in capsys.readouterr().out
+
+
+# ---------- 7. 命令表（4.6） ----------
+
+def test_commands_uv_with_tests(project):
+    rows = init.detect_commands(project, shared.list_files(project))
+    assert rows == {"判断": "判断层未装", "ruff": "`uv run ruff check .`", "测试": "`uv run pytest`", "前端 lint": "无，跳过", "文案检查": "判断层未装"}
+
+
+def test_commands_pnpm_scripts(tmp_path):
+    root = tmp_path / "p"
+    write(root, "web/package.json", '{"scripts": {"lint": "eslint .", "test": "vitest"}}')
+    write(root, "web/pnpm-lock.yaml", "")
+    rows = init.detect_commands(root, shared.list_files(root))
+    assert rows["前端 lint"] == "`cd web && pnpm run lint`" and rows["测试"] == "`cd web && pnpm run test`"
+    assert rows["ruff"] == "无，跳过"
+
+
+def test_commands_nothing_detected(tmp_path):
+    root = tmp_path / "p"
+    write(root, "README.md", "x\n")
+    rows = init.detect_commands(root, shared.list_files(root))
+    assert [rows[k] for k in ("ruff", "测试", "前端 lint")] == ["无，跳过"] * 3
+
+
+def test_existing_command_table_is_not_written(project):
+    write(project, "AGENTS.md", "# x\n\n## Workflow gates\n\n| 名称 | 命令 |\n|---|---|\n| ruff | 自定义 |\n")
+    assert _init(project) == 0
+    text = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "自动识别，请确认" not in text and "| ruff | 自定义 |" in text
+
+
+# ---------- 8. 计划与确认（4.7） ----------
+
+def test_rejecting_plan_writes_nothing(project, tty, monkeypatch):
+    _answers(monkeypatch, "n")
+    before = snapshot(project)
+    assert init.run(project, "claude", False) == 0
+    assert snapshot(project) == before
+
+
+def test_unrelated_uncommitted_changes_untouched(project, capsys):
+    write(project, "app/main.py", "x = 2\n")
+    write(project, "notes.md", "草稿\n")
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert "其余 2 个未提交改动不变" in out
+    assert out.rstrip().endswith(init.NEXT_STEP)
+    assert (project / "app/main.py").read_text(encoding="utf-8") == "x = 2\n"
+    assert (project / "notes.md").read_text(encoding="utf-8") == "草稿\n"
+
+
+# ---------- 9. 重复运行、追加与移除工具（4.8） ----------
+
+def test_second_run_changes_nothing(project, capsys):
+    assert _init(project, "claude,opencode,codex") == 0
+    commit(project)
+    assert _init(project, "claude,opencode,codex") == 0
+    assert git(project, "status", "--porcelain") == ""
+    assert "没有需要改动的文件" in capsys.readouterr().out
+
+
+def test_adding_tool_only_adds_its_entry(project):
+    _init(project, "claude")
+    commit(project)
+    _init(project, "claude,cursor")
+    changed = {line[3:] for line in git(project, "status", "--porcelain", "--untracked-files=all").splitlines()}
+    assert changed == {".rulemason.yaml"} | {f".agents/skills/rulemason/{rel}" for rel in shared.SKILL_FILES}
+
+
+def test_removing_tool_deletes_untouched_copies_and_keeps_edited(project, capsys):
+    _init(project, "claude,codex,opencode")
+    write(project, ".claude/skills/rulemason/SKILL.md", "手改\n")
+
+    _init(project, "opencode")
+
+    assert not (project / ".claude/skills/rulemason/templates").exists()
+    assert (project / ".claude/skills/rulemason/SKILL.md").read_text(encoding="utf-8") == "手改\n"
+    assert ".claude/skills/rulemason/SKILL.md 被手改过" in capsys.readouterr().out
+    assert (project / ".agents/skills/rulemason/SKILL.md").is_file()
+    assert shared.read_manifest(project)["tools"] == ["opencode"]
+
+
+# ---------- 10. 审查补充：ruff 表头、无法识别的配置、不安全目标、重复导入 ----------
+
+@pytest.mark.parametrize("header", ["[tool.ruff]", "[tool.ruff]   # 项目自己的说明"])
+def test_ruff_header_gets_extend(project, header):
+    write(project, "pyproject.toml", f'[project]\nname = "x"\n\n{header}\nline-length = 100\n')
+    assert _init(project) == 0
+    text = (project / "pyproject.toml").read_text(encoding="utf-8")
+    assert f'{header}\nextend = ".rulemason/lint/ruff-base.toml"' in text and "line-length = 100" in text
+
+
+def test_other_ruff_extend_and_legacy_eslint_are_reported(project, capsys):
+    write(project, "ruff.toml", 'extend = "base.toml"\n')
+    write(project, "web/.eslintrc.json", "{}\n")
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert "ruff.toml 已继承其他 ruff 配置" in out and "web/.eslintrc.json 的格式无法自动识别" in out
+    assert (project / "ruff.toml").read_text(encoding="utf-8") == 'extend = "base.toml"\n'
+    assert (project / "web/.eslintrc.json").read_text(encoding="utf-8") == "{}\n"
+
+
+def test_symlinked_dir_pointing_outside_writes_nothing(project, tmp_path, capsys):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (project / ".rulemason").symlink_to(outside, target_is_directory=True)
+    before = snapshot(project)
+
+    assert _init(project) == 1
+
+    assert "符号链接或在项目外" in capsys.readouterr().out
+    assert list(outside.iterdir()) == []
+    assert not (project / "AGENTS.md").exists() and snapshot(project) == before
+
+
+def test_existing_agents_import_in_claude_md_is_reported(project, capsys):
+    write(project, "CLAUDE.md", "@AGENTS.md\n")
+    assert _init(project) == 0
+    assert "块外已有 @AGENTS.md" in capsys.readouterr().out
+
+
+def test_rewrites_keep_crlf_and_mode_and_handle_missing_final_newline(project):
+    path = project / "pyproject.toml"
+    path.write_bytes(b'[project]\r\nname = "x"\r\n\r\n[tool.ruff.lint]\r\nextend-select = ["E"]\r\n[tool.ruff]')
+    path.chmod(0o644)
+    write(project, "ruff.toml", "# 只有注释")
+    assert _init(project) == 0
+
+    data = path.read_bytes()
+    assert b"\r\n" in data and b"\n" not in data.replace(b"\r\n", b"")
+    assert data.count(b"[tool.ruff]") == 1 and stat.S_IMODE(path.stat().st_mode) == 0o644
+    assert (project / "ruff.toml").read_text(encoding="utf-8").splitlines()[1].startswith("extend = ")
+    assert stat.S_IMODE((project / "AGENTS.md").stat().st_mode) != 0o600
+
+
+# ---------- 11. 迁移中发现的识别问题（cli-migration-fixes） ----------
+
+def test_english_command_table_header_is_recognized(project):
+    write(project, "AGENTS.md", "# x\n\n## Workflow gates\n\n| Name | Command |\n|---|---|\n| ruff | 自定义 |\n")
+    assert _init(project) == 0
+    text = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "自动识别，请确认" not in text and "| Name | Command |" in text
+
+
+def test_equivalent_workflow_requirement_is_not_reported(project, capsys):
+    spec = "# workflow-gates Specification\n\n## Requirements\n\n### Requirement: Apply 后自动精简与独立审查\n\n引用 `.rulemason/rules/workflow-gates.md`。\n"
+    write(project, check.WORKFLOW_SPEC, spec)
+    assert _init(project) == 0
+    assert "需由 /rulemason 合并" not in capsys.readouterr().out
+    assert (project / check.WORKFLOW_SPEC).read_text(encoding="utf-8") == spec
+
+
+# ---------- 项目根：在子目录运行与显式路径 ----------
+
+
+def test_check_in_subdirectory_matches_root(project, monkeypatch, capsys):
+    assert _init(project) == 0
+    capsys.readouterr()
+    monkeypatch.chdir(project)
+    root_code = run_cli("check")
+    at_root = capsys.readouterr().out
+    monkeypatch.chdir(project / "app")
+    assert run_cli("check") == root_code
+    assert capsys.readouterr().out == at_root
+
+
+def test_init_in_subdirectory_uses_repo_root(project, monkeypatch):
+    monkeypatch.chdir(project / "app")
+    assert run_cli("init", "--tools", "claude", "--yes") == 0
+    assert (project / ".rulemason.yaml").is_file()
+    assert not (project / "app/.rulemason.yaml").exists() and not (project / "app/.rulemason").exists()
+
+
+def test_init_with_explicit_path_uses_that_path(project, monkeypatch):
+    write(project, "packages/web/openspec/config.yaml", "schema: spec-driven\n")
+    monkeypatch.chdir(project)
+    assert run_cli("init", "packages/web", "--tools", "claude", "--yes") == 0
+    assert (project / "packages/web/.rulemason.yaml").is_file()
+    assert not (project / ".rulemason.yaml").exists()
+
+
+# ---------- 取消工具时删除入口 ----------
+
+
+def test_cancel_claude_keeps_project_text_in_claude_md(project):
+    assert _init(project, "claude,codex") == 0
+    claude = project / "CLAUDE.md"
+    claude.write_text("项目自己的说明\n\n" + claude.read_text(encoding="utf-8"), encoding="utf-8")
+    assert _init(project, "codex") == 0
+    assert claude.read_text(encoding="utf-8") == "项目自己的说明\n"
+    assert not (project / ".claude/skills/rulemason").exists()
+
+
+def test_cancel_claude_deletes_claude_md_with_only_block(project):
+    assert _init(project, "claude,codex") == 0
+    assert _init(project, "codex") == 0
+    assert not (project / "CLAUDE.md").exists()
+
+
+@pytest.mark.parametrize("edited", [False, True])
+def test_cancel_opencode_deletes_untouched_config_only(project, capsys, edited):
+    assert _init(project, "opencode,claude") == 0
+    config = project / "opencode.jsonc"
+    if edited:
+        config.write_text(config.read_text(encoding="utf-8").replace("{", '{\n  "model": "x",', 1), encoding="utf-8")
+    capsys.readouterr()
+    assert _init(project, "claude") == 0
+    assert config.exists() == edited
+    assert ("取消 OpenCode 后保留" in capsys.readouterr().out) == edited
+
+
+def test_cancel_claude_keeps_text_after_block_and_reports_unpaired(project, capsys):
+    assert _init(project, "claude,codex") == 0
+    claude = project / "CLAUDE.md"
+    claude.write_text(claude.read_text(encoding="utf-8") + "\n块后的说明\n", encoding="utf-8")
+    assert _init(project, "codex") == 0
+    assert claude.read_text(encoding="utf-8") == "块后的说明\n"
+    assert _init(project, "claude,codex") == 0
+    claude.write_text(claude.read_text(encoding="utf-8").replace("<!-- /rulemason:claude -->", ""), encoding="utf-8")
+    capsys.readouterr()
+    assert _init(project, "codex") == 0
+    assert "取消 Claude Code 后未删除" in capsys.readouterr().out
+
+
+# ---------- init --plan（agent-io） ----------
+
+def _unjoined(root):
+    """在 project 上加已有的 .claude/ 与自写 AGENTS.md：不带 --tools 时推断为 claude，AGENTS.md 是修改。"""
+    write(root, ".claude/settings.json", "{}\n")
+    write(root, "AGENTS.md", "# 自写\n")
+    commit(root)
+    return root
+
+
+def _no_openspec_init(monkeypatch):
+    def fail(*_args, **_kwargs):
+        raise AssertionError("--plan 不应运行 openspec init")
+    monkeypatch.setattr(init, "ensure_openspec", fail)
+
+
+def test_plan_writes_nothing_in_non_interactive_session(project, monkeypatch, capsys):
+    root = _unjoined(project)
+    _no_openspec_init(monkeypatch)
+    monkeypatch.setattr(init, "interactive", lambda: False)
+    monkeypatch.setattr(builtins, "input", lambda *_: pytest.fail("--plan 不应提问"))
+    before = snapshot(root)
+    assert init.run(root, None, False, plan_only=True) == 0
+    out = capsys.readouterr().out
+    assert "工具：claude" in out and ".rulemason/rules/code-style.md" in out and "未写任何文件" in out
+    assert snapshot(root) == before
+
+
+def test_plan_json_marks_add_and_modify(project, capsys):
+    root = _unjoined(project)
+    assert init.run(root, None, False, plan_only=True, as_json=True) == 0
+    data = json.loads(capsys.readouterr().out)
+    actions = {w["path"]: w["action"] for w in data["writes"]}
+    assert actions["AGENTS.md"] == "modify" and actions[".rulemason/rules/code-style.md"] == "add"
+    assert data["tools"] == ["claude"] and data["openspec_init"] is False and data["untouched_dirty"] == 0
+    assert set(data) == {"root", "tools", "writes", "deletes", "overwritten", "notes", "untouched_dirty", "openspec_init"}
+
+
+def test_plan_without_openspec_does_not_create_it(project, monkeypatch, capsys):
+    root = _unjoined(project)
+    shutil.rmtree(root / "openspec")
+    _no_openspec_init(monkeypatch)
+    assert init.run(root, "claude", False, plan_only=True, as_json=True) == 0
+    assert json.loads(capsys.readouterr().out)["openspec_init"] is True
+    assert not (root / "openspec").exists()
+    assert init.run(root, "claude", False, plan_only=True) == 0
+    assert "将先运行 openspec init" in capsys.readouterr().out
+
+
+def test_plan_without_git_has_null_dirty_count(project, capsys):
+    root = project
+    shutil.rmtree(root / ".git")
+    assert init.run(root, "claude", False, plan_only=True, as_json=True) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["untouched_dirty"] is None
+    assert "没有 git" in captured.err                             # 提示走 stderr，标准输出只有 JSON
+
+
+def test_plan_stops_on_legacy_project(project, capsys):
+    root = _unjoined(project)
+    write(root, "AGENTS.md", '"../rulekit/rules/code-style.md"\n')
+    before = snapshot(root)
+    assert init.run(root, None, False, plan_only=True, as_json=True) == 1
+    assert "旧接入方式" in capsys.readouterr().out
+    assert snapshot(root) == before
+
+
+@pytest.mark.parametrize("argv", [["init", "--json"], ["init", "--tools", "claude", "--yes", "--json"], ["update", "--json"], ["update", "--yes", "--json"]])
+def test_json_without_plan_or_dry_run_is_rejected(project, monkeypatch, capsys, argv):
+    """--json 不配 --plan / --dry-run 时报错退出，不写任何文件。"""
+    root = _unjoined(project)
+    monkeypatch.chdir(root)
+    before = snapshot(root)
+    assert run_cli(*argv) == 2
+    assert "--json 只能配合" in capsys.readouterr().err
+    assert snapshot(root) == before
+
+
+@pytest.mark.parametrize(("argv", "code"), [(["check", "--json"], 1), (["init", "--plan", "--json"], 0), (["update", "--dry-run", "--json"], 1)])
+def test_cli_json_flags(project, monkeypatch, capsys, argv, code):
+    """三个只读选项接到命令行：未接入项目里 check 与 update 非 0，init --plan 为 0，输出都是 JSON 或提示、不写文件。"""
+    root = _unjoined(project)
+    monkeypatch.chdir(root)
+    before = snapshot(root)
+    assert run_cli(*argv) == code
+    out = capsys.readouterr().out
+    if argv[0] == "update":
+        assert "先运行 rulemason init" in out                    # 预检失败：文字说明，非 0 退出
+    else:
+        json.loads(out)
+    assert snapshot(root) == before
+
+
+# ---------- OpenSpec operations 提示（openspec-operations） ----------
+
+def test_init_appends_operations_and_keeps_config(project):
+    before = (project / "openspec/config.yaml").read_text(encoding="utf-8")
+    assert _init(project) == 0
+    text = (project / "openspec/config.yaml").read_text(encoding="utf-8")
+    assert text.startswith(before.rstrip("\n"))                       # 原文（含注释、context）逐字保留在前
+    data = yaml.safe_load(text)
+    assert list(data)[-1] == "operations"
+    assert data["operations"] == check.base_operations(project)
+    assert ".rulemason/rules/workflow-gates.md" in data["operations"]["archive"]["guidance"][0]
+    assert data["rules"] and data["context"] == "项目说明\n"
+    assert _init(project) == 0                                         # 重复运行不再追加
+    assert (project / "openspec/config.yaml").read_text(encoding="utf-8") == text
+
+
+def test_existing_operations_are_left_alone(project):
+    own = "operations:\n  apply:\n    guidance:\n      - 项目自己的提示\n"
+    write(project, "openspec/config.yaml", PY_PROJECT["openspec/config.yaml"] + own)
+    assert _init(project) == 0
+    data = yaml.safe_load((project / "openspec/config.yaml").read_text(encoding="utf-8"))
+    assert data["operations"] == {"apply": {"guidance": ["项目自己的提示"]}}
+
+
+def test_plan_operations_without_config_is_quiet(tmp_path):
+    plan = init.Plan()
+    init.plan_operations(tmp_path, plan)
+    assert not plan.writes and not plan.notes
+
+
+def test_operations_not_appended_when_other_keys_would_change(project):
+    """原文以 `|+` 块收尾、带两个尾随空行（算内容）：追加会改变 context，计划只记提示、不写 operations。"""
+    write(project, "openspec/config.yaml", "schema: spec-driven\ncontext: |+\n  项目说明\n\n\n")
+    plan = init.Plan()
+    init.plan_operations(project, plan)
+    assert not plan.writes and "operations 无法安全追加" in plan.notes[0]
+
+
+def test_null_operations_is_left_alone(project):
+    write(project, "openspec/config.yaml", PY_PROJECT["openspec/config.yaml"] + "operations:\n")
+    assert _init(project) == 0
+    assert yaml.safe_load((project / "openspec/config.yaml").read_text(encoding="utf-8"))["operations"] is None
+
+
+# ---------- 写完后汇报失败（readable-config-errors） ----------
+
+def test_init_finishes_when_report_check_fails(project, capsys):
+    write(project, "openspec/judgments.yaml", "id: x\n")
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert (project / ".rulemason.yaml").is_file()
+    assert "check 未完成：openspec/judgments.yaml 的顶层应是列表" in out
+    assert "本次改动的文件：" in out and init.NEXT_STEP in out
+
+
+def test_init_does_not_swallow_other_errors_in_report(project, monkeypatch):
+    """report 只兜住项目配置读不出来；程序自身的其他 ValueError 照常上抛，由命令行外层报 init 失败。"""
+    def broken(_root):
+        raise ValueError("程序缺陷")
+    monkeypatch.setattr(check, "run", broken)
+    with pytest.raises(ValueError, match="程序缺陷"):
+        _init(project)
+
+
+# ---------- React 落法（shared-react-rules） ----------
+
+def test_react_project_references_react_rules(project):
+    write(project, "web/package.json", REACT_PACKAGE)
+    assert _init(project, tools="claude,opencode") == 0
+    for rel in ("AGENTS.md", "CLAUDE.md", "opencode.jsonc"):
+        assert ".rulemason/rules/react.md" in (project / rel).read_text(encoding="utf-8"), rel
+    assert json.loads((project / "opencode.jsonc").read_text(encoding="utf-8"))["instructions"][2] == ".rulemason/rules/react.md"
+    assert (project / ".rulemason/rules/react.md").is_file()
+    assert ".rulemason/rules/react.md" in shared.read_manifest(project)["files"]
+
+
+def test_non_react_project_has_no_react_rules(project):
+    write(project, "frontend/package.json", '{"name": "site", "devDependencies": {"eslint": "^9"}}\n')
+    assert _init(project, tools="claude,opencode") == 0
+    for rel in ("AGENTS.md", "CLAUDE.md", "opencode.jsonc"):
+        assert "react.md" not in (project / rel).read_text(encoding="utf-8"), rel
+    json.loads((project / "opencode.jsonc").read_text(encoding="utf-8"))          # 去掉那一行后仍是合法 JSON
+
+
+@pytest.mark.parametrize("files", [[], ["app/main.py"], ["web/package.json"], ["app/main.py", "web/package.json"]])
+def test_opencode_template_stays_valid_json(tmp_path, files):
+    write(tmp_path, "web/package.json", REACT_PACKAGE)
+    instructions = json.loads(init.opencode_template(tmp_path, files))["instructions"]
+    assert instructions[0] == ".rulemason/rules/code-style.md"
+    assert instructions[-1] == ".rulemason/rules/workflow-gates.md"
+
+
+# ---------- 已有 OpenCode 配置追加落法（shared-react-rules 决策 5） ----------
+
+OPENCODE_OWN = """{
+  "$schema": "https://opencode.ai/config.json",
+  // 项目自己的注释
+  "model": "x",
+  "instructions": [
+    ".rulemason/rules/code-style.md",
+    ".rulemason/rules/workflow-gates.md"
+  ]
+}
+"""
+
+
+def test_append_instructions_keeps_rest_of_file():
+    new = init.append_instructions(OPENCODE_OWN, [".rulemason/rules/react.md"])
+    assert new == OPENCODE_OWN.replace('workflow-gates.md"\n', 'workflow-gates.md",\n    ".rulemason/rules/react.md"\n')
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ('{"instructions": []}', '{"instructions": [\n    "r1",\n    "r2"]}'),
+    ('{"instructions": [\n  ]}', '{"instructions": [\n    "r1",\n    "r2"\n  ]}'),
+    ('{"instructions": ["a",]}', '{"instructions": ["a",\n    "r1",\n    "r2"]}'),
+    ('{"instructions": ["a", "b"]}', '{"instructions": ["a", "b",\n    "r1",\n    "r2"]}'),
+    ('{"instructions": [\n\t"a"\n]}', '{"instructions": [\n\t"a",\n\t"r1",\n\t"r2"\n]}'),
+    ('{"instructions": ["https://example.com/a.md"]}', '{"instructions": ["https://example.com/a.md",\n    "r1",\n    "r2"]}'),
+])
+def test_append_instructions_shapes(text, expected):
+    assert init.append_instructions(text, ["r1", "r2"]) == expected
+
+
+@pytest.mark.parametrize("text", [
+    '{"instructions": ["a", // 注释\n]}',
+    '{"instructions": ["a"], "x": {"instructions": ["b"]}}',
+    '{"instructions": ["a]b", "c"]}',
+    '// "instructions": ["x"]\n{}',
+    '/* "instructions": ["x"] */ {}',
+])
+def test_append_instructions_declines_when_unsafe(text):
+    assert init.append_instructions(text, ["r"]) is None
+
+
+def test_unsafe_opencode_config_is_only_reported(project):
+    write(project, ".opencode/opencode.jsonc", '{"instructions": [".rulemason/rules/code-style.md", // 注释\n]}')
+    plan = init.Plan()
+    init.plan_opencode(project, shared.list_files(project), plan)
+    assert ".opencode/opencode.jsonc" not in plan.writes
+    assert plan.notes[0].startswith(".opencode/opencode.jsonc 的 instructions 缺少")
+
+
+def test_update_appends_react_to_existing_opencode_config(project, capsys):
+    write(project, ".opencode/opencode.jsonc", OPENCODE_OWN.replace('    ".rulemason/rules/code-style.md",\n', '    ".rulemason/rules/code-style.md",\n    ".rulemason/rules/python.md",\n'))
+    assert _init(project, tools="claude,opencode") == 0
+    commit(project)
+    write(project, "web/package.json", REACT_PACKAGE)                  # 接入后才加 React
+    config = project / ".opencode/opencode.jsonc"
+    before = config.read_text(encoding="utf-8")
+    assert update.run(project) == 0                                     # 非交互、没有 --yes：只列出
+    assert config.read_text(encoding="utf-8") == before
+    assert update.run(project, yes=True) == 0
+    after = config.read_text(encoding="utf-8")
+    assert after.startswith(before.split('    ".rulemason/rules/workflow-gates.md"')[0])
+    assert after.rstrip().endswith('"\n  ]\n}')
+    assert check.opencode_instruction_values(after)[-1] == ".rulemason/rules/react.md"
+    assert check.collect(project)[0].layers["接入 工具入口"] == []

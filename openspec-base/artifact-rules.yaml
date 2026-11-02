@@ -1,0 +1,16 @@
+# 产物写法基础版：各项目照写进 openspec/config.yaml 的 rules 段，只追加不改写（OpenSpec 配置不能引用外部文件）
+rules:
+  proposal:
+    - 必须说明本次明确不做的事：Non-goals 小节，或 What Changes 中以「不做」开头的条目，二者取一即可
+    - 控制在 60 行以内，只写为什么和改什么，不写怎么实现
+  design:
+    - Decisions 每条决策写明至少一个被否决的备选方案及否决理由
+    - Risks 每条用「[风险] → 对策」格式，一行一条
+    - Migration Plan 写明上线顺序与回滚方式
+    - 列出新增与修改的文件及每个文件的估计行数，apply 后对照；超出一倍要说明原因
+  specs:
+    - 每个 Requirement 至少一个 Scenario，用 WHEN / THEN
+    - 用 SHALL / MUST 表达约束，不用 should / may
+    - 每条 Requirement 正文不超过 500 个字符（openspec validate --strict 的上限）
+  tasks:
+    - 每条任务两小时内可完成，并写明怎么验证它完成了

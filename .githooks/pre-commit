@@ -1,0 +1,27 @@
+#!/bin/sh
+# 提交前检查（本仓库公开）：暂存内容里新增的行不得含本机绝对路径，也不得含本机私有词表里的词（如私人项目名）。
+# 启用：git config core.hooksPath .githooks（每个克隆做一次）。私有词表放 .git/info/private-words，一行一个词，不分大小写，不入库；没有这个文件就只查路径。
+# 确需提交时用 git commit --no-verify 并在提交信息里说明原因。
+
+added=$(git diff --cached -U0 --no-color -- . ':(exclude).githooks/pre-commit' | grep -E '^\+' | grep -v '^+++')
+# 走到这里说明没有新增行，无可检查
+[ -z "$added" ] && exit 0
+status=0
+
+report() {
+  [ -z "$2" ] && return
+  echo "$1" >&2
+  printf '%s\n' "$2" | cut -c1-160 >&2
+  status=1
+}
+
+report "✗ 暂存内容含本机绝对路径，请换成 ~ 或相对路径后再提交：" \
+  "$(printf '%s\n' "$added" | grep -nE '/(Users|home)/[A-Za-z0-9._-]+/')"
+
+words="$(git rev-parse --git-dir)/info/private-words"
+list=$([ -f "$words" ] && tr -d '\r' < "$words" | grep -vE '^[[:space:]]*(#|$)')     # 空行与 # 开头的行不算词；兼容 CRLF
+# 词表为空时不能交给 grep：空模式会匹配每一行
+[ -n "$list" ] && report "✗ 暂存内容含本机私有词表（.git/info/private-words）里的词，请改成中性说法后再提交：" \
+  "$(printf '%s\n' "$added" | grep -niF -e "$list")"
+
+exit $status

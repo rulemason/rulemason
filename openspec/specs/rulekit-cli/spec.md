@@ -1,0 +1,523 @@
+# rulekit-cli Specification
+
+## Purpose
+
+规定 `rulemason` 命令行如何一次安装、在任一项目目录用 `init` 接入共享规则、用 `update` 升级、用 `check` 只读检查，使新项目像使用 OpenSpec 一样一条命令完成接入，接入结果可在任何机器、云端 agent 与 CI 中复现。
+
+## Requirements
+
+### Requirement: 一条命令安装
+
+`rulemason` 命令 SHALL 由 PyPI 上名为 `rulemason` 的包提供，判断引擎作为它的子命令 `rulemason judge` 随包安装，不再提供单独的 `jev-judge` 命令。用户 SHALL 能用一条 `uv tool install rulemason` 装好，不需要克隆 rulemason 仓库，也不需要建任何符号链接。包的版本号 MUST 与发布 tag 一致。Jev 的 key MUST NOT 由安装或任何子命令代填。
+
+#### Scenario: 新机器安装
+- **WHEN** 用户在一台从未用过 rulemason 的机器上执行 `uv tool install rulemason`
+- **THEN** `rulemason --version` 与 `rulemason judge --help` 都可运行，版本号等于 PyPI 上的最新版本
+
+#### Scenario: 没有 key
+- **WHEN** 安装完成但 `~/.config/rulemason/env` 与 `~/.config/jev-judge/env` 都不存在
+- **THEN** 不创建任何 key 文件；`rulemason judge` 按现有规则走人工模式
+
+#### Scenario: 旧命令不再提供
+- **WHEN** 安装 rulemason 后在新环境运行 `jev-judge`
+- **THEN** 命令不存在；判断引擎只通过 `rulemason judge` 使用
+
+### Requirement: init 预检
+
+`rulemason init [path]` SHALL 按「项目根按最近的 .rulemason.yaml 确定」找项目根；给出 `path` 时以该路径为项目根。不要求 git。没有 git 时 MUST 提示「无法用 diff 查看改动、副本无法通过仓库共享」后继续。没有 `openspec/` 时 MUST 先询问；用户同意后以同一份工具选择运行 `openspec init --tools <所选> --language zh-CN`，用户拒绝或本机没有 `openspec` 命令时 MUST 说明原因并停止，不写任何文件。项目使用 0.4 及更早的旧接入方式（引用 `../rulekit/`）时 MUST 停止并提示需要迁移。项目有 rulekit 0.5 格式（`.rulekit.yaml`）而没有 `.rulemason.yaml` 时 SHALL 进入格式迁移。
+
+#### Scenario: 空目录新项目
+- **WHEN** 在一个既没有 git 也没有 `openspec/` 的目录运行 `rulemason init`，用户同意运行 openspec init
+- **THEN** 先提示没有 git，再运行 `openspec init --tools <所选> --language zh-CN`，之后继续完成 rulemason 接入；`openspec/config.yaml` 的 `context` 含 zh-CN 语言声明
+
+#### Scenario: 本机没有 openspec
+- **WHEN** 项目没有 `openspec/`，且 `openspec` 命令不存在
+- **THEN** 输出 openspec 的安装方法并停止，项目中没有新文件
+
+#### Scenario: 旧接入方式的项目
+- **WHEN** 在 `AGENTS.md` 引用 `../rulekit/rules/` 的项目运行 `rulemason init`
+- **THEN** 不写任何文件，提示该项目需要先迁移
+
+#### Scenario: rulekit 0.5 格式的项目
+- **WHEN** 在有 `.rulekit.yaml`、没有 `.rulemason.yaml` 的项目运行 `rulemason init`
+- **THEN** 按「init 从 rulekit 格式迁移」列出迁移计划
+
+### Requirement: init 选择工具并记录版本
+
+`init` SHALL 提供 OpenCode、Claude Code、Cursor、Codex 的多选，按项目已有的工具目录预先勾选；传 `--tools` 时 MUST NOT 提问。选择与 rulemason 版本 SHALL 写入项目根的 `.rulemason.yaml`。只为已选工具生成入口。取消某个工具时 SHALL 删除它的入口：skill 副本、`CLAUDE.md` 的 `rulemason:claude` 块（删后文件为空则删除文件）、内容与生成时相同的 `opencode.jsonc`；内容被改过、无法安全删除的 MUST 只报告。
+
+#### Scenario: 非交互选择
+- **WHEN** 运行 `rulemason init --tools claude,codex --yes`
+- **THEN** 不出现任何提问，`.rulemason.yaml` 记录 `claude`、`codex` 与当前 rulemason 版本
+
+#### Scenario: 追加工具
+- **WHEN** 已接入 Claude Code 的项目再运行 `rulemason init --tools claude,cursor`
+- **THEN** 只新增 Cursor 需要的入口，Claude Code 的入口保持不变
+
+#### Scenario: 取消 Claude Code
+- **WHEN** 已接入 Claude Code 与 Codex 的项目运行 `rulemason init --tools codex --yes`，`CLAUDE.md` 在 `rulemason:claude` 块外还有项目自己的一段说明
+- **THEN** `.claude/skills/rulemason/` 被删除，`CLAUDE.md` 只删去 `rulemason:claude` 块，项目自己的那段说明逐字保留
+
+### Requirement: init 生成项目内只读副本
+
+`init` SHALL 把共享规则正文与 lint 基础配置复制到项目的 `.rulemason/`，把 `rulemason` skill 的 `SKILL.md` 复制到每个已选工具的 skill 发现路径（`skills/rulemason/`），并在 `.rulemason.yaml` 记录每个生成文件的校验值。判断层模板 MUST NOT 复制进项目，由安装包提供。这些副本 SHALL 作为项目文件提交，使克隆项目的人、云端 agent 与 CI 不需要额外安装即可读取。副本 MUST NOT 被手工修改；共享内容只在 rulemason 仓库编辑。
+
+#### Scenario: 同事克隆项目
+- **WHEN** 同事克隆一个已接入并提交的项目，本机没有装 rulemason
+- **THEN** 所选工具能读取 `.rulemason/` 中的规则正文并发现 `/rulemason` skill
+
+#### Scenario: 项目不在 rulekit 的同级目录
+- **WHEN** 项目位于任意目录，附近没有 rulemason 仓库
+- **THEN** 接入与 ruff 继承照常生效，不出现读取项目外文件的确认
+
+#### Scenario: skill 副本只有一个文件
+- **WHEN** 选了 Claude Code 的项目运行 `rulemason init`
+- **THEN** `.claude/skills/rulemason/` 下只有 `SKILL.md`，没有 `templates/`
+
+### Requirement: init 只写 rulekit 标记块
+
+`init` 与 `update` 在 `AGENTS.md`、`CLAUDE.md` 等用户也会编辑的文件中，SHALL 只写 rulemason 标记块（`<!-- rulemason:NAME -->` 与 `<!-- /rulemason:NAME -->` 之间）内的内容；标记块以外的内容 MUST NOT 被修改。`AGENTS.md` SHALL 保留 `## Code style` 与 `## Workflow gates` 标题，并在标记块内引用 `.rulemason/rules/` 下的副本。选了 Claude Code 时，`CLAUDE.md` 的标记块 SHALL 导入 `AGENTS.md` 与适用的共享正文副本，使会话开始即加载九条。该标记块还 SHALL 写明 Claude Code 下自动精简一步使用 `/simplify` 的映射（调用条件、只采纳行为保持的修改、不可用时退回手工精简）；其他工具的入口不写这条映射。
+
+#### Scenario: 已有 AGENTS.md
+- **WHEN** 项目已有自写的 `AGENTS.md`，没有 rulemason 标记块
+- **THEN** init 只插入标记块，原有各段文字逐字不变
+
+#### Scenario: Claude Code 会话
+- **WHEN** 在已接入且选了 Claude Code 的项目开始 Claude Code 会话
+- **THEN** 会话上下文包含九条与 workflow-gates 正文，不需要 AI 再去读取文件
+
+#### Scenario: Claude Code 入口带精简映射
+- **WHEN** 选了 Claude Code 的项目运行 `rulemason init` 或 `rulemason update`
+- **THEN** `CLAUDE.md` 的 `rulemason:claude` 块包含导入与 `/simplify` 映射说明，`AGENTS.md` 与 OpenCode instructions 中不出现 `/simplify`
+
+### Requirement: init 补齐配置并识别命令
+
+`init` SHALL 把共享产物写法基础版中缺少的条目补进 `openspec/config.yaml` 的 `rules`，保留 `context` 与项目追加的条目；为项目实际有的语言写 ruff 或 ESLint 继承，指向 `.rulemason/lint/`；项目没有 `openspec/specs/workflow-gates/spec.md` 时按模板创建。命令表只在 `AGENTS.md` 缺少命令表（表头为「名称 / 命令」或英文「Name / Command」）时，按识别到的包管理与测试目录填入，并标注「自动识别，请确认」；判断与文案检查写「判断层未装」。
+
+#### Scenario: uv 管理的 Python 项目
+- **WHEN** 项目有 `pyproject.toml`、`uv.lock` 与 `tests/`，没有 ruff 配置
+- **THEN** 新建继承 `.rulemason/lint/ruff-base.toml` 的 ruff 配置，命令表填入 ruff 与 pytest 命令并标注待确认
+
+#### Scenario: 已有 workflow-gates 规格
+- **WHEN** 项目已有 `openspec/specs/workflow-gates/spec.md`，但没有 rulemason 的 requirement
+- **THEN** init 不修改该文件，在汇报中写明需由 `/rulemason` 合并
+
+#### Scenario: 已有等价的 workflow-gates requirement
+- **WHEN** 项目规格里已有以「Apply 后自动精简」开头的 requirement，并引用 `.rulemason/rules/workflow-gates.md`
+- **THEN** init 不修改该文件，也不提示合并
+
+#### Scenario: 英文命令表表头
+- **WHEN** `AGENTS.md` 已有表头为 `| Name | Command |` 的命令表
+- **THEN** init 不再插入自动识别的命令表
+
+### Requirement: init 先列计划，一次确认
+
+`init` SHALL 在写入前列出将新增、修改与删除的文件及不会触碰的未提交改动数量，用户确认一次后再写；`--yes` 时跳过确认。写入后 SHALL 运行一次 `check` 并汇报结果，最后一行提示在 AI 工具中运行 `/rulemason` 补项目专属内容。`init` MUST NOT 提交、推送或修改计划以外的文件。
+
+#### Scenario: 用户拒绝计划
+- **WHEN** init 列出计划后用户回答否
+- **THEN** 不写任何文件，退出码为 0
+
+#### Scenario: 有未提交改动
+- **WHEN** 项目有 5 个与 rulemason 无关的未提交改动
+- **THEN** 计划写明「其余 5 个未提交改动不变」，执行后这 5 个文件逐字不变
+
+### Requirement: init 可重复运行，冲突只报告
+
+对已接入且未改动的项目重复运行 `init` SHALL 不产生任何文件改动。遇到无法安全写入的情况（ruff 配置仍写 `select`、无法识别的 ESLint 配置格式、标记块不成对），`init` MUST 跳过该文件并在汇报中说明，不强行改写。
+
+#### Scenario: 第二次运行
+- **WHEN** init 成功后立即再次运行 `rulemason init --yes`
+- **THEN** 汇报「没有需要改动的文件」，工作区无变化
+
+#### Scenario: ruff 配置写了 select
+- **WHEN** 项目 `pyproject.toml` 的 `[tool.ruff.lint]` 写了 `select`
+- **THEN** init 不改该文件，汇报写明 `select` 会覆盖基础规则，由用户处理
+
+### Requirement: update 刷新副本
+
+`rulemason update` SHALL 用当前安装的版本刷新 rulemason 自己管的文件（`.rulemason/` 副本、skill 副本、已有的标记块与 `.rulemason.yaml`），MUST NOT 提问选工具。缺的配置（ruff / ESLint 继承、基础 rules、workflow-gates 规格、缺的标记块）SHALL 按 `init` 的规则补齐：先列计划，交互确认或带 `--yes` 才写；非交互且没有 `--yes` 时 MUST NOT 修改，只列为「待补齐」。`update` SHALL 删除清单记录过、不再生成且未改的旧副本，改过的只报告；被手改的副本与块 SHALL 列出。`update` MUST NOT 修改标记块以外的命令表、红线或判断层文件。项目仍是 rulekit 0.5 格式时 MUST NOT 迁移，SHALL 提示先运行 `rulemason init` 并以非 0 退出。
+
+#### Scenario: 升级共享规则
+- **WHEN** 用户升级到 rulemason 新版本后在项目运行 `rulemason update`
+- **THEN** `.rulemason/rules/` 与 skill 副本变为新版本内容，`.rulemason.yaml` 记录新版本，`AGENTS.md` 标记块以外的内容不变
+
+#### Scenario: 副本被手改
+- **WHEN** 有人手改了 `.rulemason/rules/code-style.md` 后运行 update
+- **THEN** 该文件恢复为共享版本，汇报列出它被覆盖
+
+#### Scenario: 旧格式项目运行 update
+- **WHEN** 在只有 `.rulekit.yaml` 的项目运行 `rulemason update`
+- **THEN** 不写任何文件，提示先运行 `rulemason init` 迁移，退出码非 0
+
+#### Scenario: 补齐缺的 ruff 继承
+- **WHEN** 已接入项目新加了 Python 代码、还没有 ruff 配置，运行 `rulemason update --yes`
+- **THEN** 新建继承 `.rulemason/lint/ruff-base.toml` 的 ruff 配置，汇报列出该文件
+
+#### Scenario: 非交互且没有 --yes
+- **WHEN** 同样的项目在非交互环境运行 `rulemason update`
+- **THEN** 副本照常刷新，ruff 配置不写，汇报列出「待补齐」及运行 `rulemason update --yes`
+
+#### Scenario: 清理旧模板副本
+- **WHEN** 从 0.6.x 升级的项目有 `.claude/skills/rulemason/templates/` 下未改动的 3 个模板副本，运行 `rulemason update`
+- **THEN** 这 3 个文件与空目录被删除，`.rulemason.yaml` 不再记录它们
+
+### Requirement: check 只读检查并以退出码报告
+
+`rulemason check` SHALL 只读，不要求 git，输出识别表、各层状态、巡检结果与下一步。以下任一情况 MUST 以非 0 退出：已选工具入口缺失、生成副本与 `.rulemason.yaml` 记录的校验值不符、标记块与当前模板不一致、项目在 git 仓库里而生成副本被 `.gitignore` 忽略、ruff 或 ESLint 未继承 `.rulemason/lint/`、项目使用旧接入方式、项目仍是 rulekit 0.5 格式、存在旧名残留。`.rulemason.yaml` 记录的版本低于当前安装版本时 SHALL 报告落后，但不单独导致非 0 退出。判断层未启用 MUST NOT 被报告为缺，SHALL 显示「可选，未启用」与启用条件。
+
+#### Scenario: CI 中运行
+- **WHEN** 项目 CI 安装 rulemason 后运行 `rulemason check`，有人手改了 `.rulemason/` 中的副本
+- **THEN** 输出被改的文件，退出码非 0
+
+#### Scenario: 一切一致
+- **WHEN** 在刚完成 init 的项目运行 `rulemason check`
+- **THEN** 各项写「一致」，退出码为 0
+
+#### Scenario: rulekit 仓库自身
+- **WHEN** 在 rulemason 仓库根目录运行 `rulemason check`
+- **THEN** 按直接引用 `rules/` 的方式检查，不报告「判断引擎副本」或「缺少 `.rulemason/`」
+
+#### Scenario: 副本被 .gitignore 忽略
+- **WHEN** 项目的 `.gitignore` 整体忽略 `.claude/`，已选 Claude Code
+- **THEN** `rulemason check` 列出被忽略的 skill 副本，退出码非 0
+
+#### Scenario: 尚未迁移的 rulekit 项目
+- **WHEN** 在只有 `.rulekit.yaml` 的项目运行 `rulemason check`
+- **THEN** 第一行提示「接入：运行 rulemason init 迁移格式」，退出码非 0，不写任何文件
+
+#### Scenario: 判断层未启用
+- **WHEN** 已接入且补完项目信息的项目没有 `openspec/judgments.yaml`，已归档 2 个 change
+- **THEN** 判断显示「可选，未启用（需要 git 与至少 3 个已归档 change；还差 1 个）」，不列入缺失，下一步为「日常巡检」，退出码为 0
+
+### Requirement: init 从 rulekit 格式迁移
+
+项目有 `.rulekit.yaml` 而没有 `.rulemason.yaml` 时，`rulemason init` SHALL 把迁移纳入同一份文件计划：沿用旧清单的工具选择与用户自加的键写入 `.rulemason.yaml`，删除 `.rulekit.yaml`、`.rulekit/` 与各工具 `skills/rulekit/` 旧副本并生成新副本，把 `<!-- rulekit:NAME -->` 标记改为 `<!-- rulemason:NAME -->` 并刷新块内内容。在 `opencode.json(c)`、ruff 配置（`ruff.toml` 或含 `[tool.ruff` 的 `pyproject.toml`）、ESLint 配置、项目 `openspec/specs/workflow-gates/spec.md` 这些文件中，SHALL 只把路径前缀 `.rulekit/` 换成 `.rulemason/`（这些文件里的 `.rulekit/` 迁移后都是失效路径），其余内容 MUST 逐字不变。
+
+#### Scenario: 未改动的 rulekit 0.5 项目
+- **WHEN** 在副本与记录一致的 rulekit 0.5.2 项目运行 `rulemason init --yes`
+- **THEN** 项目里不再有 `.rulekit/`、`.rulekit.yaml` 与 `skills/rulekit/`，生成了 `.rulemason/`、`.rulemason.yaml` 与 `skills/rulemason/`，工具选择不变，ruff 继承指向 `.rulemason/lint/ruff-base.toml`
+
+#### Scenario: 迁移与直接接入结果一致
+- **WHEN** 同一项目分别从 rulekit 0.5 格式迁移、和删去旧格式后直接 `rulemason init`
+- **THEN** 两者生成的 `.rulemason/`、skill 副本、标记块与 `.rulemason.yaml` 的 `files` 相同
+
+### Requirement: 迁移前核对旧副本，标记块外只报告
+
+删除旧副本前，迁移 SHALL 按旧清单的校验值核对每个旧副本；任一旧副本与记录不符时 MUST 停止迁移、列出这些文件，不写任何文件。标记块以外的旧名（如命令表里的 `jev-judge`、`.gitignore` 的放行规则）MUST NOT 被迁移修改，SHALL 列入汇报。
+
+#### Scenario: 旧副本被手改
+- **WHEN** 项目的 `.rulekit/rules/code-style.md` 与旧清单记录不符
+- **THEN** 迁移停止，列出该文件，项目中没有任何文件被修改
+
+#### Scenario: 命令表仍写 jev-judge
+- **WHEN** 迁移的项目 `AGENTS.md` 命令表（标记块外）写着 `jev-judge --change <name>`
+- **THEN** 命令表不变，汇报列出该处旧名，提示运行 `/rulemason` 处理
+
+### Requirement: check 报告旧名残留
+
+`rulemason check` SHALL 在 `AGENTS.md`、`CLAUDE.md`、已选工具的配置、ruff 与 ESLint 配置、项目 `openspec/specs/workflow-gates/spec.md`、`.gitignore` 中查找 `.rulekit/`、`jev-judge`、`skills/rulekit`，列出所在文件与旧名，并以非 0 退出。归档的 change、规格历史与其他文件 MUST NOT 被检查。
+
+#### Scenario: 命令表残留
+- **WHEN** 已迁移项目的 `AGENTS.md` 命令表仍写 `jev-judge --change <name>`
+- **THEN** check 列出 `AGENTS.md` 与 `jev-judge`，下一阶段提示运行 `/rulemason` 处理旧名残留，退出码非 0
+
+#### Scenario: 历史记录里的旧名
+- **WHEN** 项目 `openspec/changes/archive/` 下的文件写着 `jev-judge`
+- **THEN** check 不报告这些文件
+
+### Requirement: 项目根按最近的 .rulemason.yaml 确定
+
+`rulemason init`、`update`、`check` SHALL 从当前目录往上找最近的 `.rulemason.yaml`（迁移前的项目找 `.rulekit.yaml`），以它所在目录为项目根；向上查找 MUST NOT 越过当前目录所在 git 仓库的根目录。找不到时，`init` SHALL 以所在 git 仓库的根为项目根，不在 git 里则以当前目录为项目根；`check` 与 `update` SHALL 报告「先运行 rulemason init」并写明判断出的项目根。`rulemason init <path>` 显式给出路径时 SHALL 以该路径为项目根，不再向上查找。
+
+#### Scenario: 在已接入项目的子目录运行
+- **WHEN** 在已接入项目的 `app/` 子目录运行 `rulemason check`
+- **THEN** 以项目根目录检查，结果与在项目根运行相同，不提示「先运行 rulemason init」
+
+#### Scenario: 在子目录运行 init
+- **WHEN** 在一个尚未接入的 git 仓库的 `web/src/` 目录运行 `rulemason init --tools claude --yes`
+- **THEN** 在仓库根目录接入，`web/src/` 下不出现 `.rulemason.yaml` 或 `.rulemason/`
+
+#### Scenario: 工作区里的独立仓库
+- **WHEN** 工作区根目录已接入（有 `.rulemason.yaml`），在其中一个独立 git 仓库 `app-a/` 里运行 `rulemason check`
+- **THEN** 不向上找到工作区的 `.rulemason.yaml`，报告 `app-a/` 尚未接入，提示「先运行 rulemason init」
+
+#### Scenario: 显式给出路径
+- **WHEN** 运行 `rulemason init packages/web --tools claude --yes`
+- **THEN** 以 `packages/web/` 为项目根接入，不向上查找
+
+### Requirement: 子仓库、子项目与第三方目录不属于本项目
+
+列项目文件时，以下子目录 SHALL 视为不属于本项目、整个跳过：含 `.git` 的子目录（另一个 git 仓库，含子模块）、含 `.rulemason.yaml` 或 `.rulekit.yaml` 的子目录（另一个 rulemason 项目）、名为 `bower_components`、`uni_modules`、`third_party`、`jspm_packages`、`Pods` 的目录，以及含 Composer 的 `autoload.php` 或 Go 的 `modules.txt` 的 `vendor` 目录（第三方代码；没有这些标记的 `vendor` 属于项目自己）。项目在 git 仓库里与不在 git 仓库里时，跳过的结果 MUST 相同。被跳过的目录 MUST NOT 参与语言与包管理识别、lint 继承、旧名残留与判断引擎副本的检查，也 MUST NOT 被 `init` 或 `update` 写入。
+
+#### Scenario: 多仓库工作区
+- **WHEN** 工作区根目录没有 git、已接入，下面有 3 个独立 git 仓库，各自有 ruff 或 ESLint 配置
+- **THEN** check 不要求这 3 个仓库的配置继承基础规则，识别表「跳过」一行列出它们为「另一个仓库」，lint 继承不因它们报缺
+
+#### Scenario: 第三方目录里的 lint 配置
+- **WHEN** 项目里有 `static/bower_components/jquery/src/.eslintrc.json`
+- **THEN** check 不报它没有引入基础规则，识别表列出 `static/bower_components` 为「第三方目录」，前端目录里也不出现它
+
+#### Scenario: 项目自己的 vendor 目录
+- **WHEN** 项目的 `frontend/vendor/` 里只有自己的图片与脚本，没有 `autoload.php` 或 `modules.txt`
+- **THEN** 它照常属于本项目，不出现在「跳过」里
+
+#### Scenario: 仓库里的子项目
+- **WHEN** 已接入仓库的 `packages/web/` 自己有 `.rulemason.yaml`
+- **THEN** 在仓库根运行 check 时不检查 `packages/web/` 下的文件，识别表列出它为「另一个 rulemason 项目」
+
+#### Scenario: 有没有 git 结果一致
+- **WHEN** 同一个目录结构（没有被 `.gitignore` 忽略的文件）分别在 git 仓库里与不在 git 仓库里运行 check
+- **THEN** 两次的「跳过」一行相同
+
+### Requirement: 识别表列出被跳过的目录
+
+`check` 的识别表 SHALL 用「项目根」一行写明判断出的项目根，用「跳过」一行列出被跳过的目录与原因（另一个仓库、另一个 rulemason 项目、第三方目录）；多于 10 个时 SHALL 只列前 10 个并写明总数，没有时写「—」。被跳过的目录 MUST NOT 被报告为「缺」。
+
+#### Scenario: 跳过的目录很多
+- **WHEN** 工作区下有 12 个独立仓库
+- **THEN** 「跳过」一行列出前 10 个，并写「等共 12 个」
+
+#### Scenario: 没有跳过的目录
+- **WHEN** 一个仓库一个项目、没有子仓库与第三方目录
+- **THEN** 「跳过」一行写「—」
+
+### Requirement: check 第一行给结论与下一步
+
+`rulemason check` 输出的第一行 SHALL 是结论与下一步要做的事，下一步 SHALL 按原因给出具体命令或动作，同时有多个原因时按以下顺序取第一个：0.4 旧接入方式 → 先按文档迁移；清单无效 → 先修正清单；未迁移或尚未接入 → `rulemason init`；生成副本被 `.gitignore` 忽略 → 修改 `.gitignore` 放行 `skills/rulemason/`；存在旧名残留 → 在 AI 工具中运行 `/rulemason`；副本或标记块与模板不一致、入口缺失、配置待补齐 → `rulemason update`；项目信息待补 → `/rulemason`；版本落后 → `rulemason update`。阶段名 SHALL 使用：接入、补项目信息、日常巡检；判断相关为可选的「整理判断规则」「启用判断」。
+
+#### Scenario: 刚接入的项目
+- **WHEN** 刚运行完 `rulemason init`，项目简介与红线待补
+- **THEN** 第一行写「补项目信息：在 AI 工具中运行 /rulemason」
+
+#### Scenario: 副本被忽略
+- **WHEN** skill 副本被 `.gitignore` 忽略
+- **THEN** 第一行的下一步是修改 `.gitignore` 放行 `skills/rulemason/`，而不是 `rulemason update`
+
+#### Scenario: 一切就绪
+- **WHEN** 项目接入完整、项目信息已补、没有任何偏离
+- **THEN** 第一行写「日常巡检：一切一致」，退出码为 0
+
+### Requirement: check 校验标记块内容
+
+`.rulemason.yaml` 记录的版本与本机安装版本相同时，`rulemason check` SHALL 把 `AGENTS.md`、`CLAUDE.md` 中各 rulemason 标记块的内容与当前模板生成的内容比较；不同即报告「与当前模板不一致」（被手改，或项目新增了语言），SHALL 列出文件与块名并以非 0 退出。版本不同时 MUST NOT 报告为手改，由「版本落后」说明。`rulemason update` 恢复被手改的块时 SHALL 在汇报中列出。
+
+#### Scenario: 手改了 code-style 块
+- **WHEN** 版本一致的项目里，有人改了 `AGENTS.md` 中 `rulemason:code-style` 块的一行
+- **THEN** check 报告 `AGENTS.md` 的 `code-style` 块与当前模板不一致，退出码非 0；运行 `rulemason update` 后该块恢复，汇报列出它被覆盖
+
+#### Scenario: 升级后块内容变化
+- **WHEN** 项目记录 0.6.1、本机是更新的版本，块内容与新模板不同
+- **THEN** check 只报告版本落后，不报告块被手改
+
+### Requirement: rulemason key 配置 Jev 的 key
+
+`rulemason key` SHALL 交互提示输入 key，输入不回显；写入 `~/.config/rulemason/env` 的 `TYPESAFE_API_KEY` 一行，保留文件里的其他设置；目录权限 SHALL 为 700、文件为 600。命令 MUST NOT 接受从命令行参数或标准输入管道传入 key；非交互环境 SHALL 报错退出并说明需在终端里运行。写入后 SHALL 写明文件位置，MUST NOT 打印 key。
+
+#### Scenario: 第一次配置
+- **WHEN** 本机没有 `~/.config/rulemason/env`，在终端运行 `rulemason key` 并输入 key
+- **THEN** 生成该文件（权限 600，目录 700），内容含 `TYPESAFE_API_KEY=<输入的值>`，屏幕上不出现 key
+
+#### Scenario: 更新已有的 key
+- **WHEN** 文件里已有 `TYPESAFE_API_KEY=旧值` 与 `JUDGE_PROVIDER=jev`
+- **THEN** 只替换 `TYPESAFE_API_KEY` 一行，`JUDGE_PROVIDER=jev` 保留
+
+#### Scenario: 非交互运行
+- **WHEN** 在没有终端的环境（如 AI 工具或 CI）运行 `rulemason key`
+- **THEN** 不写任何文件，提示在终端里运行，退出码非 0
+
+### Requirement: check --json 输出结构化结果
+
+`rulemason check --json` SHALL 向标准输出写一个 JSON 对象，不输出其他文字，退出码与文字版相同。对象 SHALL 含：`schema`（格式版本，当前为 1）、`root`（项目根）、`next`（`stage` 阶段名、`action` 下一步文字、`code` 稳定的动作代码）、`facts`（识别表，名称到值）、`layers`（各层名称到缺失项列表）、`findings`（巡检名称到偏离列表）、`exit_code`、`text`（与文字版完全相同的报告全文）。`code` SHALL 取以下之一：`legacy`、`fix_manifest`、`migrate`、`init`、`fix_gitignore`、`fix_residue`、`update`、`fill_project_info`、`upgrade_machine`、`upgrade_copies`、`none`。键名 MUST 为英文；值沿用文字版的中文。
+
+#### Scenario: 刚接入的项目
+- **WHEN** 在刚完成 `rulemason init` 的项目运行 `rulemason check --json`
+- **THEN** 输出可被 JSON 解析，`next` 为 `{"stage": "补项目信息", "action": "在 AI 工具中运行 /rulemason", "code": "fill_project_info"}`，`exit_code` 为 0，`text` 与 `rulemason check` 的输出相同
+
+#### Scenario: 副本被忽略
+- **WHEN** skill 副本被 `.gitignore` 忽略，运行 `rulemason check --json`
+- **THEN** `next.code` 为 `fix_gitignore`，退出码与 `exit_code` 都非 0
+
+### Requirement: init --plan 只列计划不写入
+
+`rulemason init --plan` SHALL 按 `init` 的同一套规则算出文件计划（含迁移、取消工具的删除、补齐配置），打印后以 0 退出；MUST NOT 写入或删除任何文件、MUST NOT 提问、MUST NOT 运行 `openspec init`，在非交互环境也可运行。没带 `--tools` 时 SHALL 用清单记录的工具，没有清单则按项目已有的工具目录推断。项目没有 `openspec/` 时，计划 SHALL 写明「将先运行 openspec init」。预检不通过（旧接入方式、旧副本被手改等）时 SHALL 照常报告并以对应的非 0 退出码退出。
+
+#### Scenario: AI 会话里先看计划
+- **WHEN** 在非交互环境、尚未接入的项目运行 `rulemason init --plan`
+- **THEN** 打印将新增的文件清单，退出码为 0，项目中没有任何文件变化
+
+#### Scenario: 迁移计划的 JSON
+- **WHEN** 在 rulekit 0.5 格式的项目运行 `rulemason init --plan --json`
+- **THEN** `deletes` 含 `.rulekit.yaml` 与旧副本，`writes` 含 `.rulemason.yaml`，项目中没有任何文件变化
+
+#### Scenario: 没有 openspec
+- **WHEN** 在没有 `openspec/` 的目录运行 `rulemason init --plan --json`
+- **THEN** `openspec_init` 为 true，不运行 openspec，不创建 `openspec/`
+
+### Requirement: init --plan --json 的字段
+
+`rulemason init --plan --json` SHALL 只输出一个 JSON 对象，含 `root`、`tools`、`writes`（每项 `path` 与 `action`：`add` 或 `modify`）、`deletes`、`overwritten`、`notes`、`untouched_dirty`（不会碰的未提交改动数，没有 git 时为 null）、`openspec_init`（是否需要先运行 openspec init）。`init` 带 `--json` 而不带 `--plan` 时 SHALL 报错退出，MUST NOT 写入任何文件。
+
+#### Scenario: --json 不配 --plan
+- **WHEN** 运行 `rulemason init --json` 或 `rulemason update --json`
+- **THEN** 报错提示应配合 `--plan` / `--dry-run`，以非 0 退出，项目中没有任何文件变化
+
+#### Scenario: 新增与修改区分
+- **WHEN** 项目已有 `AGENTS.md`、还没有 `.rulemason/`，运行 `rulemason init --plan --json`
+- **THEN** `AGENTS.md` 的 `action` 为 `modify`，`.rulemason/rules/code-style.md` 的 `action` 为 `add`
+
+### Requirement: update --dry-run 只列计划不写入
+
+`rulemason update --dry-run` SHALL 算出管理计划与补齐计划并打印，以 0 退出，MUST NOT 写入或删除任何文件、MUST NOT 提问。加 `--json` 时 SHALL 输出 JSON 对象，含 `root`、`managed`（`writes`、`deletes`、`overwritten`）、`fill`（补齐计划要写的文件）、`notes`。预检不通过（没有清单、仍是 rulekit 0.5 格式等）时 SHALL 照常报告并以非 0 退出。`update` 带 `--json` 而不带 `--dry-run` 时 SHALL 报错退出，MUST NOT 写入任何文件。
+
+#### Scenario: 升级前先看
+- **WHEN** 清单版本落后、缺 ruff 配置的项目运行 `rulemason update --dry-run --json`
+- **THEN** `managed.writes` 含要刷新的副本与清单，`fill` 含 ruff 配置，项目中没有任何文件变化
+
+### Requirement: 补齐 OpenSpec operations 提示
+
+`init` 与 `update` 的补齐计划 SHALL 在项目 `openspec/config.yaml` 没有 `operations` 段时，把 `operations` 基础版追加到文末，其余内容逐字保留；已有 `operations` 段时 MUST NOT 修改它。`rulemason check` SHALL 在巡检「检查点提示与基础版的差异」中列出缺少的段或基础条目，MUST NOT 因此以非 0 退出。rulemason 源码仓库中条目引用 `rules/workflow-gates.md`，其他项目引用 `.rulemason/rules/workflow-gates.md`。
+
+#### Scenario: 新接入
+- **WHEN** 在 `openspec/config.yaml` 没有 `operations` 的项目运行 `rulemason init --tools claude --yes`
+- **THEN** config.yaml 文末多出 `operations.apply.guidance` 与 `operations.archive.guidance`，`context` 与 `rules` 不变，`openspec instructions apply` 的 `operationGuidance` 含这些条目
+
+#### Scenario: 已有 operations
+- **WHEN** 项目 config.yaml 已有自己写的 `operations.apply.guidance`，缺少基础条目
+- **THEN** `init` 与 `update` 不修改该段；`rulemason check` 在「检查点提示与基础版的差异」列出缺少的条目，退出码不受影响
+
+#### Scenario: 已接入项目升级
+- **WHEN** 0.7.1 接入的项目升级后运行 `rulemason update`
+- **THEN** 补齐计划列出 `openspec/config.yaml`，确认或 `--yes` 后写入；未写入时 `rulemason check` 报告差异，退出码为 0
+
+### Requirement: 项目配置写错时给可读提示
+
+`rulemason check` 读取 `openspec/config.yaml`、`openspec/judgments.yaml` 或 `openspec/copy-lexicon.yaml` 时，文件不是合法 YAML、顶层类型不对，或 `judgments.yaml` 有一条不是带 `id` 的映射，SHALL 输出「rulemason check 失败：」加文件路径与原因（解析失败时含行号），以非 0 退出，MUST NOT 打印 Python traceback。`rulemason init` 写入完成后汇报用的 check 因此失败时，SHALL 照常列出本次改动的文件与下一步，并说明 check 未完成的原因，以 0 退出。
+
+#### Scenario: config.yaml 语法错误
+- **WHEN** 已接入项目的 `openspec/config.yaml` 第 2 行写成 `context: a: b`，运行 `rulemason check`
+- **THEN** 输出「rulemason check 失败：openspec/config.yaml 不是合法的 YAML（第 2 行：…）」，退出码非 0，没有 traceback
+
+#### Scenario: 顶层类型不对
+- **WHEN** `openspec/config.yaml` 的内容是一个列表，运行 `rulemason check --json`
+- **THEN** 输出说明该文件顶层应是映射，退出码非 0，没有 traceback
+
+#### Scenario: init 写完后汇报失败
+- **WHEN** 项目 `openspec/judgments.yaml` 不合法，运行 `rulemason init --tools claude --yes`
+- **THEN** 文件照计划写入，输出列出本次改动的文件、「check 未完成」及原因与下一步，退出码为 0
+
+#### Scenario: 判断规则缺 id
+- **WHEN** `openspec/judgments.yaml` 第 2 条没有 `id`，运行 `rulemason check`
+- **THEN** 输出「rulemason check 失败：openspec/judgments.yaml 第 2 条不是带 id 的映射」，退出码非 0，没有 traceback
+
+### Requirement: 按项目语言引用 React 落法
+
+某个 `package.json` 的 `dependencies`、`devDependencies` 或 `peerDependencies` 含 `react` 时，所在目录 SHALL 视为 React 目录。项目有 React 目录时，`init` 与 `update` 写的标记块和工具入口 SHALL 引用 `.rulemason/rules/react.md`，没有时 MUST NOT 引用；已有 OpenCode 配置缺少应引用的落法时，补齐计划 SHALL 追加到其唯一的 instructions 数组末尾，无法安全追加时只提示；识别表的前端目录 SHALL 标出 React。`rulemason check` SHALL 在巡检「React 目录缺少 ESLint」中列出本身及上级目录都没有 ESLint 配置的 React 目录，MUST NOT 因此以非 0 退出。
+
+#### Scenario: React 项目
+- **WHEN** `web/package.json` 依赖 `react`，运行 `rulemason init --tools claude,opencode --yes`
+- **THEN** `AGENTS.md` 的 Code style 块、`CLAUDE.md` 的 rulemason 块与 `opencode.jsonc` 的 instructions 都含 `.rulemason/rules/react.md`
+
+#### Scenario: 已有 OpenCode 配置
+- **WHEN** 项目 `.opencode/opencode.jsonc` 的 instructions 没有 `react.md`，升级后运行 `rulemason update --yes`
+- **THEN** `react.md` 追加在数组末尾，其余内容不变，check 的工具入口一层齐全
+
+#### Scenario: 没有 React
+- **WHEN** 项目只有 Python 与不依赖 react 的 `package.json`
+- **THEN** 标记块与入口都不出现 `react.md`
+
+#### Scenario: React 目录没有 ESLint
+- **WHEN** 项目乙的 `studio/package.json` 依赖 react，`studio/` 与项目根都没有 ESLint 配置
+- **THEN** `rulemason check` 在「React 目录缺少 ESLint」列出 `studio`，退出码不因此改变
+
+### Requirement: remove 卸载 rulemason
+
+`rulemason remove` SHALL 先列计划，确认或 `--yes` 后才写，`--plan` 只列计划。计划 SHALL 删除清单记录且未被手改的副本与 skill、`.rulemason.yaml`、AGENTS.md 与 CLAUDE.md 的 rulemason 标记块、与模板相同的 OpenCode 配置或其中指向 `.rulemason/` 的条目、与追加时相同的 `operations` 段。手改过或无法安全修改的项 MUST 保留并列出；已成为项目内容的部分 MUST NOT 删除，只列在汇报里。源码仓库、rulekit 0.5 项目或没有清单时 SHALL 停下，不写任何文件。
+
+#### Scenario: 卸载刚接入的项目
+- **WHEN** 在刚运行 `rulemason init --tools claude,opencode --yes` 的项目运行 `rulemason remove --yes`
+- **THEN** `.rulemason/`、skill 副本、`.rulemason.yaml` 与生成的 `opencode.jsonc` 都被删除，`CLAUDE.md` 只剩 `@AGENTS.md` 一行，AGENTS.md 没有 rulemason 标记块，`openspec/config.yaml` 没有 `operations`，项目的其他文件不变
+
+#### Scenario: 只看计划
+- **WHEN** 在非交互环境运行 `rulemason remove --plan`
+- **THEN** 打印删除、修改与保留清单，退出码为 0，项目中没有任何文件变化
+
+#### Scenario: 副本被手改
+- **WHEN** `.rulemason/rules/code-style.md` 被手改后运行 `rulemason remove --yes`
+- **THEN** 该文件保留，汇报中列出，其余照常删除
+
+### Requirement: remove 保持 lint 可用
+
+ruff 或 ESLint 配置仍引用 `.rulemason/lint/` 下的副本时，`rulemason remove` SHALL 把被引用的副本移到项目根的 `lint/` 目录，并把各配置中的引用改为指向新位置的相对路径，使 lint 结果不变。`lint/` 中已有同名而内容不同的文件时 SHALL 停下，不写任何文件。
+
+#### Scenario: Python 项目卸载后 ruff 照常
+- **WHEN** 项目 `ruff.toml` 写着 `extend = ".rulemason/lint/ruff-base.toml"`，运行 `rulemason remove --yes`
+- **THEN** `lint/ruff-base.toml` 内容与原副本相同，`ruff.toml` 改为 `extend = "lint/ruff-base.toml"`，`.rulemason/` 不再存在
+
+#### Scenario: 子目录里的 ESLint 配置
+- **WHEN** `web/eslint.config.mjs` 写着 `import rulemasonBase from "../.rulemason/lint/eslint-base.mjs"`
+- **THEN** 卸载后改为 `"../lint/eslint-base.mjs"`，`lint/eslint-base.mjs` 与原副本相同
+
+#### Scenario: 目标已被占用
+- **WHEN** 项目已有内容不同的 `lint/ruff-base.toml`
+- **THEN** `rulemason remove` 说明冲突并以非 0 退出，项目中没有任何文件变化
+
+### Requirement: 交互运行时显示启动画面
+
+标准输入与标准输出都是终端时，`rulemason init`（未带 `--plan`、`--json`、`--yes`）SHALL 在预检之前显示启动画面：半格块字标 RULEMASON 与版本号、口号「AI 写代码，也讲章法」、「只管三件事：」及读 / 守 / 查三行，末尾说明本次会做什么、先列计划确认后才写入。启动画面 MUST NOT 等待输入、MUST NOT 播放动画；其余子命令与非交互运行 MUST NOT 显示。
+
+#### Scenario: 交互运行 init
+- **WHEN** 用户在终端运行 `rulemason init`
+- **THEN** 先显示启动画面与本次说明，再进入预检与工具选择
+
+#### Scenario: 带参数或非交互
+- **WHEN** 运行 `rulemason init --plan`、`rulemason init --tools claude --yes`，或输出被重定向
+- **THEN** 不显示启动画面，输出与改动前相同
+
+### Requirement: 不带参数运行显示常用命令
+
+在交互终端不带任何参数运行 `rulemason` SHALL 显示启动画面与常用命令（`init`、`check`、`update`、`--help`），以 0 退出。非交互环境不带参数运行 MUST 保持原有的用法报错与退出码 2。
+
+#### Scenario: 终端里只敲 rulemason
+- **WHEN** 用户在终端运行 `rulemason`
+- **THEN** 显示启动画面与常用命令，退出码 0
+
+#### Scenario: 脚本里不带参数
+- **WHEN** 脚本以非交互方式运行 `rulemason`
+- **THEN** 打印用法报错，退出码 2
+
+### Requirement: 启动画面按终端能力降级
+
+设置了 `NO_COLOR` 时启动画面 MUST NOT 输出颜色转义。终端宽度小于 60 列，或标准输出的编码无法写出块字符时，MUST 不画字标，改为一行「rulemason 版本号」，其余文字照常显示。
+
+#### Scenario: NO_COLOR
+- **WHEN** 设置 `NO_COLOR=1` 后在终端运行 `rulemason init`
+- **THEN** 启动画面不含 ANSI 颜色转义
+
+#### Scenario: 终端太窄
+- **WHEN** 终端宽度为 50 列
+- **THEN** 不显示字标，只显示「rulemason 版本号」与口号、三行说明
+
+### Requirement: 推送 tag 发布到 PyPI
+
+公开仓库推送 `v<版本>` tag 时，CI SHALL 依次运行 ruff 与测试、核对 tag 与包版本一致、构建并经 Trusted Publishing 发布到 PyPI；任一步失败 MUST 不发布。发布流程 MUST NOT 使用存放在仓库或 CI 密钥里的 PyPI token。
+
+#### Scenario: 正常发布
+- **WHEN** 包版本为 0.8.0，推送 tag `v0.8.0`
+- **THEN** 测试通过后 PyPI 出现 `rulemason 0.8.0`，`uv tool install rulemason==0.8.0` 可安装
+
+#### Scenario: 版本对不上
+- **WHEN** 包版本仍为 0.7.8，推送 tag `v0.8.0`
+- **THEN** 工作流在发布前失败，PyPI 不出现新版本
+
+### Requirement: check 识别 CI 中钉的版本
+
+`rulemason check` 的识别表 SHALL 列出 CI 工作流里安装或检出 rulemason 时钉的版本，识别 `rulemason==<版本>`、`git+https://github.com/rulemason/rulemason@<ref>` 与 `repository: rulemason/rulemason` 加 `ref:` 三种写法。CI 引用了其他来源或没有钉版本时 SHALL 显示「有，未引用 rulemason」。
+
+#### Scenario: PyPI 钉版本
+- **WHEN** 项目 CI 写着 `uv tool install rulemason==0.8.0`
+- **THEN** 识别表的 CI 一行显示该工作流文件钉 `0.8.0`
+
+#### Scenario: 其他来源
+- **WHEN** 项目 CI 从公开仓库以外的 git 地址安装，如 `uv tool install git+https://github.com/<其他账号>/rulekit@v0.7.8`
+- **THEN** CI 一行显示「有，未引用 rulemason」

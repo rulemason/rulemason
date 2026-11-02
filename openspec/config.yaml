@@ -1,0 +1,39 @@
+schema: spec-driven
+
+# L1：产物写法。rules 沿用最早接入项目的 openspec/config.yaml；本仓库是这些规矩的共享源头。
+context: |
+  项目：rulemason，给 AI 编码工具的共享规则与检查点。放代码规矩（九条与各语言落法）、
+  ruff / ESLint 基础配置、Jev 判断引擎（rulemason judge）与搭建巡检 skill（/rulemason）。
+  共享内容只在 rulemason 编辑；项目内是 rulemason init / update 生成的只读副本（.rulemason/ 与 skill 副本），
+  手改由 rulemason check 发现。
+  所有产物用中文写；OpenSpec 结构标题与 SHALL / MUST 保留英文。
+  不可违反的约定：
+  - 每条规矩只住一处：共享的只放本仓库；项目专属的（红线、context、项目判断规则、回归用例）只放项目。
+  - 判断层只检查「有没有违反已定规矩」，不判断「方案好不好」；能用正则判死的写成 lint，不交给 Jev。
+  - JEV_MODEL 固定版本，不用 jev-latest。
+  - 不为当前没有调用方的项目加参数、配置项或扩展点。
+
+rules:
+  proposal:
+    - 必须说明本次明确不做的事：Non-goals 小节，或 What Changes 中以「不做」开头的条目，二者取一即可
+    - 控制在 60 行以内，只写为什么和改什么，不写怎么实现
+  design:
+    - Decisions 每条决策写明至少一个被否决的备选方案及否决理由
+    - Risks 每条用「[风险] → 对策」格式，一行一条
+    - Migration Plan 写明上线顺序与回滚方式
+    - 列出新增与修改的文件及每个文件的估计行数，apply 后对照；超出一倍要说明原因
+  specs:
+    - 每个 Requirement 至少一个 Scenario，用 WHEN / THEN
+    - 用 SHALL / MUST 表达约束，不用 should / may
+    - 每条 Requirement 正文不超过 500 个字符（openspec validate --strict 的上限）
+  tasks:
+    - 每条任务两小时内可完成，并写明怎么验证它完成了
+
+# rulemason：apply / archive 时交给 AI 的检查点提示，只指路，正文在检查点文件
+operations:
+  apply:
+    guidance:
+    - 写代码前与写完代码后，按 rules/workflow-gates.md 的检查点执行；本项目命令表与红线在 AGENTS.md；本提示只是指路，与 AGENTS.md 引入的规则不一致时以规则文件为准
+  archive:
+    guidance:
+    - 归档前确认已按 rules/workflow-gates.md「apply 最后一个任务做完」各步执行，并把结果写进完成汇报

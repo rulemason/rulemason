@@ -1,0 +1,6 @@
+version: 1
+tools:
+- opencode
+- claude
+- cursor
+- codex

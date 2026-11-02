@@ -1,0 +1,61 @@
+# rulemason 发行包：一条 uv tool install 装好 rulemason（接入、升级、巡检，以及 judge 判断引擎）
+[project]
+name = "rulemason"
+dynamic = ["version"]
+description = "给 AI 编码工具的共享规则与检查点：一处维护规则，项目内生成只读副本，方案与代码前后自动判断与审查"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.11"
+dependencies = [
+    "typesafe-sdk>=0.7.5",
+    "pyyaml>=6.0.3",
+    "pydantic>=2.12",
+    "json5>=0.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/rulemason/rulemason"
+
+[project.scripts]
+rulemason = "rulemason.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/rulemason/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rulemason"]
+
+# 共享数据随包发布；可编辑安装不含这一段，代码改从源码仓库根读取（shared.shared_root）
+[tool.hatch.build.targets.wheel.force-include]
+"rules" = "rulemason/_shared/rules"
+"lint" = "rulemason/_shared/lint"
+"skills/rulemason" = "rulemason/_shared/skills/rulemason"
+"openspec-base" = "rulemason/_shared/openspec-base"
+
+# sdist 只收发布需要的内容：仓库里的工具入口是指向 skills/ 的符号链接，按目录收会把正文收成链接路径、漏掉 skills/rulemason
+[tool.hatch.build.targets.sdist]
+only-include = ["src", "rules", "lint", "skills", "openspec-base", "tests", "README.md", "LICENSE", "NOTICE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+extend = "lint/ruff-base.toml"   # 选用规则与复杂度来自本仓库基础配置，这里只写豁免
+src = ["src"]                    # 源码根，import 排序据此认出第一方包
+
+[tool.ruff.lint.per-file-ignores]
+"src/rulemason/judge/judge.py" = ["T201"]   # 命令行入口，结果打印给人看
+"src/rulemason/cli.py" = ["T201"]           # 命令行入口，报告打印给人看
+"src/rulemason/init.py" = ["T201"]          # 交互式命令：计划、提问与汇报都打印给人看
+"src/rulemason/update.py" = ["T201"]        # 命令行汇报打印给人看
+"src/rulemason/remove.py" = ["T201"]        # 命令行计划、确认与汇报打印给人看
+"src/rulemason/key.py" = ["T201"]           # 交互命令：提示与结果打印给人看
+"src/rulemason/banner.py" = ["T201"]        # 启动画面打印给人看

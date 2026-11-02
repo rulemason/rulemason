@@ -1,0 +1,22 @@
+# 通用判断规则：所有接入项目自动启用。项目 openspec/judgments.yaml 写同 id 的规则即以项目为准。
+# 取自最早两个接入项目的 judgments.yaml（2026-10-29 两边逐字相同）。「决策附备选」是格式检查，已改由 lint/design 判定，不再送模型；
+# enforces 按各项目自己的 CLAUDE.md 与 openspec/config.yaml 检查。
+
+- id: proposal-states-non-goals
+  target: proposal
+  enforces: L1/proposal
+  type: noul
+  question: 文档明确写明了本次哪些事情不做（Non-Goals），无论写成独立小节还是列在变更清单里
+  expect: true
+  thresholds: { pass: 0.7, block: 0.3 }
+
+- id: design-no-speculative-extension
+  target: design
+  enforces: L0/Code style
+  type: noul
+  # 措辞经 2026-10-24 七份 design 对比选定：合成插件架构样本 p 0.08，五份正常 design 0.75–0.93；旧措辞把三份正常 design 压到 0.27–0.39。
+  question: 该设计在本次实现中额外构建了只为将来可能的需求服务、本次功能并不使用的抽象层、插件机制或配置项
+  expect: false
+  # block 0.3：介于坏样本（0.08）与正常 design 的下限之间；2026-11-02 回放 rulemason 仓库 19 个归档 change，18 份 design 的 p 为 0.65–0.93，无一低于 0.3（另一份决策缺否决理由，被 lint/design 拦下，未送模型）。
+  thresholds: { pass: 0.7, block: 0.3 }
+

@@ -1,0 +1,8 @@
+# OpenSpec apply / archive 时交给 AI 的提示基础版：只指向检查点文件，不复制正文。$gates 由 rulemason 代入（接入项目为 .rulemason/rules/workflow-gates.md）
+operations:
+  apply:
+    guidance:
+      - 写代码前与写完代码后，按 $gates 的检查点执行；本项目命令表与红线在 AGENTS.md；本提示只是指路，与 AGENTS.md 引入的规则不一致时以规则文件为准
+  archive:
+    guidance:
+      - 归档前确认已按 $gates「apply 最后一个任务做完」各步执行，并把结果写进完成汇报

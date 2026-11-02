@@ -1,0 +1,19 @@
+# workflow-gates Specification
+
+## Purpose
+
+本规格记录本项目如何遵守 rulemason 的共享工作流检查点；检查点的完整步骤只维护在共享源中，项目仅保留适用于自身的约束与引用。
+
+## Requirements
+
+### Requirement: Apply 后自动精简并审查
+
+本项目每次 apply 完成前 SHALL 按 rulemason 的共享工作流执行行为保持的自动精简与独立只读代码审查。共享流程以 `.rulemason/rules/workflow-gates.md`（rulemason 生成的只读副本）为准；本规格 MUST NOT 复制共享检查点正文，项目 MUST NOT 手改该副本。精简 MUST 保持本项目已确认的需求、外部行为与 API 不变；审查发现的范围内可修问题 SHALL 由 AI 自动修复并重新审查，不等待用户逐条审核。
+
+#### Scenario: 变更可安全精简
+- **WHEN** 本次 diff 中存在可安全合并的重复逻辑或死代码
+- **THEN** AI 自动精简本次改动，保持行为不变，再执行独立代码审查并运行项目测试
+
+#### Scenario: 自动精简可能改变项目行为
+- **WHEN** 精简会改变已确认的需求、外部行为、API 或超出本次变更范围
+- **THEN** AI 不自动实施该精简，并按共享 workflow-gates 处理相应发现
