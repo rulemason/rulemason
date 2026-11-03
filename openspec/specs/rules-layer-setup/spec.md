@@ -19,7 +19,7 @@ skill 的说明与模板 SHALL 只在本仓库 `skills/rulemason/` 编辑，skil
 
 ### Requirement: 先识别项目再做事
 
-每次运行 SHALL 先运行 `rulemason check --json`，按 `next.code` 决定这次做什么，并把其中的 `text`（报告全文）原样放进汇报。项目没有 `.rulemason.yaml`、仍是 rulekit 0.5 格式、或 `check` 报告使用旧接入方式时，skill MUST 停下，分别提示先运行 `rulemason init`、先运行 `rulemason init` 迁移格式、或先迁移，不写任何文件。需要替用户运行 `rulemason init` 时，SHALL 先运行 `rulemason init --plan` 把计划给用户看，用户同意后再运行。本机没有 `rulemason` 命令时 MUST 给出安装命令并停下。
+每次运行 SHALL 先运行 `rulemason check --json`，按 `next.code` 决定这次做什么，并把其中的 `text`（报告全文）原样放进汇报。项目没有 `.rulemason.yaml` 时，skill MUST 停下，提示先运行 `rulemason init`，不写任何文件；`.rulekit.yaml` 不再被识别，有它的项目同样按没有清单处理。需要替用户运行 `rulemason init` 时，SHALL 先运行 `rulemason init --plan` 把计划给用户看，用户同意后再运行。本机没有 `rulemason` 命令时 MUST 给出安装命令并停下。
 
 #### Scenario: 纯 Python 项目
 - **WHEN** 在已运行过 `rulemason init` 的项目丙根目录运行 `/rulemason`
@@ -30,12 +30,12 @@ skill 的说明与模板 SHALL 只在本仓库 `skills/rulemason/` 编辑，skil
 - **THEN** 提示先运行 `rulemason init`（它会询问是否代为运行 `openspec init`），skill 不写任何文件
 
 #### Scenario: 尚未 init 的项目
-- **WHEN** 在有 `openspec/` 但没有 `.rulemason.yaml` 与 `.rulekit.yaml` 的项目运行 `/rulemason`
+- **WHEN** 在有 `openspec/` 但没有 `.rulemason.yaml` 的项目运行 `/rulemason`
 - **THEN** 只输出识别结果与「先运行 rulemason init」，不写任何文件
 
 #### Scenario: 尚未迁移的 rulekit 项目
 - **WHEN** 在只有 `.rulekit.yaml` 的项目运行 `/rulemason`
-- **THEN** 只输出识别结果与「运行 rulemason init 迁移格式」，不写任何文件
+- **THEN** 与尚未 init 的项目相同：只输出识别结果与「先运行 rulemason init」，不提迁移，不写任何文件
 
 #### Scenario: 本机没装 rulekit
 - **WHEN** 在已接入项目运行 `/rulemason`，但 `rulemason` 命令不存在
@@ -47,7 +47,7 @@ skill 的说明与模板 SHALL 只在本仓库 `skills/rulemason/` 编辑，skil
 
 ### Requirement: 按安装状态而非归档数决定下一步
 
-skill SHALL 按「补项目信息 → 日常巡检」的顺序找出第一个未完成的阶段，每次运行只做这一个阶段；接入共享规则由 `rulemason init` 完成，不由 skill 写入。存在旧名残留时，处理旧名残留属于「补项目信息」。「整理判断规则」与「启用判断」是可选功能：用户提出要启用判断时才做，归档数只决定能否启用。做之前 MUST 列出将新增与修改的文件，等用户确认后才写。
+skill SHALL 按「补项目信息 → 日常巡检」的顺序找出第一个未完成的阶段，每次运行只做这一个阶段；接入共享规则由 `rulemason init` 完成，不由 skill 写入。「整理判断规则」与「启用判断」是可选功能：用户提出要启用判断时才做，归档数只决定能否启用。做之前 MUST 列出将新增与修改的文件，等用户确认后才写。
 
 #### Scenario: 历史多但未接入
 - **WHEN** 项目已归档 5 个 change，但没有 `.rulemason.yaml`
@@ -67,7 +67,7 @@ skill SHALL 按「补项目信息 → 日常巡检」的顺序找出第一个未
 
 ### Requirement: 阶段一接入代码规矩与 gates
 
-阶段一的文件写入 SHALL 由 `rulemason init` 完成（见 `rulekit-cli` 规格）。skill 在 init 之后 SHALL 补项目专属内容：`AGENTS.md` 中的项目简介、经用户确认的红线、对自动识别命令表的确认或修正；`rulemason init` 报告无法安全合并的 `openspec/specs/workflow-gates/spec.md` 也由 skill 合并；`rulemason check` 报告的旧名残留由 skill 逐处列出替换内容（`jev-judge` → `rulemason judge`、`.rulekit/` → `.rulemason/`、`skills/rulekit` → `skills/rulemason`），用户确认后修改。skill MUST NOT 修改 rulemason 标记块内的内容。此时判断层未装，命令表中判断与文案检查写明「判断层未装」。
+阶段一的文件写入 SHALL 由 `rulemason init` 完成（见 `rulekit-cli` 规格）。skill 在 init 之后 SHALL 补项目专属内容：`AGENTS.md` 中的项目简介、经用户确认的红线、对自动识别命令表的确认或修正；`rulemason init` 报告无法安全合并的 `openspec/specs/workflow-gates/spec.md` 也由 skill 合并。skill MUST NOT 修改 rulemason 标记块内的内容，也 MUST NOT 有专门处理旧名的步骤。此时判断层未装，命令表中判断与文案检查写明「判断层未装」。
 
 #### Scenario: Python 项目没有 ruff 配置
 - **WHEN** 项目有 Python 代码但没有任何 ruff 配置
@@ -82,8 +82,8 @@ skill SHALL 按「补项目信息 → 日常巡检」的顺序找出第一个未
 - **THEN** skill 从中提红线候选，不改动 `context` 本身
 
 #### Scenario: 迁移后处理旧名残留
-- **WHEN** 已迁移项目的命令表写着 `jev-judge --change <name>`，`.gitignore` 放行 `!.claude/skills/rulekit/`
-- **THEN** skill 列出两处的替换内容，用户确认后改为 `rulemason judge --change <name>` 与 `!.claude/skills/rulemason/`，再运行 `rulemason check` 确认旧名残留为空
+- **WHEN** 项目的命令表仍写着 `jev-judge --change <name>`，`.gitignore` 放行 `!.claude/skills/rulekit/`
+- **THEN** `rulemason check` 不报告这两处，skill 不主动修改；用户要求时按普通的项目文件改动处理
 
 ### Requirement: 阶段一同步项目工作流规格
 
