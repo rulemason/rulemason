@@ -1,5 +1,7 @@
 # rulemason
 
+中文 · [English](https://github.com/rulemason/rulemason/blob/main/README.en.md)
+
 给 AI 编码工具（Claude Code、OpenCode、Cursor、Codex）的共享规则与检查点。它只管三件事：
 
 - **规则**：AI 写方案和代码时要守的写法规矩（九条、各语言落法（Python、React）、界面文案三档、方案写法）。规则只在本仓库维护，每个项目里是一份随项目提交的只读副本，克隆项目的人、云端 agent 与 CI 不装 rulemason 也能读到。
@@ -74,7 +76,7 @@ rulemason check     # 只读，在项目任意子目录运行都可以
 
 ```yaml
 - uses: astral-sh/setup-uv@v6
-- run: uv tool install rulemason==0.8.7
+- run: uv tool install rulemason==0.8.8
 - run: rulemason check
 ```
 

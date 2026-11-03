@@ -1,0 +1,42 @@
+# rulemason
+
+[中文](https://github.com/rulemason/rulemason/blob/main/README.md) · English
+
+Shared rules and checkpoints for AI coding tools (Claude Code, OpenCode, Cursor, Codex).
+
+> **Language note:** the command-line output, the generated rules, and the AI skill are written in Chinese. This page is a short English overview; the [Chinese README](https://github.com/rulemason/rulemason/blob/main/README.md) is the full documentation. rulemason works best for teams who read Chinese, or who are happy to read the rules through a translator.
+
+## What it does
+
+- **Rules**: the conventions an AI must follow when it writes plans and code — nine general principles, per-language guides (Python, React), a copy-voice guide for UI text, and plan-writing rules. They are maintained once in this repository, and each project gets a read-only copy that is committed with the project, so teammates, cloud agents and CI can read them without installing rulemason.
+- **Checkpoints**: after a plan is written, before code is written, and after code is written, the AI checks its own work automatically — judging the plan, simplifying the code, running an independent review, lint and tests. Small changes made without OpenSpec are checked against the project's main specs first: only a change to a behavior the specs already promise starts a minimal OpenSpec change and asks you once; everything else is edited directly and then linted and tested. Archiving merges spec changes without asking.
+- **Judgment** (optional): the Jev model from TypeSafe judges whether a plan breaks a written rule and returns pass / review / block. Without a key, the rules are checked by hand.
+
+Checkpoints that involve plans and specs need [OpenSpec](https://github.com/Fission-AI/OpenSpec); without it, rulemason installs the rules and lint configuration only.
+
+## Install
+
+Requires [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv tool install rulemason
+rulemason --version
+```
+
+## Common commands
+
+| When | Command |
+|---|---|
+| First time in a project, or to add or remove AI tools | `rulemason init` |
+| Any time later: upgrade, fill in missing configuration, restore edited copies | `rulemason update` |
+| See the current state and the next step (also for CI) | `rulemason check` |
+| Configure the Jev key once per machine (only for judgment) | `rulemason key` |
+| Stop using rulemason in a project | `rulemason remove` |
+| Judge one plan by hand | `rulemason judge --change <change-name>` |
+| Inside your AI tool: fill in the project summary, red lines and command table, or enable judgment | `/rulemason` |
+
+`rulemason check` exits non-zero when the setup is incomplete, so it can run in CI as is.
+
+## License
+
+Apache-2.0

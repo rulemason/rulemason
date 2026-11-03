@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import re
 from pathlib import Path
 
 import yaml
@@ -318,3 +319,33 @@ def test_entry_blocks_say_read_before_direct_edits():
     no_openspec = (TEMPLATES / "workflow-gates-no-openspec.block.md").read_text(encoding="utf-8")
     assert "不走 OpenSpec 改代码之前" in gates and "归档" in gates
     assert "ruff 与测试" in no_openspec and "改代码前读取该文件" in no_openspec
+
+
+# ---------- 英文简版 README（docs-en） ----------
+
+README_EN_URL = "https://github.com/rulemason/rulemason/blob/main/README.en.md"
+
+
+def readme_commands(text: str, heading: str) -> list[str]:
+    """README 命令表（heading 到下一个二级标题之间）里反引号中的命令；占位参数（「功能名」「<change-name>」）去掉，只留前面的部分。"""
+    table = text[text.index(f"## {heading}\n"):]
+    table = table[:table.index("\n## ", 1)]
+    commands = re.findall(r"`([^`]+)`", table)
+    return [re.split(r"\s+(?:[一-鿿]|<)", cmd)[0] for cmd in commands]
+
+
+def test_english_readme_lists_every_common_command():
+    zh = readme_commands((ROOT / "README.md").read_text(encoding="utf-8"), "常用命令")
+    en = readme_commands((ROOT / "README.en.md").read_text(encoding="utf-8"), "Common commands")
+    assert "rulemason init" in zh and "/rulemason" in zh and "rulemason judge --change" in zh
+    missing = [cmd for cmd in zh if cmd not in en]                    # 比的是两张命令表，正文和网址里出现过不算
+    extra = [cmd for cmd in en if cmd not in zh]                      # 中文删了命令、英文忘了删
+    assert missing == [] and extra == [], f"README.en.md 的命令表缺少：{missing}，多出：{extra}"
+
+
+def test_readme_links_use_full_urls_and_english_says_ui_is_chinese():
+    zh = (ROOT / "README.md").read_text(encoding="utf-8")
+    en = (ROOT / "README.en.md").read_text(encoding="utf-8")
+    assert f"[English]({README_EN_URL})" in zh.split("\n## ", 1)[0]
+    head = en.split("\n## ", 1)[0]
+    assert "written in Chinese" in head and "(https://github.com/rulemason/rulemason/blob/main/README.md)" in head

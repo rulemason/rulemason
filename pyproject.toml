@@ -2,7 +2,7 @@
 [project]
 name = "rulemason"
 dynamic = ["version"]
-description = "给 AI 编码工具的共享规则与检查点：一处维护规则，项目内生成只读副本，方案与代码前后自动判断与审查"
+description = "Shared rules and checkpoints for AI coding tools（给 AI 编码工具的共享规则与检查点）：一处维护规则，项目内生成只读副本，方案与代码前后自动判断与审查"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
