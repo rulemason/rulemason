@@ -3,7 +3,7 @@
 给 AI 编码工具（Claude Code、OpenCode、Cursor、Codex）的共享规则与检查点。它只管三件事：
 
 - **规则**：AI 写方案和代码时要守的写法规矩（九条、各语言落法（Python、React）、界面文案三档、方案写法）。规则只在本仓库维护，每个项目里是一份随项目提交的只读副本，克隆项目的人、云端 agent 与 CI 不装 rulemason 也能读到。
-- **检查点**：方案写完、写代码前、写完代码后，AI 按规矩自动检查——判断方案、精简代码、独立审查、lint 与测试。
+- **检查点**：方案写完、写代码前、写完代码后，AI 按规矩自动检查——判断方案、精简代码、独立审查、lint 与测试。不走 OpenSpec 的小改动也先读主规格：动到已写的承诺才代起 change 并问你一次，其余直接改、改完跑 lint 与测试；归档时自动并入主规格，不再问。
 - **判断**（可选）：用 TypeSafe 的 Jev 模型判断方案是否违反已写下的规矩，输出 pass / review / block；没有 key 时人工逐条判断。
 
 ## 安装（每台机器一次）
@@ -74,7 +74,7 @@ rulemason check     # 只读，在项目任意子目录运行都可以
 
 ```yaml
 - uses: astral-sh/setup-uv@v6
-- run: uv tool install rulemason==0.8.5
+- run: uv tool install rulemason==0.8.6
 - run: rulemason check
 ```
 

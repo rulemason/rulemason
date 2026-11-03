@@ -1,1 +1,1 @@
-检查点正文在 `.rulemason/rules/workflow-gates.md`（rulemason 生成的只读副本），但本项目还没有接 OpenSpec，方案检查点未启用；安装 OpenSpec（`npm install -g @fission-ai/openspec@latest`，在项目根运行 `openspec init`）后运行 `rulemason update` 补齐。本项目的命令表、红线规则与额外步骤写在本块之后。
+检查点正文在 `.rulemason/rules/workflow-gates.md`（rulemason 生成的只读副本），但本项目还没有接 OpenSpec，方案检查点未启用；安装 OpenSpec（`npm install -g @fission-ai/openspec@latest`，在项目根运行 `openspec init`）后运行 `rulemason update` 补齐。在此之前，改代码前读取该文件，改完按其中「不走 OpenSpec 改代码时」第 4 步跑 ruff 与测试。本项目的命令表、红线规则与额外步骤写在本块之后。

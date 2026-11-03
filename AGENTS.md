@@ -35,7 +35,7 @@
 
 ## Workflow gates
 
-检查点正文只住在 `rules/workflow-gates.md`。每个 change 的方案、实现前与实现后都读取并遵守该文件。
+检查点正文只住在 `rules/workflow-gates.md`。每个 change 的方案、实现前与实现后、归档，以及不走 OpenSpec 改代码之前，都读取并遵守该文件。
 
 本仓库命令表（在仓库根目录执行）：
 

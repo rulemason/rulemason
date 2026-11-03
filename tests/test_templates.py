@@ -284,3 +284,37 @@ def test_artifact_base_limits():
     base = yaml.safe_load((ROOT / "openspec-base/artifact-rules.yaml").read_text(encoding="utf-8"))["rules"]
     assert any("60 行以内" in item for item in base["proposal"])
     assert any("500 个字符" in item for item in base["specs"])
+
+
+# ---------- 不走 OpenSpec 的改动与归档（spec-guard） ----------
+
+def _section(text: str, heading: str) -> str:
+    start = text.index(f"## {heading}\n")
+    end = text.find("\n## ", start + 1)
+    return text[start:end if end != -1 else len(text)]
+
+
+def test_gates_cover_direct_edits_with_four_paths():
+    text = (ROOT / "rules/workflow-gates.md").read_text(encoding="utf-8")
+    assert "包住每一次改代码" in text
+    direct = _section(text, "不走 OpenSpec 改代码时")
+    for path in ("**改契约**", "**冲突**", "**未覆盖**", "**不改行为**"):
+        assert path in direct, path
+    assert "停下等用户确认" in direct and "不写 design" in direct and "不补写规格" in direct
+    assert "用户要的就是改变主规格" in direct and "选改规格就按「改契约」走" in direct
+    assert "openspec list --specs" in direct and "--no-scenarios" in direct
+    assert "不跑自动精简与独立审查" in direct and "只做第 4 步" in direct
+
+
+def test_gates_archive_merges_without_asking_and_hints_key_once():
+    archive = _section((ROOT / "rules/workflow-gates.md").read_text(encoding="utf-8"), "归档")
+    assert "`openspec archive <change 名> --yes`" in archive and "`openspec validate --specs --strict`" in archive
+    assert "不就「是否同步主规格」询问用户" in archive and "verification.md" in archive
+    assert "正好是 3" in archive and "rulemason key" in archive and "不代用户配置 key" in archive
+
+
+def test_entry_blocks_say_read_before_direct_edits():
+    gates = (TEMPLATES / "workflow-gates.block.md").read_text(encoding="utf-8")
+    no_openspec = (TEMPLATES / "workflow-gates-no-openspec.block.md").read_text(encoding="utf-8")
+    assert "不走 OpenSpec 改代码之前" in gates and "归档" in gates
+    assert "ruff 与测试" in no_openspec and "改代码前读取该文件" in no_openspec

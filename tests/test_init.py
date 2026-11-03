@@ -874,7 +874,7 @@ def test_update_completes_gates_once_openspec_appears(tmp_path, fake_openspec, c
     write(root, "openspec/config.yaml", "schema: spec-driven\n")
     assert update.run(root, yes=True) == 0
     agents = (root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "还没有接 OpenSpec" not in agents and "开始或完成 OpenSpec 方案与实现阶段时" in agents
+    assert "还没有接 OpenSpec" not in agents and "不走 OpenSpec 改代码之前" in agents
     assert (root / "openspec/specs/workflow-gates/spec.md").is_file()
     assert "rules:" in (root / "openspec/config.yaml").read_text(encoding="utf-8")
 
