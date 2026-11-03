@@ -1,4 +1,4 @@
-"""启动画面：交互运行 init 或不带参数运行 rulemason 时，显示字标、版本、口号与三件事。"""
+"""启动画面：交互运行 init 或不带参数运行 rulemason 时，显示像素图标、字标、版本、口号与三件事。"""
 from __future__ import annotations
 
 import os
@@ -7,10 +7,11 @@ import sys
 
 from rulemason import __version__
 
-MIN_WIDTH = 60      # 窄于这个宽度不画字标，避免折行
+MIN_WIDTH = 60      # 窄于这个宽度不画图标与字标，避免折行
 # 配色仿 openspec：一个强调色（天空蓝）点字标、标签、命令与最后的提示；正文与命令说明默认白，版本号与 init 说明用暗色
-SKY = "38;5;117"    # 256 色的天空蓝（SkyBlue1）
-SKY_BOLD = "1;38;5;117"
+SKY_NUM = "117"     # 256 色的天空蓝（SkyBlue1），字标与图标里的马身共用
+SKY = f"38;5;{SKY_NUM}"
+SKY_BOLD = f"1;38;5;{SKY_NUM}"
 DIM = "2"
 BOLD = "1"
 
@@ -26,6 +27,34 @@ GLYPHS = {
     "O": ["█▀▀█", "█  █", "▀▀▀▀"],
     "N": ["█▀▀▄", "█  █", "▀  ▀"],
 }
+# 像素图标：一匹向右奔跑的马，背上骑着一只兔，26 列 × 22 行像素，每两行像素合成一行字符
+# t 马身、b 鬃尾、d 蹄与眼、w 兔、g 兔的阴影、h 眼睛镂空、. 空
+ICON = (
+    ".............ww...........",
+    "........ww..wgw...........",
+    ".......wwww.wgw...........",
+    "........wwwwwgw...........",
+    "........wwwwww.....t.t....",
+    ".......wwwwwwww....tbt....",
+    ".......whwwwhww.b.btttt...",
+    ".......wwwgwwww.bbbttdtttt",
+    "........wwwwww.bbbtttttttt",
+    "........wwwwww.bbbtttttttt",
+    "b...bbbwwwwwwww.bbtttt....",
+    "bb.bbbbwwwwwwwwbbbttt.....",
+    ".bbbbb.bggttggttttttt.....",
+    "..bbb...ttttttttttttt.....",
+    "........ttttttttttttt.....",
+    "........tttttttttttttd....",
+    "........tttttttttttttdd...",
+    ".........tt.ttttttttt..d..",
+    "........ttt........tt..d..",
+    "........t.d..........t.d..",
+    "........tt.d.........t....",
+    "..........t........tt.....",
+)
+# 像素字母到 256 色号：马身与字标同色，鬃尾深一档，蹄与眼暗灰，兔的阴影浅灰；兔身（w）空串表示终端默认前景色，浅色背景也看得见；不在表里的字母不画
+ICON_COLORS = {"t": SKY_NUM, "b": "74", "d": "245", "g": "250", "w": ""}
 SLOGAN = "AI 写代码，也讲章法"
 THREE_THINGS = (
     ("读", "写之前，先读项目的规则"),
@@ -60,11 +89,46 @@ def _word(word: str, row: int) -> str:
     return " ".join(GLYPHS[c][row] for c in word)
 
 
+def _sgr(fg: str | None, bg: str | None = None) -> str | None:
+    """前景与背景的转义码；空串（默认前景色）不设前景，两者都没有时返回 None。"""
+    parts = []
+    if fg:
+        parts.append(f"38;5;{fg}")
+    if bg:
+        parts.append(f"48;5;{bg}")
+    return ";".join(parts) or None
+
+
+def _cell(top: str | None, bottom: str | None, color: bool) -> str:
+    """上下两个像素合成一个字符：上有下无 ▀、上无下有 ▄、都有 █；两种颜色时一半做前景、一半做背景。"""
+    if top is None and bottom is None:
+        return " "
+    if bottom is None:
+        return _paint("▀", _sgr(top), color)
+    if top is None:
+        return _paint("▄", _sgr(bottom), color)
+    if top == bottom or not color:
+        return _paint("█", _sgr(top), color)
+    # 走到这里说明上下是两种颜色且要上色：上像素做前景、下像素做背景；下像素是默认前景色时反过来，用 ▄ 画它
+    if bottom == "":
+        return _paint("▄", _sgr(None, top), color)
+    return _paint("▀", _sgr(top, bottom), color)
+
+
+def _icon_lines(color: bool) -> list[str]:
+    """把 22 行像素合成 11 行字符，去掉行尾空格。"""
+    return [
+        "".join(_cell(ICON_COLORS.get(t), ICON_COLORS.get(b), color) for t, b in zip(top, bottom, strict=True)).rstrip()
+        for top, bottom in zip(ICON[::2], ICON[1::2], strict=True)
+    ]
+
+
 def render(version: str, footer: tuple, width: int, color: bool, unicode_ok: bool) -> str:
-    """拼出整屏文字；width 不够或写不出块字符时，字标换成一行「rulemason 版本」。"""
-    # 1. 字标与版本号，口号紧贴其下
+    """拼出整屏文字；width 不够或写不出块字符时，图标与字标换成一行「rulemason 版本」。"""
+    # 1. 图标、空一行、字标与版本号，口号紧贴其下
     if width >= MIN_WIDTH and unicode_ok:
-        lines = [_paint(_word("RULEMASON", i), SKY, color) for i in range(3)]
+        lines = [*_icon_lines(color), ""]
+        lines += [_paint(_word("RULEMASON", i), SKY, color) for i in range(3)]
         lines[-1] += "  " + _paint(version, DIM, color)
     else:
         lines = [_paint("rulemason", SKY_BOLD, color) + " " + _paint(version, DIM, color)]

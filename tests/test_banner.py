@@ -10,6 +10,8 @@ from conftest import run_cli
 from rulemason import banner, init
 
 LOGO_CHARS = set("█▀▄")
+ICON_ROWS = 11                       # 22 行像素合成 11 行字符
+WORDMARK_LINE = ICON_ROWS + 1        # 图标下空一行，再是字标
 
 
 def _render(width: int = 80, color: bool = True, unicode_ok: bool = True) -> str:
@@ -23,14 +25,54 @@ def _visible(line: str) -> str:
 
 # ---------- 1. 渲染与降级 ----------
 
-def test_full_banner_has_sky_blue_logo_and_three_things():
+def test_full_banner_has_icon_sky_blue_logo_and_three_things():
     text = _render()
     lines = text.splitlines()
-    assert lines[0].startswith(f"\033[{banner.SKY}m█▀▀█") and "█▀▄▀█" in lines[0]
-    assert _visible(lines[2]).endswith("▀  ▀  9.9.9")
-    assert max(len(_visible(s)) for s in lines[:3]) <= banner.MIN_WIDTH
+    assert lines[:ICON_ROWS] == banner._icon_lines(True) and lines[ICON_ROWS] == ""
+    wordmark = lines[WORDMARK_LINE]
+    assert wordmark.startswith(f"\033[{banner.SKY}m█▀▀█") and "█▀▄▀█" in wordmark
+    assert _visible(lines[WORDMARK_LINE + 2]).endswith("▀  ▀  9.9.9")
+    assert max(len(_visible(s)) for s in lines[:WORDMARK_LINE + 3]) <= banner.MIN_WIDTH
     for word in (banner.SLOGAN, "只管三件事：", "写之前，先读项目的规则", "先列计划，你确认后才写入。"):
         assert word in text
+
+
+def test_icon_is_eleven_rows_within_26_cols():
+    assert len(banner.ICON) == 22 and {len(row) for row in banner.ICON} == {26}
+    icon = banner._icon_lines(False)
+    assert len(icon) == ICON_ROWS and max(len(s) for s in icon) <= 26
+    assert not set("".join(icon)) - (LOGO_CHARS | {" "})
+
+
+def _plain_glyph(top: str, bottom: str) -> str:
+    """只看兔身与空白的格子该画什么字形；含其他颜色的格子返回空串。"""
+    if {top, bottom} - {"w", ".", "h"}:
+        return ""
+    return {(True, True): "█", (True, False): "▀", (False, True): "▄", (False, False): " "}[(top == "w", bottom == "w")]
+
+
+def test_icon_colors_horse_and_leaves_rabbit_in_default_foreground():
+    lines = _render().splitlines()[:ICON_ROWS]
+    icon = "\n".join(lines)
+    assert f"\033[{banner.SKY}m█" in icon                                   # 马身与字标同色
+    assert f"48;5;{banner.SKY_NUM}" in icon                                 # 兔的阴影压在马身上：马做背景
+    for line, top_row, bottom_row in zip(lines, banner.ICON[::2], banner.ICON[1::2], strict=True):
+        unpainted = re.sub(r"\033\[[\d;]+m.\033\[0m", "", line)            # 去掉带转义的格子，剩下的只能是兔身与空白
+        expected = "".join(_plain_glyph(t, b) for t, b in zip(top_row, bottom_row, strict=True))
+        assert unpainted.rstrip() == expected.rstrip()
+
+
+@pytest.mark.parametrize(("top", "bottom", "color", "expected"), [
+    (None, None, True, " "),
+    ("117", None, True, "\033[38;5;117m▀\033[0m"),
+    (None, "", True, "▄"),                                                 # 兔身用默认前景色，不带转义
+    ("", "117", True, "\033[48;5;117m▀\033[0m"),                           # 兔上马下：兔画字形，马做背景
+    ("117", "", True, "\033[48;5;117m▄\033[0m"),                           # 马上兔下
+    ("74", "117", True, "\033[38;5;74;48;5;117m▀\033[0m"),
+    ("74", "117", False, "█"),                                             # 无颜色时两种颜色也不丢像素
+])
+def test_cell_merges_two_pixels(top, bottom, color, expected):
+    assert banner._cell(top, bottom, color) == expected
 
 
 def test_accent_color_marks_labels_commands_and_prompt():
@@ -46,7 +88,9 @@ def test_accent_color_marks_labels_commands_and_prompt():
 def test_no_color_has_no_escape():
     text = _render(color=False)
     assert "\033" not in text
-    assert text.splitlines()[0].startswith("█▀▀█ █  █ █    █▀▀▀ █▀▄▀█")
+    lines = text.splitlines()
+    assert lines[:ICON_ROWS] == banner._icon_lines(False)                  # 单色下图标仍在
+    assert lines[WORDMARK_LINE].startswith("█▀▀█ █  █ █    █▀▀▀ █▀▄▀█")
 
 
 @pytest.mark.parametrize(("width", "unicode_ok"), [(59, True), (80, False)])
@@ -98,7 +142,7 @@ def test_show_draws_logo_in_wide_utf8_terminal(monkeypatch):
     monkeypatch.delenv("NO_COLOR", raising=False)
     monkeypatch.setenv("COLUMNS", "120")
     banner.show(banner.INIT_FOOTER)
-    assert out.getvalue().startswith(f"\n\033[{banner.SKY}m█▀▀█")     # 字标上方留一行空行
+    assert out.getvalue().startswith("\n" + banner._icon_lines(True)[0])     # 图标上方留一行空行
 
 
 # ---------- 3. init 与不带参数 ----------
