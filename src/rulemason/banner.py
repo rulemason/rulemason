@@ -53,8 +53,8 @@ ICON = (
     "........tt.d.........t....",
     "..........t........tt.....",
 )
-# 像素字母到 256 色号：马身与字标同色，鬃尾深一档，蹄与眼暗灰，兔的阴影浅灰；兔身（w）空串表示终端默认前景色，浅色背景也看得见；不在表里的字母不画
-ICON_COLORS = {"t": SKY_NUM, "b": "74", "d": "245", "g": "250", "w": ""}
+# 像素字母到 256 色号：马身与字标同色，鬃尾深一档，蹄与眼暗灰，兔身白，兔的阴影浅灰；不在表里的字母不画
+ICON_COLORS = {"t": SKY_NUM, "b": "74", "d": "245", "w": "231", "g": "250"}
 SLOGAN = "AI 写代码，也讲章法"
 THREE_THINGS = (
     ("读", "写之前，先读项目的规则"),
@@ -89,30 +89,17 @@ def _word(word: str, row: int) -> str:
     return " ".join(GLYPHS[c][row] for c in word)
 
 
-def _sgr(fg: str | None, bg: str | None = None) -> str | None:
-    """前景与背景的转义码；空串（默认前景色）不设前景，两者都没有时返回 None。"""
-    parts = []
-    if fg:
-        parts.append(f"38;5;{fg}")
-    if bg:
-        parts.append(f"48;5;{bg}")
-    return ";".join(parts) or None
-
-
 def _cell(top: str | None, bottom: str | None, color: bool) -> str:
-    """上下两个像素合成一个字符：上有下无 ▀、上无下有 ▄、都有 █；两种颜色时一半做前景、一半做背景。"""
+    """上下两个像素合成一个字符：上有下无 ▀、上无下有 ▄、都有 █；两种颜色时上像素做前景、下像素做背景。"""
     if top is None and bottom is None:
         return " "
     if bottom is None:
-        return _paint("▀", _sgr(top), color)
+        return _paint("▀", f"38;5;{top}", color)
     if top is None:
-        return _paint("▄", _sgr(bottom), color)
+        return _paint("▄", f"38;5;{bottom}", color)
     if top == bottom or not color:
-        return _paint("█", _sgr(top), color)
-    # 走到这里说明上下是两种颜色且要上色：上像素做前景、下像素做背景；下像素是默认前景色时反过来，用 ▄ 画它
-    if bottom == "":
-        return _paint("▄", _sgr(None, top), color)
-    return _paint("▀", _sgr(top, bottom), color)
+        return _paint("█", f"38;5;{top}", color)
+    return _paint("▀", f"38;5;{top};48;5;{bottom}", color)
 
 
 def _icon_lines(color: bool) -> list[str]:

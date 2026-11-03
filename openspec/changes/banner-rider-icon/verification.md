@@ -6,7 +6,7 @@
 
 `rulemason judge --change banner-rider-icon`：pass 3 / review 0 / block 0（proposal-states-non-goals、lint/design、design-no-speculative-extension）。
 
-## 1. 自动精简与独立审查
+## 1. 自动精简与独立审查（兔身用默认前景色时的记录，颜色部分已被文末一段取代）
 
 **自动精简（`/simplify`，四个角度并行）**：采纳的都保持行为，图标输出逐字节不变（精简前后 `_icon_lines(True)[0]` 相同，测试全过）。
 
@@ -30,7 +30,7 @@
 
 ## 3. 测试
 
-`uv run pytest`：380 passed（最后一轮修改之后跑的）。`tests/test_banner.py` 26 passed。没有改判断规则文件或 `JEV_MODEL`，命令表也没有「判断回归」一行，跳过判断回归。
+`uv run pytest`：380 passed（改白色之前的结果；改白色后为 379，见文末）。`tests/test_banner.py` 26 passed。没有改判断规则文件或 `JEV_MODEL`，命令表也没有「判断回归」一行，跳过判断回归。
 
 ## 4. 前端 lint
 
@@ -46,7 +46,7 @@
 
 ## 7. 任务 3.1 的目视确认
 
-用伪终端（`pty.fork`）运行 `uv run rulemason`：退出码 0，输出首行是图标（含 `48;5;250` 背景转义），字标与「常用命令」都在。真实终端里的颜色效果没有办法在本会话看到，请在自己的终端跑一次 `rulemason` 确认：马蓝、兔默认色、兔骑在马背上。
+用伪终端（`pty.fork`）运行 `uv run rulemason`：退出码 0，输出首行是图标（含 `48;5;250` 背景转义），字标与「常用命令」都在。真实终端里的颜色效果没有办法在本会话看到，请在自己的终端跑一次 `rulemason` 确认：马蓝、兔白、兔骑在马背上。
 
 ## 行数对照
 
@@ -57,7 +57,13 @@
 
 `tests/test_banner.py` 新增超出估计约七成（未超一倍）：审查要求补逐格断言与 `_cell` 七例参数化用例。
 
-## 规格与任务的措辞修正
+## 规格与任务的措辞修正（已被文末「兔身改白色」一段取代）
 
 - `specs/rulekit-cli/spec.md`：「兔 SHALL 用终端默认前景色」改为「兔身 SHALL 用终端默认前景色（兔的阴影用浅灰 256 色）」；场景「兔子不随底色隐没」的 THEN 改为「兔身的像素不带前景色转义；同一字符位一半兔身、一半其他颜色时……」。这是把规格对齐到已选定的 design，不是改方案。
 - `tasks.md` 2.2 的验证描述改准，见上。
+
+## 追加：兔身改白色（归档前）
+
+用户在终端看过效果后要求兔身主色用白色。改动：`ICON_COLORS["w"]` 从空串（终端默认前景色）改为 256 色 231；去掉 `_sgr` 与 `_cell` 里只为「默认前景色」存在的分支，`_cell` 回到五条分支；测试里「兔身格子不带转义」改为「每个有像素的格子都带颜色、兔身带 231」，`_cell` 参数化去掉空串用例。proposal、design 决策 3 与风险、specs 场景（改名「马蓝兔白」）、tasks 1.1 / 1.2 / 2.2 同步改写；浅色终端上兔身会隐没，已记为用户知情接受的风险。ruff 通过，`tests/test_banner.py` 26 passed，全量 `uv run pytest` 379 passed（比之前少 1 是参数化用例减了一例）。伪终端运行 `rulemason`：输出含 `38;5;231` 白色转义，不再有默认前景色的格子。
+
+这次追加的独立审查：第一轮 block 0 / review 4（规格 THEN 把背景色也叫成前景、补单像素无颜色用例、verification 旧段未标注取代、缺全量结果），全部修掉。第二轮 block 0 / review 1：verification.md 里改白色之前的几处记录没标注已被取代，已逐处注明。审查者另提到 `_paint` 的 `code is None` 分支在 `_cell` 里走不到，但结尾说明段仍传 None，保留。

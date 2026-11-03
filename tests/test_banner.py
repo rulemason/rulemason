@@ -44,32 +44,24 @@ def test_icon_is_eleven_rows_within_26_cols():
     assert not set("".join(icon)) - (LOGO_CHARS | {" "})
 
 
-def _plain_glyph(top: str, bottom: str) -> str:
-    """只看兔身与空白的格子该画什么字形；含其他颜色的格子返回空串。"""
-    if {top, bottom} - {"w", ".", "h"}:
-        return ""
-    return {(True, True): "█", (True, False): "▀", (False, True): "▄", (False, False): " "}[(top == "w", bottom == "w")]
-
-
-def test_icon_colors_horse_and_leaves_rabbit_in_default_foreground():
+def test_icon_colors_horse_sky_and_rabbit_white():
     lines = _render().splitlines()[:ICON_ROWS]
     icon = "\n".join(lines)
     assert f"\033[{banner.SKY}m█" in icon                                   # 马身与字标同色
+    assert "\033[38;5;231m█" in icon                                       # 兔身白
     assert f"48;5;{banner.SKY_NUM}" in icon                                 # 兔的阴影压在马身上：马做背景
-    for line, top_row, bottom_row in zip(lines, banner.ICON[::2], banner.ICON[1::2], strict=True):
-        unpainted = re.sub(r"\033\[[\d;]+m.\033\[0m", "", line)            # 去掉带转义的格子，剩下的只能是兔身与空白
-        expected = "".join(_plain_glyph(t, b) for t, b in zip(top_row, bottom_row, strict=True))
-        assert unpainted.rstrip() == expected.rstrip()
+    for line in lines:
+        assert not set(re.sub(r"\033\[[\d;]+m.\033\[0m", "", line)) - {" "}     # 每个有像素的格子都带颜色
 
 
 @pytest.mark.parametrize(("top", "bottom", "color", "expected"), [
     (None, None, True, " "),
     ("117", None, True, "\033[38;5;117m▀\033[0m"),
-    (None, "", True, "▄"),                                                 # 兔身用默认前景色，不带转义
-    ("", "117", True, "\033[48;5;117m▀\033[0m"),                           # 兔上马下：兔画字形，马做背景
-    ("117", "", True, "\033[48;5;117m▄\033[0m"),                           # 马上兔下
-    ("74", "117", True, "\033[38;5;74;48;5;117m▀\033[0m"),
+    (None, "231", True, "\033[38;5;231m▄\033[0m"),
+    ("231", "231", True, "\033[38;5;231m█\033[0m"),
+    ("74", "117", True, "\033[38;5;74;48;5;117m▀\033[0m"),                 # 两种颜色：上做前景、下做背景
     ("74", "117", False, "█"),                                             # 无颜色时两种颜色也不丢像素
+    ("117", None, False, "▀"),
 ])
 def test_cell_merges_two_pixels(top, bottom, color, expected):
     assert banner._cell(top, bottom, color) == expected
