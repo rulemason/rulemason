@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from string import Template
@@ -14,9 +13,6 @@ from rulemason.shared import (
     COPY_DIR,
     MANIFEST,
     NAME,
-    OLD_COPY_DIR,
-    OLD_MANIFEST,
-    OLD_NAME,
     TOOL_LABELS,
     ConfigError,
     ManifestError,
@@ -35,7 +31,6 @@ from rulemason.shared import (
     shared_root,
     skill_dirs,
     template,
-    unmigrated,
 )
 
 LANGUAGE_RULES = ("rules/python.md", "rules/react.md")       # 按项目语言决定是否引用的落法，顺序即入口里的顺序
@@ -45,17 +40,10 @@ ENGINE_BASE = Path(engine.__file__).parent / "base"      # 引擎自带的通用
 SHOWN_SKIPPED = 10                                          # 识别表「跳过」一行最多列出的目录数
 MIN_ARCHIVED = 3                                            # 判断层至少要这么多已归档 change 作测试用例
 LOCKFILES = (("uv", "uv.lock"), ("pip", "requirements.txt"), ("pnpm", "pnpm-lock.yaml"), ("npm", "package-lock.json"))
-LEGACY_REF = f"../{OLD_NAME}/"                               # 0.4 及更早的旧接入方式：引用同级目录的 rulekit 仓库
 SKILL_ENTRIES = (f".claude/skills/{NAME}", f".agents/skills/{NAME}")
-LEGACY_SKILL_ENTRIES = (f".claude/skills/{OLD_NAME}", f".agents/skills/{OLD_NAME}")   # 0.4 时是指向项目外的符号链接
 PENDING_MARKS = (f"待 /{NAME} 补充", "自动识别，请确认")      # init 留给 /rulemason 补的内容
-LEGACY_FINDING = "旧接入方式（需迁移）"
-RESIDUE_FINDING = "旧名残留"
 INVALID = "配置无效"
-TO_MIGRATE = f"未迁移（{OLD_NAME} 0.5 格式）"
 WORKFLOW_SPEC = "openspec/specs/workflow-gates/spec.md"
-RESIDUE_NAMES = (f"{OLD_COPY_DIR}/", "jev-judge", f"skills/{OLD_NAME}")   # 入口与配置里不该再出现的旧名
-MANAGED_BLOCK = re.compile(rf"<!-- ({NAME}|{OLD_NAME}):([\w-]+) -->.*?<!-- /\1:\2 -->", re.S)   # 标记块内由工具刷新，不算残留
 
 
 @dataclass
@@ -196,9 +184,6 @@ def tool_selection(root: Path) -> Selection:
         manifest = read_manifest(root)
     except ManifestError as exc:
         return Selection([], INVALID, [str(exc)], None)
-    if unmigrated(root, manifest):
-        # 走到这里说明是 rulekit 0.5 的项目，还没迁移到新格式
-        return Selection([], TO_MIGRATE, [f"有 {OLD_MANIFEST}：运行 {NAME} init 迁移格式"], None)
     if manifest is None:
         return Selection([], f"未选择（缺少 {MANIFEST}）", [f"没有 {MANIFEST}：先运行 {NAME} init"], None)
     tools = manifest["tools"]
@@ -530,20 +515,6 @@ def judge_label(root: Path, n_archived: int) -> str:
 
 # ---------- 3. 巡检 ----------
 
-def legacy_issues(root: Path, files: list[str]) -> list[str]:
-    """0.4 旧接入方式：指令、工具配置、lint 配置引用 ../rulekit/，或旧 skill 入口是指向项目外的符号链接。"""
-    if is_source_repo(root):
-        return []
-    candidates = ["AGENTS.md", "CLAUDE.md", *config_refs(root, files)]
-    problems = [f"{rel} 引用 {LEGACY_REF}" for rel in dict.fromkeys(candidates) if (root / rel).is_file() and LEGACY_REF in _read(root, rel)]
-    project = root.resolve()
-    for entry in LEGACY_SKILL_ENTRIES:
-        path = root / entry
-        if path.is_symlink() and project not in path.resolve().parents:
-            problems.append(f"{entry} 是指向项目外的符号链接")
-    return problems
-
-
 def version_findings(sel: Selection) -> list[str]:
     """项目记录的 rulemason 版本与本机安装版本比较；落后只报告，不导致非 0 退出。"""
     if sel.manifest is None or NAME not in sel.manifest:
@@ -576,7 +547,6 @@ def lexicon_overlap(root: Path) -> list[str]:
 
 
 def audit(root: Path, files: list[str], sel: Selection, report: Report) -> None:
-    report.findings.append((LEGACY_FINDING, legacy_issues(root, files)))
     report.findings.append((f"{NAME} 版本", version_findings(sel)))
     report.findings.append(("产物写法与基础版的差异", artifact_rules_diff(root)))
     report.findings.append(("检查点提示与基础版的差异", operations_diff(root)))
@@ -584,37 +554,6 @@ def audit(root: Path, files: list[str], sel: Selection, report: Report) -> None:
     report.findings.append(("判断引擎副本", engine_copies(root, files)))
     report.findings.append(("与通用规则重复的项目规则", duplicate_rules(root)))
     report.findings.append(("项目词表中已在通用词表的词", lexicon_overlap(root)))
-    report.findings.append((RESIDUE_FINDING, residue_issues(root, files)))
-
-
-def config_refs(root: Path, files: list[str]) -> list[str]:
-    """会引用共享副本路径的工具配置：OpenCode instructions、ruff、ESLint。"""
-    return [*opencode_configs(root), *(f for f, _ in ruff_configs(root, files)), *eslint_configs(files)]
-
-
-def residue_candidates(root: Path, files: list[str]) -> list[str]:
-    """会被工具读取、可能残留旧名的入口与配置；归档与历史记录不查。"""
-    rels = ["AGENTS.md", "CLAUDE.md", *config_refs(root, files), WORKFLOW_SPEC, ".gitignore"]
-    return [rel for rel in dict.fromkeys(rels) if (root / rel).is_file()]
-
-
-def residue_in(text: str) -> list[str]:
-    """标记块以外出现的旧名。"""
-    outside = MANAGED_BLOCK.sub("", text)
-    return [name for name in RESIDUE_NAMES if name in outside]
-
-
-def residue_hits(root: Path, files: list[str], read: Callable[[str], str]) -> list[tuple[str, list[str]]]:
-    """(文件, 其中的旧名)；read(rel) 给出文件内容，check 读磁盘，迁移读计划里的新内容。"""
-    hits = [(rel, residue_in(read(rel))) for rel in residue_candidates(root, files)]
-    return [(rel, found) for rel, found in hits if found]
-
-
-def residue_issues(root: Path, files: list[str]) -> list[str]:
-    """入口与配置里标记块外的旧名；源码仓库本身不查。"""
-    if is_source_repo(root):
-        return []
-    return [f"{rel} 仍有 {'、'.join(found)}" for rel, found in residue_hits(root, files, lambda rel: _read(root, rel))]
 
 
 # ---------- 4. 下一步与退出码 ----------
@@ -639,25 +578,18 @@ class Next:
 
 def next_stage(root: Path, report: Report, sel: Selection) -> Next:
     """按原因给出具体命令或动作，多个原因时取最靠前的。阶段只有接入、补项目信息、日常巡检。"""
-    findings = dict(report.findings)
     copies = report.layers.get("接入 生成副本", [])
-    if findings[LEGACY_FINDING]:
-        return Next("接入", "legacy", f"旧接入方式，需迁移（先按文档迁移，迁移前不要运行 {NAME} init）")
     if sel.label == INVALID:
         return Next("接入", "fix_manifest", f"先修正 {MANIFEST}")
-    if sel.label == TO_MIGRATE:
-        return Next("接入", "migrate", f"运行 {NAME} init 迁移格式")
     if sel.manifest is None and not is_source_repo(root):
         return Next("接入", "init", f"运行 {NAME} init")
     if any(item.startswith(IGNORED_COPY) for item in copies):
         return Next("接入", "fix_gitignore", f"修改 .gitignore，放行 skills/{NAME}/（副本要随项目提交）")
-    if findings[RESIDUE_FINDING]:
-        return Next("补项目信息", "fix_residue", f"在 AI 工具中运行 /{NAME} 处理旧名残留")
     if any(missing for name, missing in report.layers.items() if name.startswith("接入")):
         return Next("接入", "update", f"运行 {NAME} update")
     if _has_pending(root):
         return Next("补项目信息", "fill_project_info", f"在 AI 工具中运行 /{NAME}")
-    if findings[f"{NAME} 版本"]:
+    if dict(report.findings)[f"{NAME} 版本"]:
         return _version_next(sel)
     return Next("日常巡检", "none", "一切一致")
 
@@ -670,10 +602,8 @@ def _version_next(sel: Selection) -> Next:
 
 
 def exit_code(report: Report) -> int:
-    """接入各层有缺（入口、副本或标记块被改、lint 未继承、manifest 无效或未迁移）、旧接入方式、旧名残留时为 1；版本落后等巡检发现不影响。"""
-    blocking = any(missing for name, missing in report.layers.items() if name.startswith("接入"))
-    findings = dict(report.findings)
-    return 1 if blocking or findings[LEGACY_FINDING] or findings[RESIDUE_FINDING] else 0
+    """接入各层有缺（入口、副本或标记块被改、lint 未继承、manifest 无效）时为 1；版本落后等巡检发现不影响。"""
+    return 1 if any(missing for name, missing in report.layers.items() if name.startswith("接入")) else 0
 
 
 # ---------- 5. 跑 ----------

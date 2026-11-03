@@ -30,12 +30,9 @@ from rulemason.shared import (
     COPY_DIR,
     MANIFEST,
     NAME,
-    OLD_MANIFEST,
-    OLD_NAME,
     list_files,
     read_yaml,
     shared_root,
-    unmigrated,
 )
 
 LINT_DIR = "lint"                                            # 卸载后 lint 基础配置在项目里的新位置
@@ -209,10 +206,8 @@ def run(root: Path, yes: bool = False, plan_only: bool = False) -> int:
         # 1. 非交互环境写入时必须带 --yes，不等待输入；只看计划不受限
         if not plan_only and not interactive() and not yes:
             raise Stop("不是交互终端：请用 --yes 运行（先看计划用 --plan）", 2)
-        # 2. 预检：源码仓库、旧接入方式、旧格式、没有清单都停下
+        # 2. 预检：源码仓库、没有清单都停下
         manifest = preflight(root, "remove")
-        if unmigrated(root, manifest):
-            raise Stop(f"有 {OLD_MANIFEST}：这是 {OLD_NAME} 0.5 格式，先运行 {NAME} init 迁移，再卸载；未写任何文件")
         if manifest is None:
             raise Stop(f"没有 {MANIFEST}：这个项目没有接入 {NAME}（判断的项目根：{root}）；未写任何文件")
         plan = build_removal(root, manifest)

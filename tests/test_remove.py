@@ -133,19 +133,17 @@ def test_lint_conflict_stops(joined, capsys):
     assert snapshot(joined) == before
 
 
-@pytest.mark.parametrize(("old_manifest", "message"), [
-    (None, "没有接入"),
-    ("version: 1\ntools: []\nrulekit: 0.5.2\nfiles: {}\n", "init 迁移"),
-])
-def test_stops_without_writing(tmp_path, old_manifest, message, capsys):
+@pytest.mark.parametrize("rulekit_manifest", [False, True])
+def test_stops_without_writing_when_not_joined(tmp_path, rulekit_manifest, capsys):
     root = tmp_path / "proj"
     write(root, "app/main.py", "x = 1\n")
-    if old_manifest:
-        write(root, ".rulekit.yaml", old_manifest)
+    if rulekit_manifest:
+        write(root, ".rulekit.yaml", 'version: 1\ntools: [claude]\nrulekit: 0.5.2\nfiles: {}\n')      # rulekit 0.5 遗留文件：不识别，同样算没有接入
     before = snapshot(root)
     assert remove.run(root, yes=True) == 1
     assert snapshot(root) == before
-    assert message in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "没有接入" in out and "迁移" not in out
 
 
 def test_source_repo_stops(capsys):

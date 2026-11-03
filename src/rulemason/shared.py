@@ -1,4 +1,4 @@
-"""共享数据定位、名字常量、生成副本清单、.rulemason.yaml 读写、校验值与列文件：init / update / check / migrate 共用这一份。"""
+"""共享数据定位、名字常量、生成副本清单、.rulemason.yaml 读写、校验值与列文件：init / update / check 共用这一份。"""
 from __future__ import annotations
 
 import hashlib
@@ -19,9 +19,6 @@ SOURCE_ROOT = Path(__file__).resolve().parents[2]            # 可编辑安装�
 NAME = "rulemason"                                          # 命令、skill、标记块前缀、清单版本键都用这个名字
 MANIFEST = f".{NAME}.yaml"
 COPY_DIR = f".{NAME}"                                       # 项目内只读副本目录
-OLD_NAME = "rulekit"                                        # 旧名：只用于识别与迁移 rulekit 0.5 格式
-OLD_MANIFEST = f".{OLD_NAME}.yaml"
-OLD_COPY_DIR = f".{OLD_NAME}"
 SCHEMA_VERSION = 1
 TOOL_IDS = ("opencode", "claude", "cursor", "codex")
 TOOL_LABELS = {"opencode": "OpenCode", "claude": "Claude Code", "cursor": "Cursor", "codex": "Codex"}
@@ -39,11 +36,11 @@ SKILL_FILES = ("SKILL.md",)                                  # skill 副本只�
 TEMPLATES = Path(__file__).parent / "templates"
 VENDOR_DIRS = ("bower_components", "uni_modules", "third_party", "jspm_packages", "Pods")   # 第三方代码，不属于本项目
 VENDOR_MARKERS = ("autoload.php", "modules.txt")            # vendor/ 有 Composer 或 Go 的标记才算第三方；项目也会用它放自己的资源
-SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", COPY_DIR, OLD_COPY_DIR, ".pytest_cache", ".ruff_cache", "dist", "build"}
+SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", COPY_DIR, ".pytest_cache", ".ruff_cache", "dist", "build"}
 
 
 class ManifestError(ValueError):
-    """清单（.rulemason.yaml 或旧的 .rulekit.yaml）无法读取或外形不对。"""
+    """清单（.rulemason.yaml）无法读取或外形不对。"""
 
 
 # ---------- 1. 共享数据 ----------
@@ -58,8 +55,8 @@ def shared_root() -> Path:
 
 
 def has_manifest(path: Path) -> bool:
-    """目录里有 rulemason 清单（迁移前为 .rulekit.yaml）。"""
-    return (path / MANIFEST).is_file() or (path / OLD_MANIFEST).is_file()
+    """目录里有 rulemason 清单。"""
+    return (path / MANIFEST).is_file()
 
 
 def find_root(start: Path) -> Path:
@@ -147,40 +144,32 @@ def _umask() -> int:
     return current
 
 
-def read_manifest(root: Path, product: str = NAME) -> dict | None:
-    """读 .<product>.yaml，版本键就是 product；不存在返回 None，外形不对抛 ManifestError。其他用户字段原样保留。
-    product=OLD_NAME 读 rulekit 0.5 的旧清单。"""
-    key = product
-    name = f".{product}.yaml"
-    path = root / name
+def read_manifest(root: Path) -> dict | None:
+    """读 .rulemason.yaml；不存在返回 None，外形不对抛 ManifestError。其他用户字段原样保留。"""
+    path = root / MANIFEST
     if path.is_symlink():
-        raise ManifestError(f"拒绝读取符号链接 {name}")
+        raise ManifestError(f"拒绝读取符号链接 {MANIFEST}")
     if not path.exists():
         return None
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, yaml.YAMLError) as exc:
-        raise ManifestError(f"无法读取 {name}：{exc}") from exc
+        raise ManifestError(f"无法读取 {MANIFEST}：{exc}") from exc
     if not isinstance(data, dict):
-        raise ManifestError(f"{name} 必须是 YAML 对象")
+        raise ManifestError(f"{MANIFEST} 必须是 YAML 对象")
     if data.get("version") != SCHEMA_VERSION:
-        raise ManifestError(f"不支持的 {name} version：{data.get('version')}")
+        raise ManifestError(f"不支持的 {MANIFEST} version：{data.get('version')}")
     tools = data.get("tools")
     if not isinstance(tools, list):
-        raise ManifestError(f"{name} 的 tools 必须是列表")
+        raise ManifestError(f"{MANIFEST} 的 tools 必须是列表")
     unknown = [tool for tool in tools if tool not in TOOL_IDS]
     if unknown:
-        raise ManifestError(f"{name} 有不支持的工具：{'、'.join(map(str, unknown))}")
-    if key in data and not re.fullmatch(r"\d+(\.\d+)*", str(data[key])):
-        raise ManifestError(f"{name} 的 {key} 版本格式无效：{data[key]}")
+        raise ManifestError(f"{MANIFEST} 有不支持的工具：{'、'.join(map(str, unknown))}")
+    if NAME in data and not re.fullmatch(r"\d+(\.\d+)*", str(data[NAME])):
+        raise ManifestError(f"{MANIFEST} 的 {NAME} 版本格式无效：{data[NAME]}")
     if not isinstance(data.get("files", {}), dict):
-        raise ManifestError(f"{name} 的 files 必须是对象")
+        raise ManifestError(f"{MANIFEST} 的 files 必须是对象")
     return data
-
-
-def unmigrated(root: Path, manifest: dict | None) -> bool:
-    """没有新清单、却有 rulekit 0.5 的旧清单：项目还没迁移。"""
-    return manifest is None and (root / OLD_MANIFEST).is_file()
 
 
 def manifest_text(current: dict | None, tools: list[str], files: dict[str, str]) -> str:

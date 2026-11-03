@@ -14,7 +14,7 @@ def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="rulemason", description="在项目里接入、升级、检查 rulemason 共享规则，并判断方案与文案")
     ap.add_argument("--version", action="version", version=f"rulemason {__version__}")
     sub = ap.add_subparsers(dest="command", required=True)
-    p_init = sub.add_parser("init", help="在项目根接入 rulemason：选工具、生成 .rulemason/ 副本与入口；rulekit 0.5 项目在这里迁移")
+    p_init = sub.add_parser("init", help="在项目根接入 rulemason：选工具、生成 .rulemason/ 副本与入口")
     p_init.add_argument("path", nargs="?", help="项目根，默认当前目录")
     p_init.add_argument("--tools", help="逗号分隔的工具 id：opencode、claude、cursor、codex；传了就不提问")
     p_init.add_argument("--yes", action="store_true", help="不确认，直接按计划写入")

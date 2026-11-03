@@ -118,7 +118,7 @@ def test_update_refreshes_claude_block_only(tmp_path):
     assert text.startswith("自写说明\n\n<!-- rulemason:claude -->\n@AGENTS.md\n@.rulemason/rules/code-style.md\n")
 
 
-@pytest.mark.parametrize("case", ["self", "legacy", "invalid"])
+@pytest.mark.parametrize("case", ["self", "invalid"])
 def test_update_stops_without_writing(tmp_path, case, capsys):
     if case == "self":
         before = git(shared.SOURCE_ROOT, "status", "--porcelain")
@@ -126,10 +126,7 @@ def test_update_stops_without_writing(tmp_path, case, capsys):
         assert git(shared.SOURCE_ROOT, "status", "--porcelain") == before
         return
     root = _old_version_project(tmp_path)
-    if case == "legacy":
-        write(root, "AGENTS.md", "../rulekit/rules/code-style.md\n")
-    else:
-        write(root, ".rulemason.yaml", "tools: [claude]\n")
+    write(root, ".rulemason.yaml", "tools: [claude]\n")
     stale = (root / ".rulemason/rules/code-style.md").read_text(encoding="utf-8")
     assert update.run(root) == 1
     assert (root / ".rulemason/rules/code-style.md").read_text(encoding="utf-8") == stale
@@ -244,3 +241,14 @@ def test_update_fills_operations_only_after_confirmation(tmp_path, capsys):
     assert "operations" not in (root / "openspec/config.yaml").read_text(encoding="utf-8")
     assert update.run(root, yes=True) == 0
     assert "operations" in yaml.safe_load((root / "openspec/config.yaml").read_text(encoding="utf-8"))
+
+
+def test_update_treats_rulekit_manifest_as_not_joined(tmp_path, capsys):
+    root = tmp_path / "proj"
+    write(root, ".rulekit.yaml", 'version: 1\ntools: [claude]\nrulekit: 0.5.2\nfiles: {}\n')
+    write(root, ".rulekit/rules/code-style.md", "旧副本\n")
+    before = snapshot(root)
+    assert update.run(root) == 1
+    out = capsys.readouterr().out
+    assert "先运行 rulemason init" in out and "迁移" not in out
+    assert snapshot(root) == before

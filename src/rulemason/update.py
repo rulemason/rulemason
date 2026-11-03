@@ -21,11 +21,9 @@ from rulemason.init import (
 from rulemason.shared import (
     MANIFEST,
     NAME,
-    OLD_MANIFEST,
     bullets,
     dump_json,
     list_files,
-    unmigrated,
 )
 
 
@@ -85,16 +83,12 @@ def show_dry_run(root: Path, managed: Plan, fill_writes: dict[str, str], notes: 
 
 
 def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = False) -> int:
-    # 1. 预检：源码仓库本身、旧接入方式、没有或无效的 manifest 都停下
+    # 1. 预检：源码仓库本身、没有或无效的 manifest 都停下
     try:
         manifest = preflight(root, "update")
     except Stop as exc:
         print(str(exc))
         return exc.code
-    if unmigrated(root, manifest):
-        # 走到这里说明是 rulekit 0.5 的项目：迁移只在 init 里做，update 不动文件
-        print(f"有 {OLD_MANIFEST}：先运行 {NAME} init 迁移格式，未写任何文件")
-        return 1
     if manifest is None:
         print(f"没有 {MANIFEST}：先运行 {NAME} init（判断的项目根：{root}）")
         return 1

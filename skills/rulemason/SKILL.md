@@ -1,11 +1,11 @@
 ---
 name: rulemason
-description: 在已运行 rulemason init 的项目里补齐需要理解项目的部分（项目简介、红线、命令表确认、旧名残留），解读 rulemason check 的结果，或在用户要求时启用判断。用户要接入、补全、巡检 rulemason 或启用判断时使用。
+description: 在已运行 rulemason init 的项目里补齐需要理解项目的部分（项目简介、红线、命令表确认），解读 rulemason check 的结果，或在用户要求时启用判断。用户要接入、补全、巡检 rulemason 或启用判断时使用。
 ---
 
 # /rulemason：补项目信息、巡检与启用判断
 
-rulemason 管三件事：**规则**（写法规矩）、**检查点**（方案与代码前后的自动检查）、**判断**（用 Jev 判断方案是否违反规矩，可选）。共享规则只在 rulemason 仓库编辑；接入（生成规则副本、工具入口、基础配置）以及从 rulekit 0.5 迁移都由 `rulemason init` 完成，升级与补齐由 `rulemason update` 完成。本 skill 只做需要理解项目的事。
+rulemason 管三件事：**规则**（写法规矩）、**检查点**（方案与代码前后的自动检查）、**判断**（用 Jev 判断方案是否违反规矩，可选）。共享规则只在 rulemason 仓库编辑；接入（生成规则副本、工具入口、基础配置）由 `rulemason init` 完成，升级与补齐由 `rulemason update` 完成。本 skill 只做需要理解项目的事。
 
 ## 不可违反
 
@@ -18,17 +18,15 @@ rulemason 管三件事：**规则**（写法规矩）、**检查点**（方案�
 
 ## 1. 识别
 
-1. 先确认本机有 `rulemason` 命令，且 `rulemason --version` 不低于项目 `.rulemason.yaml` 里 `rulemason:` 记录的版本；没有命令或版本更低时，给出安装命令 `uv tool install rulemason`（已装旧版本时用 `uv tool upgrade rulemason`；需要与清单记录的版本一致时用 `uv tool install --force rulemason==<版本>`；本机还装着旧的 `rulekit` 时先 `uv tool uninstall rulekit`），然后停下。
+1. 先确认本机有 `rulemason` 命令，且 `rulemason --version` 不低于项目 `.rulemason.yaml` 里 `rulemason:` 记录的版本；没有命令或版本更低时，给出安装命令 `uv tool install rulemason`（已装旧版本时用 `uv tool upgrade rulemason`；需要与清单记录的版本一致时用 `uv tool install --force rulemason==<版本>`），然后停下。
 2. 在项目根目录（或任意子目录）运行 `rulemason check --json`，把 `text`（报告全文）原样放进汇报；`next.action` 是给人看的下一步，`next.code` 决定这次做什么。命令以非 0 退出且输出不是 JSON 时（例如「rulemason check 失败：openspec/config.yaml 不是合法的 YAML…」），原样转述这条提示，请用户修正对应文件，然后停下：
 
 | `next.code` | 这次做什么 |
 |---|---|
-| `init`、`migrate` | 提示用户在项目根运行 `rulemason init`（没有 `openspec/` 时它会先询问；rulekit 0.5 项目会列出迁移计划并确认一次）。停下，项目已归档再多 change 也一样。用户要你代为接入时，先运行 `rulemason init --plan` 把计划给用户看（不写任何文件），用户同意并选定工具后再运行 `rulemason init --tools <所选> --yes` |
+| `init` | 提示用户在项目根运行 `rulemason init`（没有 `openspec/` 时它会先询问）。停下，项目已归档再多 change 也一样。用户要你代为接入时，先运行 `rulemason init --plan` 把计划给用户看（不写任何文件），用户同意并选定工具后再运行 `rulemason init --tools <所选> --yes` |
 | `fix_manifest` | 说明清单读不出来的原因（见 `layers` 的「接入 工具入口」），请用户修正，或删掉后重新 `rulemason init`。停下 |
-| `legacy` | 说明项目仍引用同级目录的 rulekit 仓库，需要先迁移。停下 |
 | `fix_gitignore` | 列出要改的 `.gitignore` 规则（只放行 `skills/rulemason/`，说明单独写一行），用户确认后修改，再运行 `rulemason check --json` |
 | `update` | 提示用户运行 `rulemason update`；可先用 `rulemason update --dry-run` 给用户看计划。它列出「补齐计划」时，由用户决定是否 `rulemason update --yes`。停下 |
-| `fix_residue` | 第 2 步的第 0 项（旧名残留） |
 | `fill_project_info` | 第 2 步 |
 | `upgrade_machine` | 本机 rulemason 比项目记录的旧：按上面第 1 条给出安装命令。停下 |
 | `upgrade_copies`、`none` | 第 3 步；用户说要启用判断时做第 4 步 |
@@ -37,13 +35,6 @@ rulemason 管三件事：**规则**（写法规矩）、**检查点**（方案�
 
 先列文件计划（要新增、修改的文件，修改写明改哪一段；「其余 N 个未提交改动不变」），用户同意后再写。
 
-0. **旧名残留**（check 的「旧名残留」有内容时先做）：逐处列出文件、原文与替换后的内容，用户确认后只改这些地方：
-   - `jev-judge --change <name>` → `rulemason judge --change <name>`，`jev-judge --copy` → `rulemason judge --copy`
-   - `.rulekit/` → `.rulemason/`
-   - `skills/rulekit` → `skills/rulemason`（如 `.gitignore` 的 `!.claude/skills/rulekit/`）
-   - 项目测试里的 `from jev_judge import …` 不在 check 的检查范围，但同样改为 `from rulemason.judge import …`，一并列进计划。
-
-   改完运行 `rulemason check`，确认「旧名残留」为「一致」。项目简介与红线已补过的，做完这一项就结束本次。
 1. **项目简介**：按 README 与代码写一两句话，替换 `AGENTS.md` 中「待 /rulemason 补充」的简介。
 2. **红线候选**：从 README、`openspec/config.yaml` 的 `context` 里找出「绝对不能做的事」，每条注明出处，逐条请用户确认、改写或删除；没有找到也要问用户一句。确认的写进「## 红线（不可违反）」；`context` 本身不改。
 3. **样板与豁免**：在 Code style 标记块之后写本项目样板文件路径、语言落法位置与 ruff 豁免文件。

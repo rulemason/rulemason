@@ -155,9 +155,13 @@ def test_find_root_stops_at_nested_repo(tmp_path):
     assert shared.find_root(tmp_path / "ws/app-a/src") == tmp_path / "ws/app-a"
 
 
-def test_find_root_old_manifest_and_git_file(tmp_path):
-    write(tmp_path / "old", ".rulekit.yaml", "version: 1\ntools: []\n")
-    assert shared.find_root(tmp_path / "old") == tmp_path / "old"
+def test_find_root_ignores_rulekit_manifest(tmp_path):
+    write(tmp_path / "old", ".rulekit.yaml", 'version: 1\ntools: [claude]\nrulekit: 0.5.2\nfiles: {}\n')
+    (tmp_path / "old/src").mkdir()
+    assert shared.find_root(tmp_path / "old/src") == tmp_path / "old/src"      # 没有 git 也没有清单：停在起点
+
+
+def test_find_root_stops_at_git_file(tmp_path):
     write(tmp_path / "wt", ".git", "gitdir: /elsewhere\n")                  # worktree 与子模块的 .git 是文件
     (tmp_path / "wt/src").mkdir()
     assert shared.find_root(tmp_path / "wt/src") == tmp_path / "wt"

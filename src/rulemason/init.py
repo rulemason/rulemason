@@ -13,13 +13,12 @@ from string import Template
 
 import yaml
 
-from rulemason import banner, check, migrate
+from rulemason import banner, check
 from rulemason.check import BlockError, block_body, find_block, for_languages, markers
 from rulemason.shared import (
     COPY_DIR,
     MANIFEST,
     NAME,
-    OLD_NAME,
     TOOL_IDS,
     TOOL_LABELS,
     ConfigError,
@@ -63,7 +62,7 @@ class Plan:
     notes: list[str] = field(default_factory=list)           # 跳过并需要人处理的情况
 
     def text(self, root: Path, rel: str) -> str:
-        """计划里已改过的内容优先（迁移改过标记或路径），否则读磁盘。"""
+        """计划里已改过的内容优先（同一次 init 里前一步刚改过的文件），否则读磁盘。"""
         if rel in self.writes:
             return self.writes[rel]
         return (root / rel).read_text(encoding="utf-8")
@@ -102,7 +101,7 @@ def plan_blocks(root: Path, files: list[str], tools: list[str], plan: Plan, crea
         if not path.is_file() and not create:
             continue
         current = path.read_text(encoding="utf-8") if path.is_file() else ""
-        base = plan.writes.get(rel, current)                 # 迁移已改过标记时，以改后的内容为起点
+        base = plan.writes.get(rel, current)                 # 前一步已改过该文件时，以改后的内容为起点
         text = base or (Template(template("AGENTS.md.tmpl")).safe_substitute(name=root.name) if rel == "AGENTS.md" else "")
         try:
             if not create and any(find_block(text, name) is None for name, _ in blocks):
@@ -112,7 +111,7 @@ def plan_blocks(root: Path, files: list[str], tools: list[str], plan: Plan, crea
                 body = block_body(name, root, files)
                 text = set_block(text, name, body, heading)
         except BlockError as exc:
-            # 走到这里说明该文件无法安全写入，整份跳过，迁移改过的标记也一并撤掉
+            # 走到这里说明该文件无法安全写入，整份跳过，前一步对它的改动也一并撤掉
             plan.writes.pop(rel, None)
             plan.notes.append(f"{rel}：{exc}；未修改")
             continue
@@ -175,23 +174,12 @@ def preflight(root: Path, command: str) -> dict | None:
         raise Stop(f"项目目录不存在：{root}")
     if is_source_repo(root):
         raise Stop(f"这是 {NAME} 仓库本身，它直接引用 rules/，不需要 {NAME} {command}")
-    legacy = check.legacy_issues(root, list_files(root))
-    if legacy:
-        raise Stop("该项目使用旧接入方式，需要先迁移，未写任何文件：\n" + "\n".join(f"  - {item}" for item in legacy))
     if not has_git(root):
         print("提示：没有 git，无法用 diff 查看改动、副本无法通过仓库共享；继续。", file=sys.stderr)
     try:
         return read_manifest(root)
     except ManifestError as exc:
         raise Stop(f"{exc}；请先修正 {MANIFEST}") from exc
-
-
-def old_manifest(root: Path) -> dict | None:
-    """rulekit 0.5 的旧清单；没有返回 None，无效时抛 Stop。"""
-    try:
-        return read_manifest(root, OLD_NAME)
-    except ManifestError as exc:
-        raise Stop(f"{exc}；请先修正后再迁移") from exc
 
 
 def default_tools(root: Path, manifest: dict | None) -> list[str]:
@@ -586,7 +574,7 @@ def plan_drop_blocks(root: Path, rel: str, plan: Plan, why: str) -> None:
     why 是写进提示的场合，如「取消 Claude Code 后」「卸载时」。"""
     if rel not in plan.writes and not (root / rel).is_file():
         return
-    text = plan.text(root, rel)                             # 同一次 init 里可能刚迁移过标记
+    text = plan.text(root, rel)                             # 同一次 init 里前一步可能刚改过
     rest = text
     try:
         for name, _ in check.BLOCKS[rel]:
@@ -615,12 +603,9 @@ def plan_fill(root: Path, files: list[str], tools: list[str], plan: Plan) -> Non
     plan_workflow_spec(root, plan)
 
 
-def build_plan(root: Path, manifest: dict | None, tools: list[str], old: dict | None = None) -> Plan:
-    """old 是 rulekit 0.5 的旧清单：先把迁移写进计划，其余计划以迁移后的内容为起点；此时 manifest 是从旧清单带过来的起点。"""
+def build_plan(root: Path, manifest: dict | None, tools: list[str]) -> Plan:
     files = list_files(root)
     plan = Plan()
-    if old is not None:
-        migrate.plan_migration(root, files, old, plan)
     record = (manifest or {}).get("files") or {}
     new_record = plan_copies(root, tools, record, plan)
     plan_stale_copies(root, record, new_record, plan)
@@ -628,8 +613,6 @@ def build_plan(root: Path, manifest: dict | None, tools: list[str], old: dict | 
     plan_fill(root, files, tools, plan)
     plan_command_table(root, files, plan)
     plan_manifest(root, manifest, tools, new_record, plan)
-    if old is not None:
-        plan.notes += migrate.residue_notes(root, files, plan)
     return plan
 
 
@@ -685,17 +668,13 @@ def plan_to_json(root: Path, plan: Plan, tools: list[str], openspec_init: bool) 
     return dump_json(data)
 
 
-def prepare(root: Path, tools_arg: str | None, plan_only: bool) -> tuple[dict | None, dict | None, list[str]]:
-    """预检、迁移核对、选工具，返回 (清单, rulekit 0.5 旧清单, 工具)；不满足条件抛 Stop 或 MigrationError。"""
+def prepare(root: Path, tools_arg: str | None, plan_only: bool) -> tuple[dict | None, list[str]]:
+    """预检、选工具，返回 (清单, 工具)；不满足条件抛 Stop。"""
     manifest = preflight(root, "init")
-    old = old_manifest(root) if manifest is None else None
-    if old is not None:
-        migrate.old_copies(root, old)                        # 旧副本被手改就在任何写入（含 openspec init）之前停下
-        manifest = migrate.carried_manifest(old)
     if plan_only and tools_arg is None:
         # 走到这里说明只看计划：不提问，用清单记录的工具或按已有工具目录推断
-        return manifest, old, default_tools(root, manifest)
-    return manifest, old, choose_tools(root, manifest, tools_arg)
+        return manifest, default_tools(root, manifest)
+    return manifest, choose_tools(root, manifest, tools_arg)
 
 
 def print_plan(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE) -> bool:
@@ -742,17 +721,14 @@ def run(root: Path, tools_arg: str | None, yes: bool, plan_only: bool = False, a
         if not (yes or plan_only) and banner.interactive():
             banner.show(banner.INIT_FOOTER)
         # 2. 预检、选工具；只看计划时不运行 openspec init
-        manifest, old, tools = prepare(root, tools_arg, plan_only)
+        manifest, tools = prepare(root, tools_arg, plan_only)
         if not plan_only:
             ensure_openspec(root, tools, yes)
-        # 3. 计划；旧副本被手改时迁移停止
-        plan = build_plan(root, manifest, tools, old)
+        # 3. 计划
+        plan = build_plan(root, manifest, tools)
     except Stop as exc:
         print(str(exc))
         return exc.code
-    except migrate.MigrationError as exc:
-        print(str(exc))
-        return 1
     if plan_only:
         show_plan(root, plan, tools, as_json)
         return 0

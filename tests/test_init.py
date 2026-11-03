@@ -126,14 +126,6 @@ def test_refuses_rulemason_repo_itself(capsys):
     assert git(shared.SOURCE_ROOT, "status", "--porcelain") == before
 
 
-def test_legacy_project_stops(project, capsys):
-    write(project, "AGENTS.md", "## Code style\n\n../rulekit/rules/code-style.md\n")
-    before = snapshot(project)
-    assert _init(project) == 1
-    assert "旧接入方式" in capsys.readouterr().out
-    assert snapshot(project) == before
-
-
 # ---------- 3. 选工具（4.2） ----------
 
 def test_interactive_selection_prechecks_existing_dirs(project, monkeypatch, capsys):
@@ -544,15 +536,6 @@ def test_plan_without_git_has_null_dirty_count(project, capsys):
     assert "没有 git" in captured.err                             # 提示走 stderr，标准输出只有 JSON
 
 
-def test_plan_stops_on_legacy_project(project, capsys):
-    root = _unjoined(project)
-    write(root, "AGENTS.md", '"../rulekit/rules/code-style.md"\n')
-    before = snapshot(root)
-    assert init.run(root, None, False, plan_only=True, as_json=True) == 1
-    assert "旧接入方式" in capsys.readouterr().out
-    assert snapshot(root) == before
-
-
 @pytest.mark.parametrize("argv", [["init", "--json"], ["init", "--tools", "claude", "--yes", "--json"], ["update", "--json"], ["update", "--yes", "--json"]])
 def test_json_without_plan_or_dry_run_is_rejected(project, monkeypatch, capsys, argv):
     """--json 不配 --plan / --dry-run 时报错退出，不写任何文件。"""
@@ -736,3 +719,24 @@ def test_update_appends_react_to_existing_opencode_config(project, capsys):
     assert after.rstrip().endswith('"\n  ]\n}')
     assert check.opencode_instruction_values(after)[-1] == ".rulemason/rules/react.md"
     assert check.collect(project)[0].layers["接入 工具入口"] == []
+
+
+# ---------- rulekit 0.5 遗留文件：不识别，照常接入 ----------
+
+def test_plan_json_ignores_rulekit_manifest(project, capsys):
+    root = _unjoined(project)
+    write(root, ".rulekit.yaml", 'version: 1\ntools: [claude]\nrulekit: 0.5.2\nfiles: {}\n')
+    write(root, ".rulekit/rules/code-style.md", "旧副本\n")
+    commit(root)
+    before = snapshot(root)
+    assert init.run(root, None, False, plan_only=True, as_json=True) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["deletes"] == [] and ".rulemason.yaml" in [w["path"] for w in data["writes"]]
+    assert snapshot(root) == before
+
+
+def test_init_proceeds_despite_sibling_rulekit_reference(project):
+    write(project, "AGENTS.md", "## Code style\n\n../rulekit/rules/code-style.md\n")
+    commit(project)
+    assert _init(project) == 0
+    assert "../rulekit/rules/code-style.md" in (project / "AGENTS.md").read_text(encoding="utf-8")

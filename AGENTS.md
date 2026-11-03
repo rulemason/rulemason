@@ -9,7 +9,7 @@
 - `rules/`：给 AI 与人读的规矩：`code-style.md`、`python.md`、`react.md`、`workflow-gates.md`、`copy-voice.md`。
 - `lint/`：给工具读的基础配置：`ruff-base.toml`、`eslint-base.mjs`。
 - `openspec-base/`：项目照写进 `openspec/config.yaml` 的产物规则基础版。
-- `src/rulemason/`：`rulemason` 命令行（`init`、`update`、`check`、`judge`）、init 用的模板与从 rulekit 0.5 迁移的逻辑（根目录 `pyproject.toml`）。
+- `src/rulemason/`：`rulemason` 命令行（`init`、`update`、`check`、`judge`）、init 用的模板（根目录 `pyproject.toml`）。
 - `src/rulemason/judge/`：共享判断引擎（`rulemason judge`，库 `rulemason.judge`），含通用判断规则与短标签词表。
 - `skills/rulemason/`：`/rulemason` skill 正文与阶段三模板，由 `rulemason init` 复制进项目。
 - `tests/`：命令行的测试；引擎测试在 `tests/judge/`。

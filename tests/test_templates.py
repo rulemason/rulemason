@@ -103,8 +103,7 @@ def test_skill_reads_check_json_and_lists_every_code():
 
     assert "运行 `rulemason check --json`" in skill and "`next.code`" in skill and "`text`" in skill
     table = skill[skill.index("## 1. 识别"):skill.index("## 2. 补项目信息")]
-    for code in ("legacy", "fix_manifest", "migrate", "init", "fix_gitignore", "fix_residue", "update",
-                 "fill_project_info", "upgrade_machine", "upgrade_copies", "none"):
+    for code in ("fix_manifest", "init", "fix_gitignore", "update", "fill_project_info", "upgrade_machine", "upgrade_copies", "none"):
         assert f"`{code}`" in table, code
     assert "rulemason init --plan" in skill and "rulemason --version" in skill
     assert "uv tool install rulemason" in skill and "github.com" not in skill
@@ -225,28 +224,22 @@ def test_opencode_reviewer_permissions_deny_writes_shell_and_secrets():
         assert _effect(meta, "read", example) == "deny"
 
 
-# ---------- 4. 改名不留遗漏 ----------
+# ---------- 4. 旧名不留遗漏 ----------
 
 OLD_NAMES = ("rulekit", "jev-judge", "jev_judge")
-OLD_CONTEXT = ("旧", "0.5", "迁移", "OLD_", "→", "改为")      # 说明迁移或旧格式的行才允许出现旧名
-OLD_NAME_FILES = {                                            # 只有这些文件需要讲迁移与旧格式，其余文件一处旧名都不许有
-    "src/rulemason/shared.py", "src/rulemason/check.py", "src/rulemason/migrate.py", "src/rulemason/init.py",
-    "src/rulemason/update.py", "src/rulemason/cli.py", "src/rulemason/judge/judge.py", "skills/rulemason/SKILL.md",
-}
+OLD_KEY_PATH = ".config/jev-judge"                              # 唯一允许出现旧名的地方：judge 读旧 key 位置的兜底
 TEXT_SUFFIXES = (".md", ".mjs", ".py", ".tmpl", ".toml", ".yaml")
 
 
-def test_no_old_names_outside_migration_context():
+def test_no_old_names_outside_judge_key_fallback():
     leftovers = []
     for top in ("src", "skills", "rules", "lint", "openspec-base"):
         for path in sorted((ROOT / top).rglob("*")):
             if path.suffix not in TEXT_SUFFIXES or "__pycache__" in path.parts:
                 continue
             for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                rel = path.relative_to(ROOT).as_posix()
-                explained = rel in OLD_NAME_FILES and any(word in line for word in OLD_CONTEXT)
-                if any(name in line for name in OLD_NAMES) and not explained:
-                    leftovers.append(f"{rel}:{n}")
+                if any(name in line.replace(OLD_KEY_PATH, "") for name in OLD_NAMES):
+                    leftovers.append(f"{path.relative_to(ROOT).as_posix()}:{n}")
     assert leftovers == []
 
 

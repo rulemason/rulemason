@@ -141,29 +141,7 @@ rulemason 往项目里写三类东西，都由它管理，不要手改：
 | `接入：修改 .gitignore，放行 skills/rulemason/` | `.gitignore` 忽略了工具目录，副本提交不上去 | 改成只放行 `skills/rulemason/`；说明单独写一行，git 不支持行尾注释 |
 | `接入：运行 rulemason init` | 这个目录（或它所在的仓库）还没接入 | 在项目根运行 `rulemason init` |
 | `接入：先修正 .rulemason.yaml` | 清单被改坏，读不出来 | 按提示修正，或删掉它后重新 `rulemason init` |
-| `接入：运行 rulemason init 迁移格式` | 项目还是 rulekit 0.5 的格式 | 见下一节 |
-| `补项目信息：…` | 项目简介、红线待补，或有旧名残留 | 在 AI 工具里运行 `/rulemason` |
-
-## 从 rulekit 迁移
-
-rulemason 的前身叫 rulekit（0.5.x）。已接入 rulekit 的项目：
-
-```bash
-uv tool uninstall rulekit
-uv tool install rulemason
-rulemason init        # 识别 .rulekit.yaml，列出迁移计划，确认一次后迁移
-rulemason check       # 看还有哪些旧名残留
-```
-
-迁移把 `.rulekit/`、`.rulekit.yaml`、`skills/rulekit/`、`<!-- rulekit:… -->` 标记块，以及 opencode、ruff、ESLint、项目检查点规格里的 `.rulekit/` 路径换成新名，结果与直接接入相同。旧副本被手改过时迁移停下并列出文件，不写任何东西。
-
-标记块以外的旧名不会被自动修改，`check` 会列出来，在 AI 工具中运行 `/rulemason` 逐处确认后替换：
-
-- 命令表里的 `jev-judge --change <name>` → `rulemason judge --change <name>`
-- `.gitignore` 里的 `!.claude/skills/rulekit/` → `!.claude/skills/rulemason/`
-- 项目测试里的 `from jev_judge import …` → `from rulemason.judge import …`
-
-key 不用重配：`~/.config/rulemason/env` 不存在时，会读旧位置 `~/.config/jev-judge/env`；也可以运行一次 `rulemason key` 写到新位置。
+| `补项目信息：…` | 项目简介、红线待补 | 在 AI 工具里运行 `/rulemason` |
 
 ## 参与修改
 

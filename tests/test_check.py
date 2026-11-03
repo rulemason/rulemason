@@ -178,7 +178,7 @@ def test_invalid_manifest_is_reported(joined):
     assert check.exit_code(report) == 1
 
 
-# ---------- 4. 副本、版本、旧接入方式（3.2） ----------
+# ---------- 4. 副本、版本（3.2） ----------
 
 def test_hand_edited_copy_fails(joined):
     write(joined, ".rulemason/rules/code-style.md", "改过了\n")
@@ -200,26 +200,6 @@ def test_version_behind_is_reported_but_exits_zero(joined):
     text, code = check.run(joined)
     assert "项目记录 0.4.9" in text and "rulemason update" in text
     assert code == 0
-
-
-@pytest.mark.parametrize("rel", ["AGENTS.md", "CLAUDE.md", "opencode.jsonc", "ruff.toml", "web/eslint.config.mjs"])
-def test_legacy_reference_fails(joined, rel):
-    write(joined, rel, '"../rulekit/rules/code-style.md"\nimport base from "../../rulekit/lint/eslint-base.mjs";\n')
-    text, code = check.run(joined)
-    assert f"{rel} 引用 ../rulekit/" in text
-    assert "旧接入方式，需迁移" in text
-    assert code == 1
-
-
-def test_legacy_sibling_skill_symlink_fails(joined, tmp_path):
-    sibling = tmp_path / "rulekit/skills/rulekit"
-    write(sibling, "SKILL.md", "x\n")
-    entry = joined / ".claude/skills/rulekit"
-    entry.parent.mkdir(parents=True)
-    entry.symlink_to("../../../rulekit/skills/rulekit", target_is_directory=True)
-    report, _ = check.collect(joined)
-    assert _finding(report, check.LEGACY_FINDING) == [".claude/skills/rulekit 是指向项目外的符号链接"]
-    assert check.exit_code(report) == 1
 
 
 # ---------- 5. 巡检 ----------
@@ -267,7 +247,7 @@ def test_ci_install_ref_is_identified(joined, line, ref):
 
 
 @pytest.mark.parametrize("line", [
-    "uv tool install git+https://github.com/someone/rulekit@v0.7.8",
+    "uv tool install git+https://github.com/someone/other-tool@v0.7.8",
     "pip install foo-rulemason==1.0",
     "uv tool install rulemason",        # 装了但没钉版本
 ])
@@ -304,7 +284,6 @@ def test_check_works_without_git(tmp_path):
 def test_rulemason_repo_checks_direct_rules_without_copies():
     report, _ = check.collect(shared.SOURCE_ROOT)
     assert _finding(report, "判断引擎副本") == []
-    assert _finding(report, check.LEGACY_FINDING) == []
     assert "接入 生成副本" not in report.layers
     assert report.layers["接入 代码规矩与 gates"] == []
 
@@ -453,23 +432,11 @@ def test_judge_label_without_git(tmp_path):
 
 # ---------- 动作代码与 check --json（agent-io） ----------
 
-def _legacy(root):
-    agents = root / "AGENTS.md"
-    agents.write_text(agents.read_text(encoding="utf-8") + '"../rulekit/rules/code-style.md"\n', encoding="utf-8")
-
-
-def _residue(root):
-    agents = root / "AGENTS.md"
-    agents.write_text(agents.read_text(encoding="utf-8") + "判断：`jev-judge --change x`\n", encoding="utf-8")
-
-
 ACTION_SETUPS = {
     # 动作代码 → (场景, 文字版第一行, 退出码)
-    "legacy": (_legacy, "接入：旧接入方式，需迁移（先按文档迁移，迁移前不要运行 rulemason init）", 1),
     "fix_manifest": (lambda root: write(root, ".rulemason.yaml", "tools: [claude]\n"), "接入：先修正 .rulemason.yaml", 1),
     "init": (lambda root: (root / ".rulemason.yaml").unlink(), "接入：运行 rulemason init", 1),
     "fix_gitignore": (lambda root: write(root, ".gitignore", ".claude/\n"), "接入：修改 .gitignore，放行 skills/rulemason/（副本要随项目提交）", 1),
-    "fix_residue": (_residue, "补项目信息：在 AI 工具中运行 /rulemason 处理旧名残留", 1),
     "update": (lambda root: write(root, ".rulemason/rules/code-style.md", "改过\n"), "接入：运行 rulemason update", 1),
     "fill_project_info": (lambda root: None, "补项目信息：在 AI 工具中运行 /rulemason", 0),
     "upgrade_machine": (lambda root: (_fill_project_info(root), _set_recorded_version(root, "99.0.0")), "日常巡检：先升级本机 rulemason", 0),
@@ -480,7 +447,7 @@ ACTION_SETUPS = {
 
 @pytest.mark.parametrize("code", list(ACTION_SETUPS))
 def test_action_code_and_first_line(inited, code):
-    """每个动作代码一个场景：文字版第一行、JSON 的 next 与退出码一致（migrate 见 test_migrate）。"""
+    """每个动作代码一个场景：文字版第一行、JSON 的 next 与退出码一致。"""
     setup, line, expected_exit = ACTION_SETUPS[code]
     setup(inited)
     out, exit_code = check.run(inited, as_json=True)
@@ -636,3 +603,26 @@ def test_judgment_without_id_is_readable(inited, monkeypatch):
     write(inited, "openspec/judgments.yaml", "- id: a\n- question: 没有 id\n")
     monkeypatch.chdir(inited)
     assert run_cli("check") == "rulemason check 失败：openspec/judgments.yaml 第 2 条不是带 id 的映射"
+
+
+# ---------- rulekit 0.5 遗留文件：不识别，当作未接入 ----------
+
+def test_rulekit_manifest_is_treated_as_not_joined(bare):
+    write(bare, ".rulekit.yaml", 'version: 1\ntools: [claude]\nrulekit: 0.5.2\nfiles: {}\n')
+    write(bare, ".rulekit/rules/code-style.md", "旧副本\n")
+    out, code = check.run(bare, as_json=True)
+    data = json.loads(out)
+    assert data["next"]["code"] == "init" and code == 1
+    assert "迁移" not in data["text"] and "旧名残留" not in data["text"] and "旧接入方式" not in data["text"]
+
+
+def test_old_names_outside_blocks_are_not_reported(joined):
+    """旧接入引用与旧名（jev-judge、.rulekit/、skills/rulekit）都不再是巡检项，结论与没有它们时相同。"""
+    baseline = json.loads(check.run(joined, as_json=True)[0])["next"]
+    write(joined, "AGENTS.md", AGENTS_OK + '"../rulekit/rules/code-style.md"\n判断：`jev-judge --change x`\n')
+    write(joined, ".gitignore", "!.claude/skills/rulekit/\n")
+    out, code = check.run(joined, as_json=True)
+    data = json.loads(out)
+    assert code == 0 and data["next"] == baseline
+    for word in ("旧名残留", "旧接入方式", "../rulekit/", "jev-judge", "skills/rulekit", "迁移"):
+        assert word not in data["text"], word
