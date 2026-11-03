@@ -884,6 +884,13 @@ def test_update_completes_gates_once_openspec_appears(tmp_path, fake_openspec, c
     ("# 标题\n\n![logo](a.png)\n\n> 引用\n\nOne line intro without period\n", "One line intro without period"),
     ("# T\n\nBuilt on Node.js v1.0 for teams. Ships as a CLI. Third sentence.\n", "Built on Node.js v1.0 for teams. Ships as a CLI."),
     ("# 只有标题\n", None),
+    ("# 章法\n\n中文 · [English](https://example.com/README.en.md)\n\n章法是一个字帖检索站。\n", "章法是一个字帖检索站。"),
+    ("# 章法\n\n[English](https://example.com/en) | 简体中文\n\n章法是一个字帖检索站。\n", "章法是一个字帖检索站。"),
+    ("# T\n\n[文档](https://a) · [示例](https://b) · [更新日志](https://c)\n\nA tool for teams.\n", "A tool for teams."),
+    ("# T\n\n本工具是 [OpenSpec](https://example.com) 的配套检查器，给 AI 编码用。\n", "本工具是 [OpenSpec](https://example.com) 的配套检查器，给 AI 编码用。"),
+    ("# T\n\n见 [文档](https://a)\n", None),
+    ("# T\n\nA CLI for [OpenSpec](https://example.com)\n", "A CLI for [OpenSpec](https://example.com)"),
+    ("# T\n\nEnglish | [日本語](https://a) | [中文](https://b)\n\nA tool for teams.\n", "A tool for teams."),
 ])
 def test_agents_intro_is_prefilled_from_readme(project, readme, expected):
     write(project, "README.md", readme)

@@ -809,8 +809,28 @@ def report(root: Path, plan: Plan, with_openspec: bool) -> None:
     print(NEXT_STEP)
 
 
+MD_LINK = re.compile(r"\[[^\]]*\]\([^)]*\)")                  # Markdown 链接 [文字](网址)
+LINK_LINE_REST = 10                                         # 去掉链接与分隔符后剩下的那一个词不超过这么多字，算语言切换 / 导航行
+SENTENCE_END_ZH = "。！？"                                    # 中文句末标点；英文的 .!? 要看后面是不是空格，单独处理
+
+
+def _links_only(text: str) -> bool:
+    """段落只是一行链接（语言切换「中文 · [English](…)」、导航）：去掉链接与分隔符后只剩一个不超过 10 字的词、没有句末标点。
+    剩下两个以上的词（如「A CLI for [OpenSpec](…)」）算正文。"""
+    if not MD_LINK.search(text):
+        return False
+    without_links = MD_LINK.sub("", text)
+    rest = re.sub(r"[·|/、,，]", " ", without_links).split()
+    if len(rest) > 1:
+        return False                                         # 剩两个以上的词，是正文
+    word = "".join(rest)
+    if len(word) > LINK_LINE_REST:
+        return False
+    return not re.search(rf"[{SENTENCE_END_ZH}.!?]", word)
+
+
 def readme_intro(root: Path) -> str | None:
-    """README 第一段正文截到两句；跳过标题、徽章、图片、链接行；取不到返回 None。"""
+    """README 第一段正文截到两句；跳过标题、徽章、图片、链接行与语言切换 / 导航行；取不到返回 None。"""
     path = next((root / name for name in README_NAMES if (root / name).is_file()), None)
     if path is None:
         return None
@@ -819,9 +839,11 @@ def readme_intro(root: Path) -> str | None:
         if not lines or any(line.startswith(("#", "![", "<", "[![", "http", "---", ">", "|", "```", "=")) for line in lines):
             continue
         text = " ".join(lines)
+        if _links_only(text):
+            continue
         # 句末：中文标点，或后面是空格 / 行尾的英文标点（「Node.js」「v1.0」里的点不算）
-        sentences = [m.group(0).strip() for m in re.finditer(r"\S.*?(?:[。！？]|[.!?](?=\s|$)|$)", text) if m.group(0).strip()]
-        joiner = "" if sentences[0][-1] in "。！？" else " "
+        sentences = [m.group(0).strip() for m in re.finditer(rf"\S.*?(?:[{SENTENCE_END_ZH}]|[.!?](?=\s|$)|$)", text) if m.group(0).strip()]
+        joiner = "" if sentences[0][-1] in SENTENCE_END_ZH else " "
         return joiner.join(sentences[:2])
     return None
 
