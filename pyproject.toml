@@ -42,7 +42,7 @@ packages = ["src/rulemason"]
 
 # sdist 只收发布需要的内容：仓库里的工具入口是指向 skills/ 的符号链接，按目录收会把正文收成链接路径、漏掉 skills/rulemason
 [tool.hatch.build.targets.sdist]
-only-include = ["src", "rules", "lint", "skills", "openspec-base", "tests", "README.md", "LICENSE", "NOTICE"]
+only-include = ["src", "rules", "lint", "skills", "openspec-base", "tests", "scripts", "README.md", "LICENSE", "NOTICE"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -59,3 +59,4 @@ src = ["src"]                    # 源码根，import 排序据此认出第一�
 "src/rulemason/remove.py" = ["T201"]        # 命令行计划、确认与汇报打印给人看
 "src/rulemason/key.py" = ["T201"]           # 交互命令：提示与结果打印给人看
 "src/rulemason/banner.py" = ["T201"]        # 启动画面打印给人看
+"scripts/release_notes.py" = ["T201"]       # 发版脚本：Release 说明打印到标准输出，由 workflow 写入文件
