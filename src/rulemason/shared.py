@@ -39,6 +39,8 @@ TEMPLATES = Path(__file__).parent / "templates"
 VENDOR_DIRS = ("bower_components", "uni_modules", "third_party", "jspm_packages", "Pods")   # 第三方代码，不属于本项目
 VENDOR_MARKERS = ("autoload.php", "modules.txt")            # vendor/ 有 Composer 或 Go 的标记才算第三方；项目也会用它放自己的资源
 SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", COPY_DIR, ".pytest_cache", ".ruff_cache", "dist", "build"}
+PLAN_DIR = "openspec/changes"                              # 方案草稿与原型：不是项目代码，扫描时静默跳过
+CHECKPOINTS_OFF = f"方案检查点未启用：安装 OpenSpec 并 openspec init 后再运行 {NAME} update"
 KEY_URL = "https://typesafe.ai/"                            # 判断用的 Jev key 在这里申请
 # 终端配色：一个强调色（天空蓝）点标题、标签与命令；次要文字暗色；待办黄色。启动画面与 init 共用
 SKY_NUM = "117"                                             # 256 色的天空蓝（SkyBlue1）
@@ -127,6 +129,11 @@ def generated_files(tools: list[str], rules: tuple[str, ...] | list[str] = COPIE
         for rel in SKILL_FILES:
             out[f"{target}/{rel}"] = (src / f"skills/{NAME}" / rel).read_text(encoding="utf-8")
     return out
+
+
+def copy_record(files: dict[str, str]) -> dict[str, str]:
+    """生成副本的清单记录：相对路径 → 校验值。init / update 写进清单，check 拿来比较是否落后。"""
+    return {rel: sha256_text(content) for rel, content in files.items()}
 
 
 def sha256_text(text: str) -> str:
@@ -255,12 +262,13 @@ def scan(root: Path) -> Scan:
     # 1. 遍历目录：固定忽略清单与 git 忽略的目录静默跳过；子仓库、子项目、第三方目录跳过并记下原因
     in_git = has_git(root)
     ignored = ignored_dirs(root) if in_git else set()
+    excluded = ignored | {PLAN_DIR}
     skipped: list[tuple[str, str]] = []
     walked: list[str] = []
     for current, dirs, names in os.walk(root):
         rel = Path(current).relative_to(root)
         kept = []
-        for name in sorted(d for d in dirs if d not in SKIP_DIRS and (rel / d).as_posix() not in ignored):
+        for name in sorted(d for d in dirs if d not in SKIP_DIRS and (rel / d).as_posix() not in excluded):
             reason = boundary_reason(Path(current) / name)
             if reason:
                 skipped.append(((rel / name).as_posix(), reason))
@@ -272,7 +280,7 @@ def scan(root: Path) -> Scan:
         return Scan(walked, skipped)
 
     # 2. 有 git：沿用 git 的忽略规则，再去掉落在跳过目录里的路径
-    outside = tuple(f"{d}/" for d, _ in skipped)
+    outside = (*(f"{d}/" for d, _ in skipped), f"{PLAN_DIR}/")
     listed = git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard").split("\0")
     files = [f for f in listed if f and not f.startswith(outside) and (root / f).is_file()]   # 已删除但未提交的文件仍在索引里，跳过
     return Scan(files, skipped)

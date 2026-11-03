@@ -2,15 +2,18 @@
 from __future__ import annotations
 
 import json
+import os
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from string import Template
+from typing import NamedTuple
 
 from rulemason import __version__
 from rulemason import judge as engine
 from rulemason.judge.judge import api_key
 from rulemason.shared import (
+    CHECKPOINTS_OFF,
     COPIED_SHARED,
     COPY_DIR,
     KEY_URL,
@@ -20,8 +23,10 @@ from rulemason.shared import (
     ConfigError,
     ManifestError,
     Scan,
+    copy_record,
     dirty_files,
     dump_json,
+    generated_files,
     has_git,
     has_openspec,
     ignored_files,
@@ -39,7 +44,9 @@ from rulemason.shared import (
 
 LANGUAGE_RULES = ("rules/python.md", "rules/react.md")       # 按项目语言决定是否引用的落法，顺序即入口里的顺序
 INSTRUCTIONS_ARRAY = re.compile(r'"instructions"\s*:\s*\[(.*?)\]', re.S)   # OpenCode 配置里的 instructions 数组（只取这一项，不解析整份 JSONC）
-DEPENDENCY_KEYS = ("dependencies", "devDependencies", "peerDependencies")   # 判断 React 目录时看的 package.json 依赖段
+DEPENDENCY_KEYS = ("dependencies", "devDependencies", "peerDependencies")   # 判断 React 与前端目录时看的 package.json 依赖段
+FRONTEND_DEPS = ("react", "vue", "svelte", "@angular/core", "preact", "solid-js", "next", "nuxt")   # 有这些依赖才算前端目录
+ESLINT_ANCHORS = ("export default [", "export default defineConfig([", "export default tseslint.config(")   # 能自动插入基础规则的写法
 ENGINE_BASE = Path(engine.__file__).parent / "base"      # 引擎自带的通用规则与通用词表
 SHOWN_SKIPPED = 10                                          # 识别表「跳过」一行最多列出的目录数
 MIN_ARCHIVED = 3                                            # 判断层至少要这么多已归档 change 作测试用例
@@ -76,6 +83,8 @@ BLOCKS = {                                                   # 文件 → (块�
 }
 IGNORED_COPY = "被 .gitignore 忽略，无法随项目提交"
 STALE_BLOCK = "标记块与当前模板不一致（被手改，或项目新增了语言）"
+BEHIND = "副本与本机版本应生成的不一致"
+VERSION_ONLY = "只有版本号落后，副本内容相同"
 
 
 # ---------- 1. 读项目 ----------
@@ -109,8 +118,16 @@ def language_rules(root: Path, files: list[str]) -> list[str]:
     return [rule for rule in LANGUAGE_RULES if used[rule]]
 
 
-def frontend_dirs(files: list[str]) -> list[str]:
-    return _dirs_with(files, ("package.json",))
+def python_dirs(files: list[str]) -> list[str]:
+    return _dirs_with(files, ("pyproject.toml", "requirements.txt"))
+
+
+def frontend_dirs(root: Path, files: list[str]) -> list[str]:
+    """依赖里有界面框架，或同目录有 index.html（不用框架的网页入口）的 package.json 所在目录；
+    只有工具依赖的 Node 包（如工作区根、后端）不算。"""
+    pages = set(_dirs_with(files, ("index.html",)))
+    web_entries = [d for d in _dirs_with(files, ("package.json",)) if d in pages]
+    return sorted({*package_dirs(root, files, FRONTEND_DEPS), *web_entries})
 
 
 def copied_rules(root: Path, files: list[str]) -> list[str]:
@@ -124,7 +141,7 @@ def copied_rules(root: Path, files: list[str]) -> list[str]:
         wanted.add("rules/react.md")
     if react or eslint_configs(files):
         wanted.add("lint/eslint-base.mjs")
-    if frontend_dirs(files) or (root / "openspec/judgments.yaml").is_file():
+    if frontend_dirs(root, files) or (root / "openspec/judgments.yaml").is_file():
         wanted.add("rules/copy-voice.md")
     return [rel for rel in COPIED_SHARED if rel in wanted]
 
@@ -177,7 +194,11 @@ def has_python(files: list[str]) -> bool:
 
 
 def react_dirs(root: Path, files: list[str]) -> list[str]:
-    """依赖里有 react 的 package.json 所在目录（项目根记为「.」）；package.json 读不出来时抛 ConfigError。"""
+    return package_dirs(root, files, ("react",))
+
+
+def package_dirs(root: Path, files: list[str], names: tuple[str, ...]) -> list[str]:
+    """依赖里有 names 任一项的 package.json 所在目录（项目根记为「.」）；package.json 读不出来时抛 ConfigError。"""
     dirs = []
     for f in files:
         if Path(f).name != "package.json":
@@ -186,8 +207,8 @@ def react_dirs(root: Path, files: list[str]) -> list[str]:
             data = json.loads(_read(root, f))
         except ValueError as exc:                                 # 含 JSONDecodeError 与 UnicodeDecodeError
             raise ConfigError(f"{f} 不是合法的 JSON（{exc}）") from exc
-        deps = [data.get(key) for key in DEPENDENCY_KEYS] if isinstance(data, dict) else []
-        if any(isinstance(d, dict) and "react" in d for d in deps):
+        sections = [data.get(key) for key in DEPENDENCY_KEYS] if isinstance(data, dict) else []
+        if any(isinstance(d, dict) and any(name in d for name in names) for d in sections):
             dirs.append(str(Path(f).parent))
     return sorted(dirs)
 
@@ -262,14 +283,14 @@ def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, entry_i
     report.facts.append(("包管理", "、".join(managers) or "无锁文件"))
 
     # 2. 目录
-    report.facts.append(("Python 目录", "、".join(_dirs_with(files, ("pyproject.toml", "requirements.txt"))) or "—"))
+    report.facts.append(("Python 目录", "、".join(python_dirs(files)) or "—"))
     react = react_dirs(root, files)
-    front = [f"{d}（React）" if d in react else d for d in frontend_dirs(files)]
+    front = [f"{d}（React）" if d in react else d for d in frontend_dirs(root, files)]
     report.facts.append(("前端目录", "、".join(front) or "—"))
     report.facts.append(("跳过", skipped_label(scanned.skipped)))
 
     # 3. openspec、CI、工作区
-    report.facts.append(("openspec", "有" if has_openspec(root) else f"无（方案检查点未启用：安装 OpenSpec 并 openspec init 后运行 {NAME} update）"))
+    report.facts.append(("openspec", "有" if has_openspec(root) else f"无（{CHECKPOINTS_OFF}）"))
     report.facts.append(("已归档 change", str(n_archived)))
     report.facts.append(("判断", judge_label(root, n_archived)))
     refs = ci_refs(root, files)
@@ -370,6 +391,38 @@ def check_tool_entries(root: Path, files: list[str], tools: list[str]) -> list[s
     return problems
 
 
+def version_order(sel: Selection) -> int:
+    """项目记录的版本与本机比：-1 记录较旧，0 相同或没有记录，1 记录较新。"""
+    recorded = (sel.manifest or {}).get(NAME)
+    if recorded is None:
+        return 0
+    mine, theirs = parse_version(__version__), parse_version(str(recorded))
+    return (theirs > mine) - (theirs < mine)
+
+
+def version_only(sel: Selection, behind: list[str]) -> bool:
+    """记录的版本较旧、副本内容又比过且相同：只有版本号落后。清单没有副本记录时没法比，不算。"""
+    return version_order(sel) < 0 and not behind and bool((sel.manifest or {}).get("files"))
+
+
+def managed_prefixes(tools: list[str]) -> tuple[str, ...]:
+    """rulemason 自己管的副本所在目录：.rulemason/ 与已选工具的 skill 目录。"""
+    return (f"{COPY_DIR}/", *(f"{d}/" for d in skill_dirs(tools)))
+
+
+def copies_behind(root: Path, files: list[str], sel: Selection) -> list[str]:
+    """本机版本会生成的副本与清单记录的校验值不一致（共享内容变了，或项目语言变了）时给一条。
+    源码仓库没有副本；记录比本机新时不比，由版本巡检提示先升级本机；清单没有记录时由 copy_issues 报告。"""
+    record = (sel.manifest or {}).get("files") or {}
+    if is_source_repo(root) or not record or version_order(sel) > 0:
+        return []
+    prefixes = managed_prefixes(sel.tools)
+    recorded = {(rel, digest) for rel, digest in record.items() if rel.startswith(prefixes)}
+    expected = set(copy_record(generated_files(sel.tools, copied_rules(root, files))).items())
+    differ = {rel for rel, _ in recorded ^ expected}
+    return [f"{BEHIND}（{len(differ)} 个文件；共享内容更新，或项目语言、判断启用状态变了）：运行 {NAME} update"] if differ else []
+
+
 def copy_issues(root: Path, sel: Selection) -> list[str]:
     """已选工具应有的生成副本：缺失、与 .rulemason.yaml 记录的校验值不符，或在 git 仓库里被忽略。"""
     if sel.manifest is None:
@@ -377,11 +430,10 @@ def copy_issues(root: Path, sel: Selection) -> list[str]:
     record = sel.manifest.get("files") or {}
     if not record:
         return [f"{MANIFEST} 没有记录生成副本：运行 {NAME} init"]
-    managed = (f"{COPY_DIR}/", *(f"{d}/" for d in skill_dirs(sel.tools)))
     problems = []
-    rels = [rel for rel in record if rel.startswith(managed)]
+    rels = [rel for rel in record if rel.startswith(managed_prefixes(sel.tools))]
     for rel in rels:
-        # 以项目记录为准：本机版本新增的文件不算缺失，版本落后只在巡检里报告
+        # 以项目记录为准：本机版本新增的文件不算缺失，与本机应生成的不一致由 copies_behind 报告
         path = root / rel
         if not path.is_file():
             problems.append(f"缺少生成副本：{rel}")
@@ -460,29 +512,173 @@ def eslint_configs(files: list[str]) -> list[str]:
     return [f for f in files if Path(f).name.startswith(("eslint.config.", ".eslintrc"))]
 
 
-def _resolves_to(root: Path, file: str, ref: str, canonical: str) -> bool:
-    """配置中的相对路径按配置文件目录解析，并与项目应引用的共享文件比较。"""
+def _target(root: Path, file: str, ref: str) -> Path:
+    """配置中的相对路径按配置文件所在目录解析。"""
     target = Path(ref).expanduser()
     if not target.is_absolute():
         target = (root / file).parent / ref
-    return target.resolve() == (root / shared_ref(root, canonical)).resolve()
+    return target.resolve()
+
+
+def _resolves_to(root: Path, file: str, ref: str, canonical: str) -> bool:
+    """引用是否指向项目应引用的共享文件。"""
+    return _target(root, file, ref) == (root / shared_ref(root, canonical)).resolve()
+
+
+def ruff_refs(text: str) -> list[str]:
+    """ruff 配置 extend 里的全部路径原文。"""
+    match = re.search(r"^\s*extend\s*=\s*(.+)$", text, re.M)
+    return re.findall(r"['\"]([^'\"]+)['\"]", match.group(1)) if match else []
+
+
+def eslint_refs(text: str) -> list[str]:
+    """ESLint 配置 import 里文件名是 eslint-base.mjs 的路径原文。"""
+    return re.findall(r"from\s+['\"]([^'\"]*eslint-base\.mjs)['\"]", text)
 
 
 def ruff_shared_refs(root: Path, file: str, text: str) -> list[str]:
     """ruff 配置 extend 里指向共享基础配置的引用原文。"""
-    match = re.search(r"^\s*extend\s*=\s*(.+)$", text, re.M)
-    refs = re.findall(r"['\"]([^'\"]+)['\"]", match.group(1)) if match else []
-    return [ref for ref in refs if _resolves_to(root, file, ref, "lint/ruff-base.toml")]
+    return [ref for ref in ruff_refs(text) if _resolves_to(root, file, ref, "lint/ruff-base.toml")]
 
 
 def eslint_shared_refs(root: Path, file: str, text: str) -> list[str]:
     """ESLint 配置 import 里指向共享基础规则的引用原文。"""
-    refs = re.findall(r"from\s+['\"]([^'\"]*eslint-base\.mjs)['\"]", text)
-    return [ref for ref in refs if _resolves_to(root, file, ref, "lint/eslint-base.mjs")]
+    return [ref for ref in eslint_refs(text) if _resolves_to(root, file, ref, "lint/eslint-base.mjs")]
+
+
+def broken_refs(root: Path, file: str, refs: list[str], canonical: str) -> list[str]:
+    """文件名与基础配置相同、却不指向项目内副本，且目标不存在或在项目外的引用原文（多是旧路径）。"""
+    project = root.resolve()
+    bad = []
+    for ref in refs:
+        if Path(ref).name != Path(canonical).name or _resolves_to(root, file, ref, canonical):
+            continue
+        target = _target(root, file, ref)
+        if not target.is_file() or project not in target.parents:
+            bad.append(ref)
+    return bad
+
+
+class _Refs(NamedTuple):
+    ref: str            # 这份配置应写的基础配置路径
+    linked: bool        # 已有指向项目内副本的引用
+    bad: list[str]      # 指向不存在或项目外文件的同名引用
+
+
+def _refs(root: Path, file: str, refs: list[str], canonical: str) -> _Refs:
+    return _Refs(
+        config_ref(root, file, root / shared_ref(root, canonical)),
+        any(_resolves_to(root, file, ref, canonical) for ref in refs),
+        broken_refs(root, file, refs, canonical),
+    )
+
+
+def _inherit_problem(root: Path, file: str, refs: list[str], canonical: str, verb: str) -> str | None:
+    """一份配置接基础配置的问题：引用的文件不存在优先报，其次是没有接上；接好了返回 None。"""
+    found = _refs(root, file, refs, canonical)
+    if found.bad:
+        return f"{file} 引用的基础配置不存在：{'、'.join(found.bad)}"
+    if not found.linked:
+        return f"{file} 没有{verb} {shared_ref(root, canonical)}"
+    return None
 
 
 def has_select(text: str) -> bool:
     return re.search(r"^\s*select\s*=", text, re.M) is not None
+
+
+def _insert_ruff_extend(name: str, text: str, ref: str) -> str:
+    line = f'extend = "{ref}"   # 选用规则与复杂度来自 {NAME} 基础配置的项目内副本\n'
+    text = text if text.endswith("\n") else text + "\n"      # 末行没有换行时，插入行会被并进注释或表头
+    if name == "ruff.toml":
+        lines = text.splitlines(keepends=True)
+        at = next((i for i, l in enumerate(lines) if l.strip() and not l.lstrip().startswith("#")), len(lines))
+        return "".join(lines[:at] + [line] + lines[at:])
+    header = re.search(r"^\[tool\.ruff\][ \t]*(#[^\n]*)?\n", text, re.M)
+    if header:
+        return text[: header.end()] + line + text[header.end():]
+    sub = re.search(r"^\[tool\.ruff\.", text, re.M)
+    if sub is None:
+        raise ValueError("找不到 [tool.ruff] 表头")
+    return text[: sub.start()] + "[tool.ruff]\n" + line + "\n" + text[sub.start():]
+
+
+def config_ref(root: Path, config: str, target: Path) -> str:
+    """配置文件里指向 target 的相对路径；ESLint 的 import 不以 ./ 或 ../ 开头会被当成包名（含 .rulemason/ 这种点开头的目录），补上。"""
+    ref = Path(os.path.relpath(target, (root / config).parent)).as_posix()
+    if target.suffix == ".mjs" and not ref.startswith(("./", "../")):
+        return f"./{ref}"
+    return ref
+
+
+@dataclass(frozen=True)
+class LintFix:
+    """一份 lint 配置怎么接上基础配置：text 是改好的内容，note 是改不了时给人的说明；都为 None 表示已接好。"""
+    text: str | None = None
+    note: str | None = None
+
+
+def repoint(text: str, refs: list[str], new_ref: str) -> str:
+    """把引号里的旧路径换成新路径，单双引号都认；变量名与用法不动。"""
+    for ref in refs:
+        text = re.sub(r"(['\"])" + re.escape(ref) + r"\1", lambda m: f"{m.group(1)}{new_ref}{m.group(1)}", text)
+    return text
+
+
+def lint_fix(root: Path, file: str, text: str) -> LintFix:
+    """init、update 与 check 共用的判断：这份 ruff 或 ESLint 配置能否自动接上基础配置。"""
+    if Path(file).name in ("ruff.toml", "pyproject.toml"):
+        return _ruff_fix(root, file, text)
+    return _eslint_fix(root, file, text)
+
+
+def _ruff_fix(root: Path, file: str, text: str) -> LintFix:
+    refs = ruff_refs(text)
+    ref, linked, bad = _refs(root, file, refs, "lint/ruff-base.toml")
+    if has_select(text):
+        return LintFix(note=f"{file} 写了 select，会覆盖基础规则：未修改，请删去 select 后重跑 {NAME} update")
+    if linked:
+        return LintFix()
+    if bad:
+        return LintFix(text=repoint(text, bad, ref))
+    if refs:
+        return LintFix(note=f"{file} 已继承其他 ruff 配置：未修改，请改为继承 {ref}")
+    try:
+        return LintFix(text=_insert_ruff_extend(Path(file).name, text, ref))
+    except ValueError as exc:
+        return LintFix(note=f"{file} 无法安全写入 extend（{exc}）：未修改，请手动继承 {ref}")
+
+
+def _eslint_fix(root: Path, file: str, text: str) -> LintFix:
+    ref, linked, bad = _refs(root, file, eslint_refs(text), "lint/eslint-base.mjs")
+    if linked:
+        if bad:
+            # 走到这里说明已有正确引入、又留着旧引入：删行要连带删变量的用法，不自动做
+            return LintFix(note=f"{file} 已引入 {ref}，另有引用 {'、'.join(bad)} 指向不存在的文件：未修改，请删去该引入及其用法")
+        return LintFix()
+    if bad:
+        return LintFix(text=repoint(text, bad, ref))
+    imported = f'import rulemasonBase from "{ref}";\n'
+    anchors = [anchor for anchor in ESLINT_ANCHORS if anchor in text]
+    if Path(file).name.startswith(".eslintrc") or len(anchors) != 1 or text.count(anchors[0]) != 1:
+        return LintFix(note=f"{file} 的格式无法自动识别：未修改，请手动加入这两段：{imported.strip()}  与配置数组（或 config( 调用）的第一项 {{ rules: rulemasonBase }}")
+    anchor = anchors[0]
+    first_import = re.search(r"^import\s", text, re.M)
+    at = first_import.start() if first_import else text.index(anchor)
+    text = text[:at] + imported + text[at:]
+    return LintFix(text=text.replace(anchor, f"{anchor}\n  {{ rules: rulemasonBase }},", 1))
+
+
+def manual_lint(root: Path, files: list[str]) -> tuple[str, str] | None:
+    """lint 层的缺口 update 全都改不了时，返回第一个 (文件, 说明)；update 能改其中任何一处时返回 None。"""
+    configs = ruff_configs(root, files)
+    if needs_ruff_config(files, configs):
+        return None
+    configs += [(f, _read(root, f)) for f in eslint_configs(files)]
+    fixes = [(f, lint_fix(root, f, text)) for f, text in configs]
+    if any(fix.text is not None for _, fix in fixes):
+        return None
+    return next(((f, fix.note) for f, fix in fixes if fix.note), None)
 
 
 def react_without_eslint(root: Path, files: list[str]) -> list[str]:
@@ -492,28 +688,33 @@ def react_without_eslint(root: Path, files: list[str]) -> list[str]:
             if not config_dirs & {Path(d), *Path(d).parents}]
 
 
+def needs_ruff_config(files: list[str], configs: list[tuple[str, str]]) -> bool:
+    """有 Python 代码却没有任何 ruff 配置：init / update 会新建一份。"""
+    return has_python(files) and not configs
+
+
 def check_lint(root: Path, files: list[str]) -> list[str]:
     """ruff 继承基础配置且不写 select；ESLint 引入基础规则。只检查项目实际有的语言。"""
     problems = []
     configs = ruff_configs(root, files)
-    if has_python(files) and not configs:
+    if needs_ruff_config(files, configs):
         problems.append("有 Python 代码但没有 ruff 配置")
     for f, text in configs:
-        if not ruff_shared_refs(root, f, text):
-            problems.append(f"{f} 没有继承 {shared_ref(root, 'lint/ruff-base.toml')}")
+        if problem := _inherit_problem(root, f, ruff_refs(text), "lint/ruff-base.toml", "继承"):
+            problems.append(problem)
         if has_select(text):
             problems.append(f"{f} 仍写 select，会覆盖基础规则")
     for f in eslint_configs(files):
-        if not eslint_shared_refs(root, f, _read(root, f)):
-            problems.append(f"{f} 没有引入 {shared_ref(root, 'lint/eslint-base.mjs')}")
+        if problem := _inherit_problem(root, f, eslint_refs(_read(root, f)), "lint/eslint-base.mjs", "引入"):
+            problems.append(problem)
     return problems
 
 
-def layers(root: Path, files: list[str], sel: Selection, entry_issues: list[str], report: Report) -> None:
+def layers(root: Path, files: list[str], sel: Selection, entry_issues: list[str], behind: list[str], report: Report) -> None:
     report.layers["接入 代码规矩与 gates"] = check_agents(root, files)
     report.layers["接入 工具入口"] = sel.problems + entry_issues
     if not is_source_repo(root):
-        report.layers["接入 生成副本"] = copy_issues(root, sel) + block_issues(root, files, sel)
+        report.layers["接入 生成副本"] = copy_issues(root, sel) + behind + block_issues(root, files, sel)
     # 产物写法只看有没有 rules 段；有但与基础版不一致是巡检发现，不是没装。没接 OpenSpec 的项目这一层不算缺，识别表写明检查点未启用
     if has_openspec(root):
         report.layers["接入 产物写法"] = [] if project_artifact_rules(root) else ["openspec/config.yaml 没有 rules 段"]
@@ -550,16 +751,17 @@ def judge_label(root: Path, n_archived: int) -> str:
 
 # ---------- 3. 巡检 ----------
 
-def version_findings(sel: Selection) -> list[str]:
-    """项目记录的 rulemason 版本与本机安装版本比较；落后只报告，不导致非 0 退出。"""
-    if sel.manifest is None or NAME not in sel.manifest:
+def version_findings(sel: Selection, behind: list[str]) -> list[str]:
+    """项目记录的 rulemason 版本与本机安装版本比较；副本内容落后由「接入 生成副本」报告并决定退出码，这里只说版本号。"""
+    order = version_order(sel)
+    if order == 0:
         return []
-    recorded = str(sel.manifest[NAME])
-    if parse_version(recorded) < parse_version(__version__):
-        return [f"项目记录 {recorded}，本机 {__version__}：运行 {NAME} update 后在项目跑一遍 lint 与测试"]
-    if parse_version(recorded) > parse_version(__version__):
+    recorded = sel.manifest[NAME]
+    if order > 0:
         return [f"项目记录 {recorded}，高于本机 {__version__}：先升级本机 {NAME}"]
-    return []
+    if version_only(sel, behind):
+        return [f"项目记录 {recorded}，本机 {__version__}：{VERSION_ONLY}"]
+    return [f"项目记录 {recorded}，本机 {__version__}：运行 {NAME} update 后在项目跑一遍 lint 与测试"]
 
 
 def engine_copies(root: Path, files: list[str]) -> list[str]:
@@ -581,8 +783,8 @@ def lexicon_overlap(root: Path) -> list[str]:
     return [w for w in project if w in base]
 
 
-def audit(root: Path, files: list[str], sel: Selection, report: Report) -> None:
-    report.findings.append((f"{NAME} 版本", version_findings(sel)))
+def audit(root: Path, files: list[str], sel: Selection, behind: list[str], report: Report) -> None:
+    report.findings.append((f"{NAME} 版本", version_findings(sel, behind)))
     report.findings.append(("产物写法与基础版的差异", artifact_rules_diff(root)))
     report.findings.append(("检查点提示与基础版的差异", operations_diff(root)))
     report.findings.append(("React 目录缺少 ESLint", react_without_eslint(root, files)))
@@ -611,33 +813,39 @@ class Next:
         return f"{self.stage}：{self.action}"
 
 
-def next_stage(root: Path, report: Report, sel: Selection) -> Next:
-    """按原因给出具体命令或动作，多个原因时取最靠前的。阶段只有接入、补项目信息、日常巡检。"""
+def next_stage(root: Path, files: list[str], report: Report, sel: Selection, behind: list[str]) -> Next:
+    """按原因给出具体命令或动作，多个原因时取最靠前的；只有版本号落后时在动作后附一句，不改变下一步。"""
+    nxt = _next_by_cause(root, files, report, sel)
+    if version_only(sel, behind):
+        nxt = replace(nxt, action=f"{nxt.action}；版本号落后（{sel.manifest[NAME]} → {__version__}），副本内容相同")
+    return nxt
+
+
+def _next_by_cause(root: Path, files: list[str], report: Report, sel: Selection) -> Next:
+    """阶段只有接入、补项目信息、日常巡检。"""
     copies = report.layers.get("接入 生成副本", [])
+    missing = [name for name, items in report.layers.items() if name.startswith("接入") and items]
     if sel.label == INVALID:
         return Next("接入", "fix_manifest", f"先修正 {MANIFEST}")
     if sel.manifest is None and not is_source_repo(root):
         return Next("接入", "init", f"运行 {NAME} init")
     if any(item.startswith(IGNORED_COPY) for item in copies):
         return Next("接入", "fix_gitignore", f"修改 .gitignore，放行 skills/{NAME}/（副本要随项目提交）")
-    if any(missing for name, missing in report.layers.items() if name.startswith("接入")):
+    manual = manual_lint(root, files) if missing == ["接入 lint 继承"] else None
+    if manual:
+        # 走到这里说明接入只剩 update 改不了的 lint 项：给出要手动改的文件与内容，不再让人原地重跑 update
+        return Next("接入", "manual_lint", f"手动修改 {manual[0]}（{NAME} update 改不了）：{manual[1]}")
+    if missing:
         return Next("接入", "update", f"运行 {NAME} update")
     if _has_pending(root):
         return Next("补项目信息", "fill_project_info", f"在 AI 工具中运行 /{NAME}")
-    if dict(report.findings)[f"{NAME} 版本"]:
-        return _version_next(sel)
+    if version_order(sel) > 0:
+        return Next("日常巡检", "upgrade_machine", f"先升级本机 {NAME}")
     return Next("日常巡检", "none", "一切一致")
 
 
-def _version_next(sel: Selection) -> Next:
-    """版本不一致时：清单记录的比本机新，先升级本机；否则升级副本。"""
-    if parse_version(sel.manifest[NAME]) > parse_version(__version__):
-        return Next("日常巡检", "upgrade_machine", f"先升级本机 {NAME}")
-    return Next("日常巡检", "upgrade_copies", f"运行 {NAME} update 升级副本")
-
-
 def exit_code(report: Report) -> int:
-    """接入各层有缺（入口、副本或标记块被改、lint 未继承、manifest 无效）时为 1；版本落后等巡检发现不影响。"""
+    """接入各层有缺（入口、副本或标记块被改、副本与本机应生成的不一致、lint 未继承或引用不存在、manifest 无效）时为 1；只差版本号等巡检发现不影响。"""
     return 1 if any(missing for name, missing in report.layers.items() if name.startswith("接入")) else 0
 
 
@@ -650,11 +858,12 @@ def collect(root: Path) -> tuple[Report, Next]:
     n = archived(root)
     sel = tool_selection(root)
     entry_issues = check_tool_entries(root, files, sel.tools)
+    behind = copies_behind(root, files, sel)
     report = Report()
     identify(root, scanned, n, sel, entry_issues + sel.problems, report)
-    layers(root, files, sel, entry_issues, report)
-    audit(root, files, sel, report)
-    return report, next_stage(root, report, sel)
+    layers(root, files, sel, entry_issues, behind, report)
+    audit(root, files, sel, behind, report)
+    return report, next_stage(root, files, report, sel, behind)
 
 
 def render(root: Path, report: Report, nxt: Next) -> str:

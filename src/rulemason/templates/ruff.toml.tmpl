@@ -1,5 +1,5 @@
 # 代码写法的机械部分（AGENTS.md「Code style」）。选用规则与复杂度继承 rulemason 基础配置的项目内副本；这里只写豁免并注明原因，不在代码里逐行 noqa。
-extend = ".rulemason/lint/ruff-base.toml"
+extend = "$extend"
 
 [lint.per-file-ignores]
 # "〈脚本目录〉/**" = ["T201"]   # 〈原因，例如：命令行脚本用 print 输出进度〉

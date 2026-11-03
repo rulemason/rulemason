@@ -20,10 +20,12 @@ from rulemason.init import (
     unsafe_targets,
 )
 from rulemason.shared import (
+    CHECKPOINTS_OFF,
     MANIFEST,
     NAME,
     bullets,
     dump_json,
+    has_openspec,
     list_files,
 )
 
@@ -112,4 +114,6 @@ def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = Fa
         else:
             print(f"待补齐：未写入，确认后运行 {NAME} update --yes")
     print_notes(notes, "已跳过，需要你处理：")
+    if not has_openspec(root):
+        print(CHECKPOINTS_OFF)
     return 0

@@ -954,3 +954,57 @@ def test_go_project_gets_only_generic_rules_and_update_adds_python_later(tmp_pat
     assert ".rulemason/rules/python.md" in shared.read_manifest(root)["files"]
     assert ".rulemason/rules/python.md" in (root / "AGENTS.md").read_text(encoding="utf-8")
     assert check.run(root)[1] == 0
+
+
+# ---------- lint 写法、坏路径与 ruff.toml 位置（init-ux-2） ----------
+
+@pytest.mark.parametrize(("config", "expected"), [
+    ('import js from "@eslint/js";\nexport default defineConfig([\n  js.configs.recommended,\n]);\n',
+     'export default defineConfig([\n  { rules: rulemasonBase },\n  js.configs.recommended,'),
+    ('import tseslint from "typescript-eslint";\nexport default tseslint.config(\n  ...tseslint.configs.recommended,\n);\n',
+     'export default tseslint.config(\n  { rules: rulemasonBase },\n  ...tseslint.configs.recommended,'),
+    ('export default tseslint.config();\n', 'export default tseslint.config(\n  { rules: rulemasonBase },);'),
+])
+def test_eslint_define_config_and_tseslint_are_patched(project, capsys, config, expected):
+    write(project, "web/eslint.config.js", config)
+    assert _init(project) == 0
+    text = (project / "web/eslint.config.js").read_text(encoding="utf-8")
+    assert text.startswith('import rulemasonBase from "../.rulemason/lint/eslint-base.mjs";\n') and expected in text
+    assert "无法自动识别" not in capsys.readouterr().out
+
+
+def test_broken_eslint_ref_is_repointed_not_duplicated(project):
+    old = 'import rulekitBase from "../../../.rulekit/lint/eslint-base.mjs";\nexport default [{ rules: { ...rulekitBase } }];\n'
+    write(project, "apps/admin-web/eslint.config.js", old)
+    assert _init(project) == 0
+    text = (project / "apps/admin-web/eslint.config.js").read_text(encoding="utf-8")
+    assert text == old.replace("../../../.rulekit/", "../../.rulemason/")
+    report, _ = check.collect(project)
+    assert report.layers["接入 lint 继承"] == []
+
+
+def test_broken_ruff_extend_is_repointed(project):
+    write(project, "ruff.toml", "extend = '../rulekit/lint/ruff-base.toml'\n")
+    assert _init(project) == 0
+    assert (project / "ruff.toml").read_text(encoding="utf-8") == "extend = '.rulemason/lint/ruff-base.toml'\n"
+
+
+def test_root_eslint_config_import_is_relative(project):
+    write(project, "eslint.config.js", "export default [];\n")
+    assert _init(project) == 0
+    assert 'from "./.rulemason/lint/eslint-base.mjs"' in (project / "eslint.config.js").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(("extra", "home"), [({}, "apps/api"), ({"scripts/tool.py": "x = 1\n"}, ".")])
+def test_new_ruff_config_goes_to_the_only_python_dir(tmp_path, extra, home):
+    root = tmp_path / "proj"
+    git_init(root)
+    files = {"openspec/config.yaml": "schema: spec-driven\n", "apps/api/pyproject.toml": '[project]\nname = "api"\n', "apps/api/app/main.py": "x = 1\n", **extra}
+    for rel, text in files.items():
+        write(root, rel, text)
+    assert _init(root) == 0
+    config = root / home / "ruff.toml"
+    expected = "../../.rulemason/lint/ruff-base.toml" if home != "." else ".rulemason/lint/ruff-base.toml"
+    assert f'extend = "{expected}"' in config.read_text(encoding="utf-8")
+    assert sorted(p.relative_to(root).as_posix() for p in root.rglob("ruff.toml") if ".rulemason" not in p.parts) == [config.relative_to(root).as_posix()]
+    assert check.collect(root)[0].layers["接入 lint 继承"] == []

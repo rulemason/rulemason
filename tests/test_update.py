@@ -15,7 +15,7 @@ from conftest import (
     write_manifest,
 )
 
-from rulemason import __version__, init, shared, update
+from rulemason import __version__, check, init, shared, update
 
 
 def _old_version_project(tmp_path):
@@ -267,3 +267,24 @@ def test_update_drops_copies_the_project_no_longer_needs(tmp_path, capsys):
     assert not (root / ".rulemason/rules/react.md").exists() and not (root / ".rulemason/lint/eslint-base.mjs").exists()
     assert ".rulemason/rules/react.md" not in shared.read_manifest(root)["files"]
     assert ".rulemason/rules/react.md" in capsys.readouterr().out.split("更新的文件：", 1)[1]
+
+
+# ---------- 没有 OpenSpec 与坏引用（init-ux-2） ----------
+
+def test_update_without_openspec_says_checkpoints_are_off(tmp_path, capsys):
+    root = tmp_path / "proj"
+    git_init(root)
+    write(root, "app/main.py", "x = 1\n")
+    assert init.run(root, "claude", True) == 0
+    capsys.readouterr()
+    assert update.run(root) == 0
+    assert capsys.readouterr().out.rstrip().splitlines()[-1] == shared.CHECKPOINTS_OFF
+
+
+def test_update_yes_repoints_broken_ruff_extend(tmp_path):
+    root = _joined_before_python(tmp_path)
+    write(root, "app/main.py", "x = 1\n")
+    write(root, "ruff.toml", 'extend = "../gone/ruff-base.toml"\n')
+    assert update.run(root, yes=True) == 0
+    assert (root / "ruff.toml").read_text(encoding="utf-8") == 'extend = ".rulemason/lint/ruff-base.toml"\n'
+    assert check.collect(root)[0].layers["接入 lint 继承"] == []

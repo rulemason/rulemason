@@ -66,14 +66,15 @@ rulemason check     # 只读，在项目任意子目录运行都可以
 ```txt
 补项目信息：在 AI 工具中运行 /rulemason
 接入：运行 rulemason update
+接入：手动修改 web/.eslintrc.json（rulemason update 改不了）：……
 日常巡检：一切一致
 ```
 
-规则副本被改、工具入口缺失、lint 没有继承基础规则、项目还是旧格式时以非 0 退出，可以直接放进 CI：
+尚未接入、规则副本被改或与本机版本应生成的不一致、工具入口缺失、lint 没有继承基础规则或引用的基础配置不存在时以非 0 退出；只有版本号落后、副本内容相同时照常 0 退出。可以直接放进 CI（CI 钉的版本与项目记录一致，不会因本机升级而失败）：
 
 ```yaml
 - uses: astral-sh/setup-uv@v6
-- run: uv tool install rulemason==0.8.4
+- run: uv tool install rulemason==0.8.5
 - run: rulemason check
 ```
 

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -31,6 +30,7 @@ from rulemason.shared import (
     ConfigError,
     ManifestError,
     bullets,
+    copy_record,
     dirty_files,
     dump_json,
     generated_files,
@@ -44,7 +44,6 @@ from rulemason.shared import (
     paint,
     read_manifest,
     sha256_file,
-    sha256_text,
     skill_dirs,
     template,
     write_text,
@@ -155,7 +154,7 @@ def plan_copies(root: Path, tools: list[str], rules: list[str], record: dict[str
         if path.is_file() and rel in record and sha256_file(path) != record[rel]:
             plan.overwritten.append(rel)
         plan.writes[rel] = content
-    return {rel: sha256_text(content) for rel, content in files.items()}
+    return copy_record(files)
 
 
 def plan_manifest(root: Path, current: dict | None, tools: list[str], files: dict[str, str], plan: Plan) -> None:
@@ -279,7 +278,7 @@ def ensure_openspec(root: Path, tools: list[str], yes: bool) -> bool:
 def plan_stale_copies(root: Path, record: dict[str, str], current: dict[str, str], plan: Plan) -> None:
     """清单记录过、当前版本不再生成的副本（取消了工具，或副本清单缩减）：与记录一致就删，手改过的保留并报告。
     清单只是仓库里的文本，记录的路径不在副本目录里就不碰。"""
-    managed = (f"{COPY_DIR}/", *(f"{d}/" for d in skill_dirs(list(TOOL_IDS))))
+    managed = check.managed_prefixes(list(TOOL_IDS))
     for rel in record:
         path = root / rel
         if rel in current or not path.is_file():
@@ -457,63 +456,27 @@ def plan_operations(root: Path, plan: Plan) -> None:
     plan.writes[rel] = text
 
 
-def _insert_ruff_extend(name: str, text: str, ref: str) -> str:
-    line = f'extend = "{ref}"   # 选用规则与复杂度来自 {NAME} 基础配置的项目内副本\n'
-    text = text if text.endswith("\n") else text + "\n"      # 末行没有换行时，插入行会被并进注释或表头
-    if name == "ruff.toml":
-        lines = text.splitlines(keepends=True)
-        at = next((i for i, l in enumerate(lines) if l.strip() and not l.lstrip().startswith("#")), len(lines))
-        return "".join(lines[:at] + [line] + lines[at:])
-    header = re.search(r"^\[tool\.ruff\][ \t]*(#[^\n]*)?\n", text, re.M)
-    if header:
-        return text[: header.end()] + line + text[header.end():]
-    sub = re.search(r"^\[tool\.ruff\.", text, re.M)
-    if sub is None:
-        raise ValueError("找不到 [tool.ruff] 表头")
-    return text[: sub.start()] + "[tool.ruff]\n" + line + "\n" + text[sub.start():]
-
-
-def config_ref(root: Path, config: str, target: Path) -> str:
-    """配置文件里指向 target 的相对路径；ESLint 的 import 不带 ./ 会被当成包名，补上。"""
-    ref = Path(os.path.relpath(target, (root / config).parent)).as_posix()
-    if target.suffix == ".mjs" and not ref.startswith("."):
-        return f"./{ref}"
-    return ref
+def ruff_home(files: list[str]) -> str:
+    """新建 ruff.toml 放哪：Python 包目录只有一个、不是项目根且所有 .py 都在其中时放进该目录（单独克隆也读得到），否则放项目根。"""
+    dirs = check.python_dirs(files)
+    if len(dirs) == 1 and dirs[0] != "." and all(f.startswith(f"{dirs[0]}/") for f in files if f.endswith(".py")):
+        return dirs[0]
+    return "."
 
 
 def plan_lint(root: Path, files: list[str], plan: Plan) -> None:
-    """ruff 与 ESLint 继承 .rulemason/lint/；已有 select、其他 extend 或无法识别的 ESLint 格式只报告。"""
-    base = root / COPY_DIR / "lint"
+    """ruff 与 ESLint 继承 .rulemason/lint/；每份已有配置怎么改由 check.lint_fix 判断，改不了的只报告。"""
     configs = check.ruff_configs(root, files)
-    if check.has_python(files) and not configs:
-        plan.writes["ruff.toml"] = template("ruff.toml.tmpl")
-    for f, text in configs:
-        text = plan.text(root, f)
-        if check.ruff_shared_refs(root, f, text):
-            continue
-        if check.has_select(text):
-            plan.notes.append(f"{f} 写了 select，会覆盖基础规则：未修改，请删去 select 后重跑 {NAME} init")
-        elif re.search(r"^\s*extend\s*=", text, re.M):
-            plan.notes.append(f"{f} 已继承其他 ruff 配置：未修改，请改为继承 {COPY_DIR}/lint/ruff-base.toml")
-        else:
-            ref = config_ref(root, f, base / "ruff-base.toml")
-            try:
-                plan.writes[f] = _insert_ruff_extend(Path(f).name, text, ref)
-            except ValueError as exc:
-                plan.notes.append(f"{f} 无法安全写入 extend（{exc}）：未修改，请手动继承 {COPY_DIR}/lint/ruff-base.toml")
-    for f in check.eslint_configs(files):
-        text = plan.text(root, f)
-        if check.eslint_shared_refs(root, f, text):
-            continue
-        ref = config_ref(root, f, base / "eslint-base.mjs")
-        imported = f'import rulemasonBase from "{ref}";\n'
-        if Path(f).name.startswith(".eslintrc") or text.count("export default [") != 1:
-            plan.notes.append(f"{f} 的格式无法自动识别：未修改，请手动加入这两段：{imported.strip()}  与数组第一项 {{ rules: rulemasonBase }}")
-            continue
-        first_import = re.search(r"^import\s", text, re.M)
-        at = first_import.start() if first_import else text.index("export default [")
-        text = text[:at] + imported + text[at:]
-        plan.writes[f] = text.replace("export default [", "export default [\n  { rules: rulemasonBase },", 1)
+    if check.needs_ruff_config(files, configs):
+        rel = (Path(ruff_home(files)) / "ruff.toml").as_posix()
+        ref = check.config_ref(root, rel, root / COPY_DIR / "lint/ruff-base.toml")
+        plan.writes[rel] = Template(template("ruff.toml.tmpl")).substitute(extend=ref)
+    for f in [*(f for f, _ in configs), *check.eslint_configs(files)]:
+        fix = check.lint_fix(root, f, plan.text(root, f))
+        if fix.text is not None:
+            plan.writes[f] = fix.text
+        if fix.note:
+            plan.notes.append(fix.note)
 
 
 def opencode_template(root: Path, files: list[str]) -> str:

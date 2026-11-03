@@ -82,7 +82,7 @@ def test_opencode_and_ruff_templates_point_to_copies():
     ruff = (TEMPLATES / "ruff.toml.tmpl").read_text(encoding="utf-8")
 
     assert opencode["instructions"] == [".rulemason/rules/code-style.md", ".rulemason/rules/python.md", ".rulemason/rules/react.md", ".rulemason/rules/workflow-gates.md"]
-    assert 'extend = ".rulemason/lint/ruff-base.toml"' in ruff and "select" not in ruff
+    assert 'extend = "$extend"' in ruff and "select" not in ruff
 
 
 def test_workflow_spec_template_is_project_specific_and_references_copy():
@@ -103,7 +103,7 @@ def test_skill_reads_check_json_and_lists_every_code():
 
     assert "运行 `rulemason check --json`" in skill and "`next.code`" in skill and "`text`" in skill
     table = skill[skill.index("## 1. 识别"):skill.index("## 2. 补项目信息")]
-    for code in ("fix_manifest", "init", "fix_gitignore", "update", "fill_project_info", "upgrade_machine", "upgrade_copies", "none"):
+    for code in ("fix_manifest", "init", "fix_gitignore", "update", "fill_project_info", "upgrade_machine", "manual_lint", "none"):
         assert f"`{code}`" in table, code
     assert "rulemason init --plan" in skill and "rulemason --version" in skill
     assert "uv tool install rulemason" in skill and "github.com" not in skill

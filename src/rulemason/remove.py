@@ -15,7 +15,6 @@ from rulemason.init import (
     Stop,
     apply,
     ask_yes,
-    config_ref,
     instructions_array,
     interactive,
     opencode_template,
@@ -58,10 +57,7 @@ def plan_lint_move(root: Path, files: list[str], plan: Plan) -> list[str]:
         refs = find_refs(root, f, text)
         if not refs:
             continue
-        new_ref = config_ref(root, f, root / LINT_DIR / name)
-        for ref in refs:
-            text = text.replace(f'"{ref}"', f'"{new_ref}"').replace(f"'{ref}'", f"'{new_ref}'")
-        plan.writes[f] = text
+        plan.writes[f] = check.repoint(text, refs, check.config_ref(root, f, root / LINT_DIR / name))
         if name not in names:
             names.append(name)
     # 2. 搬运内容：副本（手改过的也照原样）写到 lint/；副本已丢失时用当前共享版本

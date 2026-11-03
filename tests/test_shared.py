@@ -233,3 +233,18 @@ def test_vendor_is_third_party_only_with_package_marker(tmp_path, marker, skippe
     if marker:
         write(tmp_path, f"vendor/{marker}", "x\n")
     assert shared.scan(tmp_path).skipped == skipped
+
+
+# ---------- 方案草稿目录（init-ux-2） ----------
+
+@pytest.mark.parametrize("in_git", [False, True])
+def test_scan_skips_plan_drafts_silently(tmp_path, in_git):
+    if in_git:
+        git_init(tmp_path)
+    write(tmp_path, "openspec/changes/add-x/prototype/package.json", '{"dependencies": {"react": "19.0.0"}}\n')
+    write(tmp_path, "openspec/changes/archive/2026-01-01-a/proposal.md", "# P\n")
+    write(tmp_path, "openspec/specs/a/spec.md", "# A\n")
+    write(tmp_path, "app/main.py", "x = 1\n")
+    scanned = shared.scan(tmp_path)
+    assert sorted(scanned.files) == ["app/main.py", "openspec/specs/a/spec.md"]
+    assert scanned.skipped == []

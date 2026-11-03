@@ -42,8 +42,9 @@ def _archive(root, n: int) -> None:
 
 
 def _install(root, tools: list[str], version: str = __version__) -> None:
-    """照 init 的结果写出生成副本与 manifest（不经过 init，单测 check 自己）。"""
-    files = shared.generated_files(tools)
+    """照 init 的结果写出生成副本与 manifest（不经过 init，单测 check 自己）：副本按项目当前的语言挑选。"""
+    root.mkdir(parents=True, exist_ok=True)
+    files = shared.generated_files(tools, check.copied_rules(root, shared.list_files(root)))
     for rel, text in files.items():
         write(root, rel, text)
     manifest = yaml.safe_load(shared.manifest_text(None, tools, {rel: shared.sha256_text(t) for rel, t in files.items()}))
@@ -105,6 +106,7 @@ def test_judge_ready_to_enable_with_enough_archives(joined):
 
 def test_fully_installed_goes_to_audit_and_exits_zero(joined):
     write(joined, "openspec/judgments.yaml", "[]\n")
+    _install(joined, [])                             # 启用判断后副本要带上文案语气，update 会补
     text, code = check.run(joined)
     assert text.startswith("日常巡检：一切一致\n") and "- 判断：已启用" in text
     assert code == 0
@@ -198,7 +200,8 @@ def test_missing_skill_copy_fails(joined):
 def test_version_behind_is_reported_but_exits_zero(joined):
     _install(joined, [], version="0.4.9")
     text, code = check.run(joined)
-    assert "项目记录 0.4.9" in text and "rulemason update" in text
+    assert text.splitlines()[0] == f"日常巡检：一切一致；版本号落后（0.4.9 → {__version__}），副本内容相同"
+    assert f"项目记录 0.4.9，本机 {__version__}：只有版本号落后，副本内容相同" in text
     assert code == 0
 
 
@@ -440,7 +443,12 @@ ACTION_SETUPS = {
     "update": (lambda root: write(root, ".rulemason/rules/code-style.md", "改过\n"), "接入：运行 rulemason update", 1),
     "fill_project_info": (lambda root: None, "补项目信息：在 AI 工具中运行 /rulemason", 0),
     "upgrade_machine": (lambda root: (_fill_project_info(root), _set_recorded_version(root, "99.0.0")), "日常巡检：先升级本机 rulemason", 0),
-    "upgrade_copies": (lambda root: (_fill_project_info(root), _set_recorded_version(root, "0.1.0")), "日常巡检：运行 rulemason update 升级副本", 0),
+    "manual_lint": (
+        lambda root: (_fill_project_info(root), write(root, ".eslintrc.json", "{}\n"), update.run(root, yes=True)),
+        "接入：手动修改 .eslintrc.json（rulemason update 改不了）：.eslintrc.json 的格式无法自动识别：未修改，"
+        '请手动加入这两段：import rulemasonBase from "./.rulemason/lint/eslint-base.mjs";  与配置数组（或 config( 调用）的第一项 { rules: rulemasonBase }',
+        1,
+    ),
     "none": (_fill_project_info, "日常巡检：一切一致", 0),
 }
 
@@ -571,7 +579,7 @@ def test_bad_package_json_names_the_file(tmp_path):
 def test_react_dir_without_eslint_is_a_finding(inited):
     _fill_project_info(inited)
     write(inited, "studio/package.json", REACT_PACKAGE)
-    write(inited, "frontend/package.json", '{"devDependencies": {"eslint": "^9"}}\n')
+    write(inited, "frontend/package.json", '{"dependencies": {"vue": "^3"}, "devDependencies": {"eslint": "^9"}}\n')
     write(inited, "frontend/eslint.config.mjs", 'import base from "../.rulemason/lint/eslint-base.mjs";\nexport default [{ rules: { ...base } }];\n')
     assert update.run(inited, yes=True) == 0                                # 后加的 React 目录要 update 才会引用 react.md
     report, _ = check.collect(inited)
@@ -637,3 +645,93 @@ def test_judge_label_mentions_key_when_conditions_met(joined, monkeypatch, has_k
     label = check.judge_label(joined, 3)
     assert expected in label
     assert (shared.KEY_URL in label) is not has_key
+
+
+# ---------- 识别与检查口径（init-ux-2） ----------
+
+def test_frontend_dirs_need_ui_framework(tmp_path):
+    write(tmp_path, "package.json", '{"devDependencies": {"turbo": "^2"}}\n')
+    write(tmp_path, "apps/api/package.json", '{"dependencies": {"express": "^4"}}\n')
+    write(tmp_path, "apps/web/package.json", '{"dependencies": {"vue": "^3"}}\n')
+    write(tmp_path, "frontend/package.json", '{"devDependencies": {"vite": "^6", "typescript": "^5"}}\n')
+    files = ["package.json", "apps/api/package.json", "apps/web/package.json", "frontend/package.json", "frontend/index.html"]
+    assert check.frontend_dirs(tmp_path, files) == ["apps/web", "frontend"]
+    assert check.react_dirs(tmp_path, files) == []
+
+
+def test_prototype_in_change_is_not_project_code(inited):
+    write(inited, "openspec/changes/add-x/prototype/package.json", REACT_PACKAGE)
+    report, _ = check.collect(inited)
+    assert dict(report.facts)["前端目录"] == "—" and dict(report.facts)["跳过"] == "—"
+    assert _finding(report, "React 目录缺少 ESLint") == []
+
+
+def test_broken_ruff_ref_is_reported_separately(joined):
+    write(joined, "ruff.toml", 'extend = "../rulekit/lint/ruff-base.toml"\n')
+    report, _ = check.collect(joined)
+    assert report.layers["接入 lint 继承"] == ["ruff.toml 引用的基础配置不存在：../rulekit/lint/ruff-base.toml"]
+    assert check.exit_code(report) == 1
+
+
+def test_broken_eslint_ref_next_to_correct_one_is_manual(inited):
+    _fill_project_info(inited)
+    write(inited, "web/eslint.config.js", 'import a from "../.rulemason/lint/eslint-base.mjs";\nimport b from "../../gone/.rulekit/lint/eslint-base.mjs";\nexport default [{ rules: { ...a, ...b } }];\n')
+    assert update.run(inited, yes=True) == 0                              # 补上 eslint-base 副本；两条引用并存的配置不改
+    report, nxt = check.collect(inited)
+    assert report.layers["接入 lint 继承"] == ["web/eslint.config.js 引用的基础配置不存在：../../gone/.rulekit/lint/eslint-base.mjs"]
+    assert nxt.code == "manual_lint" and "请删去该引入及其用法" in nxt.action
+
+
+def _age_copy(root, rel: str, version: str) -> None:
+    """模拟旧版本留下的副本：内容与当前共享版本不同，清单记录的是它自己的校验值。"""
+    write(root, rel, "旧版本的内容\n")
+    manifest = shared.read_manifest(root)
+    manifest["files"][rel] = shared.sha256_text("旧版本的内容\n")
+    manifest["rulemason"] = version
+    write_manifest(root, manifest)
+
+
+def test_copies_behind_fails_until_update(inited):
+    _fill_project_info(inited)
+    _age_copy(inited, ".rulemason/rules/code-style.md", "0.1.0")
+    report, nxt = check.collect(inited)
+    assert any(item.startswith(f"{check.BEHIND}（1 个文件；") for item in report.layers["接入 生成副本"])
+    assert nxt.code == "update" and check.exit_code(report) == 1
+    assert update.run(inited) == 0
+    report, nxt = check.collect(inited)
+    assert nxt.line == "日常巡检：一切一致" and check.exit_code(report) == 0
+
+
+def test_newer_record_is_not_copies_behind(inited):
+    _fill_project_info(inited)
+    _age_copy(inited, ".rulemason/rules/code-style.md", "99.0.0")
+    report, nxt = check.collect(inited)
+    assert not any(item.startswith(check.BEHIND) for item in report.layers["接入 生成副本"])
+    assert nxt.code == "upgrade_machine"
+
+
+def test_broken_eslint_ref_alone_is_fixable_by_update(inited):
+    _fill_project_info(inited)
+    write(inited, "web/eslint.config.js", 'import old from "../../gone/eslint-base.mjs";\nexport default [{ rules: { ...old } }];\n')
+    assert update.run(inited) == 0                                        # 先补 eslint-base 副本；非交互不写用户配置
+    report, nxt = check.collect(inited)
+    assert report.layers["接入 lint 继承"] == ["web/eslint.config.js 引用的基础配置不存在：../../gone/eslint-base.mjs"]
+    assert nxt.code == "update" and check.exit_code(report) == 1          # update --yes 能改正路径，不是手动项
+
+
+def test_version_lag_without_copy_record_does_not_claim_same_content(inited):
+    _fill_project_info(inited)
+    manifest = shared.read_manifest(inited)
+    manifest["rulemason"] = "0.1.0"
+    del manifest["files"]
+    write_manifest(inited, manifest)
+    report, nxt = check.collect(inited)
+    assert "副本内容相同" not in nxt.action
+    assert not any(check.VERSION_ONLY in item for item in _finding(report, "rulemason 版本"))
+
+
+def test_enabling_judge_needs_copy_voice_copy(joined):
+    write(joined, "openspec/judgments.yaml", "[]\n")                      # 版本不变，只是启用了判断
+    report, nxt = check.collect(joined)
+    assert any(item.startswith(check.BEHIND) for item in report.layers["接入 生成副本"])
+    assert nxt.code == "update"
