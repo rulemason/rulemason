@@ -27,22 +27,20 @@ GLYPHS = {
     "O": ["█▀▀█", "█  █", "▀▀▀▀"],
     "N": ["█▀▀▄", "█  █", "▀  ▀"],
 }
-# 像素图标：一匹向右奔跑的马，背上骑着一只兔，26 列 × 22 行像素，每两行像素合成一行字符
+# 像素图标：一匹向右奔跑的马，背上骑着一只兔，26 列 × 20 行像素，每两行像素合成一行字符
 # t 马身、b 鬃尾、d 蹄与眼、w 兔、g 兔的阴影、h 眼睛镂空、. 空
 ICON = (
     ".............ww...........",
     "........ww..wgw...........",
-    ".......wwww.wgw...........",
-    "........wwwwwgw...........",
-    "........wwwwww.....t.t....",
-    ".......wwwwwwww....tbt....",
-    ".......whwwwhww.b.btttt...",
-    ".......wwwgwwww.bbbttdtttt",
-    "........wwwwww.bbbtttttttt",
-    "........wwwwww.bbbtttttttt",
-    "b...bbbwwwwwwww.bbtttt....",
-    "bb.bbbbwwwwwwwwbbbttt.....",
-    ".bbbbb.bggttggttttttt.....",
+    ".........wwwwgw....t.t....",
+    ".........wwwww.....tbt....",
+    "........wwwwwww.b.btttt...",
+    "........whwwwhw.bbbttdtttt",
+    "........wwwgwwwbbbtttttttt",
+    ".........wwwww.bbbtttttttt",
+    "b...bbb.wwwwwww.bbtttt....",
+    "bb.bbbbbwwwwwwwbbbttt.....",
+    ".bbbbb.bbggtggttttttt.....",
     "..bbb...ttttttttttttt.....",
     "........ttttttttttttt.....",
     "........tttttttttttttd....",
@@ -103,7 +101,7 @@ def _cell(top: str | None, bottom: str | None, color: bool) -> str:
 
 
 def _icon_lines(color: bool) -> list[str]:
-    """把 22 行像素合成 11 行字符，去掉行尾空格。"""
+    """把 20 行像素合成 10 行字符，去掉行尾空格。"""
     return [
         "".join(_cell(ICON_COLORS.get(t), ICON_COLORS.get(b), color) for t, b in zip(top, bottom, strict=True)).rstrip()
         for top, bottom in zip(ICON[::2], ICON[1::2], strict=True)

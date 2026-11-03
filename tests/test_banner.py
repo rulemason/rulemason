@@ -10,7 +10,7 @@ from conftest import run_cli
 from rulemason import banner, init
 
 LOGO_CHARS = set("█▀▄")
-ICON_ROWS = 11                       # 22 行像素合成 11 行字符
+ICON_ROWS = 10                       # 20 行像素合成 10 行字符
 WORDMARK_LINE = ICON_ROWS + 1        # 图标下空一行，再是字标
 
 
@@ -37,8 +37,8 @@ def test_full_banner_has_icon_sky_blue_logo_and_three_things():
         assert word in text
 
 
-def test_icon_is_eleven_rows_within_26_cols():
-    assert len(banner.ICON) == 22 and {len(row) for row in banner.ICON} == {26}
+def test_icon_is_ten_rows_within_26_cols():
+    assert len(banner.ICON) == 20 and {len(row) for row in banner.ICON} == {26}
     icon = banner._icon_lines(False)
     assert len(icon) == ICON_ROWS and max(len(s) for s in icon) <= 26
     assert not set("".join(icon)) - (LOGO_CHARS | {" "})
