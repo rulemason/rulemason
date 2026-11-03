@@ -1,4 +1,4 @@
-# 推送 v* tag 时发布到 PyPI：先跑 ruff 与测试、核对 tag 与包版本，再构建并经 Trusted Publishing 上传（不用 token）
+# 推送 v* tag 时发布到 PyPI：先跑 ruff 与测试、核对 tag 与包版本，再构建并经 Trusted Publishing 上传（不用 token）；上传成功后建 GitHub Release
 name: publish
 
 on:
@@ -43,3 +43,25 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  release:
+    needs: publish             # PyPI 上传成功后才建，避免留下对不上 PyPI 的 Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       # 要找上一个 tag 与之间的提交
+          persist-credentials: false
+      - name: 建 Release（已有则跳过）
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "$TAG 已有 Release，跳过"
+            exit 0
+          fi
+          python3 scripts/release_notes.py "$TAG" > release-notes.md
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file release-notes.md --latest

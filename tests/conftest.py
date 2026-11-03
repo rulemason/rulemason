@@ -37,9 +37,9 @@ def write_manifest(root: Path, manifest: dict) -> None:
     write(root, ".rulemason.yaml", yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False))
 
 
-def commit(root: Path) -> None:
+def commit(root: Path, subject: str = "x") -> None:
     git(root, "add", "-A")
-    git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "x")
+    git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", subject)
 
 
 def drop_operations(root: Path) -> None:

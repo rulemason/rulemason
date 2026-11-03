@@ -1,0 +1,26 @@
+# PR 与 main 推送时跑 ruff 与测试；job 名 test 供分支保护规则引用，改名要同步改规则集
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}   # main 上每个提交都要留下检查结果，只取消 PR 的旧运行
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run ruff check .
+      - run: uv run pytest
