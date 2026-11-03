@@ -50,6 +50,12 @@ ESLINT_ANCHORS = ("export default [", "export default defineConfig([", "export d
 ENGINE_BASE = Path(engine.__file__).parent / "base"      # 引擎自带的通用规则与通用词表
 SHOWN_SKIPPED = 10                                          # 识别表「跳过」一行最多列出的目录数
 MIN_ARCHIVED = 3                                            # 判断层至少要这么多已归档 change 作测试用例
+ARCHIVE_NAME = re.compile(r"^(\d{4}-\d{2}-\d{2})-")       # openspec archive 生成的归档目录名：日期前缀
+GATE_RECORDS = (                                           # 完成汇报里要写到的两项：(名称, 匹配)
+    # 英文按 ASCII 词边界：preview、latest 不算；紧贴汉字的「独立review」「单元test」要算（默认 Unicode 边界把汉字当字母）
+    ("审查", re.compile(r"审查|\breview", re.I | re.A)),
+    ("测试", re.compile(r"测试|\btest|pytest", re.I | re.A)),
+)
 LOCKFILES = (("uv", "uv.lock"), ("pip", "requirements.txt"), ("pnpm", "pnpm-lock.yaml"), ("npm", "package-lock.json"))
 SKILL_ENTRIES = (f".claude/skills/{NAME}", f".agents/skills/{NAME}")
 PENDING_MARKS = (f"待 /{NAME} 补充", "自动识别，请确认")      # init 留给 /rulemason 补的内容
@@ -245,9 +251,37 @@ def skipped_label(skipped: list[tuple[str, str]]) -> str:
     return shown or "—"
 
 
-def archived(root: Path) -> int:
+def archive_dirs(root: Path) -> list[Path]:
+    """openspec/changes/archive/ 下的 change 目录；没有归档目录时为空。"""
     d = root / "openspec/changes/archive"
-    return sum(1 for p in d.iterdir() if p.is_dir()) if d.is_dir() else 0
+    return [p for p in d.iterdir() if p.is_dir()] if d.is_dir() else []
+
+
+def archived(root: Path) -> int:
+    return len(archive_dirs(root))
+
+
+def gate_records(root: Path) -> list[str]:
+    """日期最新的那一天归档的每个 change：没有 verification.md，或没写到审查、测试时各给一条。更早的归档不看。"""
+    dated = []
+    for p in archive_dirs(root):
+        m = ARCHIVE_NAME.match(p.name)
+        if m:
+            dated.append((m.group(1), p))
+    if not dated:
+        return []
+    latest = max(day for day, _ in dated)
+    problems = []
+    for change in sorted(p for day, p in dated if day == latest):
+        report = change / "verification.md"
+        if not report.is_file():
+            problems.append(f"{change.name}：没有 verification.md")
+            continue
+        text = report.read_text(encoding="utf-8")
+        missing = [name for name, pattern in GATE_RECORDS if not pattern.search(text)]
+        if missing:
+            problems.append(f"{change.name}：verification.md 没有写到{'、'.join(missing)}")
+    return problems
 
 
 def ci_files(files: list[str]) -> list[str]:
@@ -791,6 +825,7 @@ def audit(root: Path, files: list[str], sel: Selection, behind: list[str], repor
     report.findings.append(("判断引擎副本", engine_copies(root, files)))
     report.findings.append(("与通用规则重复的项目规则", duplicate_rules(root)))
     report.findings.append(("项目词表中已在通用词表的词", lexicon_overlap(root)))
+    report.findings.append(("最近归档的检查点记录", gate_records(root)))
 
 
 # ---------- 4. 下一步与退出码 ----------

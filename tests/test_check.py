@@ -735,3 +735,43 @@ def test_enabling_judge_needs_copy_voice_copy(joined):
     report, nxt = check.collect(joined)
     assert any(item.startswith(check.BEHIND) for item in report.layers["接入 生成副本"])
     assert nxt.code == "update"
+
+
+# ---------- 最近归档的检查点记录（gates-evidence） ----------
+
+def _archived_change(root, name: str, report: str | None) -> None:
+    write(root, f"openspec/changes/archive/{name}/proposal.md", "# P\n")
+    if report is not None:
+        write(root, f"openspec/changes/archive/{name}/verification.md", report)
+
+
+LATEST = "2026-11-01-migrate-x"
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("## 3. 独立审查\n两轮，无 block\n## 4. ruff 与测试\n432 passed\n", []),
+    (None, [f"{LATEST}：没有 verification.md"]),
+    ("## ruff 与测试\n通过\n", [f"{LATEST}：verification.md 没有写到审查"]),
+    ("| 步骤 | 结果 |\n|---|---|\n| 独立审查第一轮 | review 5 |\n| 测试 | 44 项 OK |\n", []),
+    ("Code review: pass. Tests: 12 passed.\n", []),
+    ("独立review 两轮；单元test 12 项通过\n", []),
+    ("Reviewed twice; testing done.\n", []),
+    ("Preview looks fine on the latest build.\n", [f"{LATEST}：verification.md 没有写到审查、测试"]),
+])
+def test_latest_archive_gate_records(joined, text, expected):
+    _archived_change(joined, "2026-10-01-old", None)                   # 更早的归档不看
+    _archived_change(joined, LATEST, text)
+    report, nxt = check.collect(joined)
+    assert _finding(report, "最近归档的检查点记录") == expected
+    assert check.exit_code(report) == 0 and nxt.line == "日常巡检：一切一致"
+
+
+def test_same_day_archives_are_all_checked(joined):
+    _archived_change(joined, "2026-11-03-a", "审查 pass；测试 pass\n")
+    _archived_change(joined, "2026-11-03-b", None)
+    _archived_change(joined, "misplaced", None)                        # 不是 openspec 生成的目录名，忽略
+    assert check.gate_records(joined) == ["2026-11-03-b：没有 verification.md"]
+
+
+def test_no_archive_means_no_gate_findings(tmp_path):
+    assert check.gate_records(tmp_path) == []
