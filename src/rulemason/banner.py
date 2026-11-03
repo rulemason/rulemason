@@ -1,19 +1,14 @@
 """启动画面：交互运行 init 或不带参数运行 rulemason 时，显示像素图标、字标、版本、口号与三件事。"""
 from __future__ import annotations
 
-import os
 import shutil
 import sys
 
 from rulemason import __version__
+from rulemason.shared import BOLD, DIM, SKY, SKY_BOLD, SKY_NUM, color_enabled, paint
 
 MIN_WIDTH = 60      # 窄于这个宽度不画图标与字标，避免折行
-# 配色仿 openspec：一个强调色（天空蓝）点字标、标签、命令与最后的提示；正文与命令说明默认白，版本号与 init 说明用暗色
-SKY_NUM = "117"     # 256 色的天空蓝（SkyBlue1），字标与图标里的马身共用
-SKY = f"38;5;{SKY_NUM}"
-SKY_BOLD = f"1;38;5;{SKY_NUM}"
-DIM = "2"
-BOLD = "1"
+# 配色仿 openspec：一个强调色（天空蓝）点字标、标签、命令与最后的提示；正文与命令说明默认白，版本号与 init 说明用暗色。颜色常量在 shared
 
 # 半格块字形，每个字母 3 行
 GLYPHS = {
@@ -68,6 +63,7 @@ COMMANDS = (
     ("rulemason init", "初始化"),
     ("rulemason check", "检查初始化状态，不改文件"),
     ("rulemason update", "同步新版规则和配置"),
+    ("rulemason key", "配置判断用的 Jev key（本机一次）"),
     ("rulemason --help", "查看全部命令"),
 )
 _CMD_WIDTH = max(len(cmd) for cmd, _ in COMMANDS) + 2     # 最长命令后空两格对齐说明
@@ -75,12 +71,6 @@ COMMANDS_FOOTER = (
     (("常用命令：", None),),
     *((("  ", None), (cmd.ljust(_CMD_WIDTH), SKY), (desc, None)) for cmd, desc in COMMANDS),
 )
-
-
-def _paint(text: str, code: str | None, color: bool) -> str:
-    if code is None or not color:
-        return text
-    return f"\033[{code}m{text}\033[0m"
 
 
 def _word(word: str, row: int) -> str:
@@ -92,12 +82,12 @@ def _cell(top: str | None, bottom: str | None, color: bool) -> str:
     if top is None and bottom is None:
         return " "
     if bottom is None:
-        return _paint("▀", f"38;5;{top}", color)
+        return paint("▀", f"38;5;{top}", color)
     if top is None:
-        return _paint("▄", f"38;5;{bottom}", color)
+        return paint("▄", f"38;5;{bottom}", color)
     if top == bottom or not color:
-        return _paint("█", f"38;5;{top}", color)
-    return _paint("▀", f"38;5;{top};48;5;{bottom}", color)
+        return paint("█", f"38;5;{top}", color)
+    return paint("▀", f"38;5;{top};48;5;{bottom}", color)
 
 
 def _icon_lines(color: bool) -> list[str]:
@@ -113,17 +103,17 @@ def render(version: str, footer: tuple, width: int, color: bool, unicode_ok: boo
     # 1. 图标、空一行、字标与版本号，口号紧贴其下
     if width >= MIN_WIDTH and unicode_ok:
         lines = [*_icon_lines(color), ""]
-        lines += [_paint(_word("RULEMASON", i), SKY, color) for i in range(3)]
-        lines[-1] += "  " + _paint(version, DIM, color)
+        lines += [paint(_word("RULEMASON", i), SKY, color) for i in range(3)]
+        lines[-1] += "  " + paint(version, DIM, color)
     else:
-        lines = [_paint("rulemason", SKY_BOLD, color) + " " + _paint(version, DIM, color)]
-    lines.append(_paint(SLOGAN, BOLD, color))
+        lines = [paint("rulemason", SKY_BOLD, color) + " " + paint(version, DIM, color)]
+    lines.append(paint(SLOGAN, BOLD, color))
     # 2. 三件事
     lines += ["", "只管三件事："]
-    lines += [f"  {_paint(label, SKY_BOLD, color)}  {text}" for label, text in THREE_THINGS]
+    lines += [f"  {paint(label, SKY_BOLD, color)}  {text}" for label, text in THREE_THINGS]
     # 3. 本次说明或常用命令
     lines.append("")
-    lines += ["".join(_paint(text, code, color) for text, code in segments) for segments in footer]
+    lines += ["".join(paint(text, code, color) for text, code in segments) for segments in footer]
     return "\n".join(lines)
 
 
@@ -142,6 +132,6 @@ def _unicode_ok() -> bool:
 
 def show(footer: tuple) -> None:
     """按当前终端的颜色、宽度与编码打印启动画面。"""
-    color = not os.environ.get("NO_COLOR")
+    color = color_enabled()
     width = shutil.get_terminal_size().columns
     print("\n" + render(__version__, footer, width, color, _unicode_ok()) + "\n")     # 上下各留一行，和提示符隔开

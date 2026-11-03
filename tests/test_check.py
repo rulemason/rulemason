@@ -626,3 +626,14 @@ def test_old_names_outside_blocks_are_not_reported(joined):
     assert code == 0 and data["next"] == baseline
     for word in ("旧名残留", "旧接入方式", "../rulekit/", "jev-judge", "skills/rulekit", "迁移"):
         assert word not in data["text"], word
+
+
+# ---------- 判断一行提示配置 key（init-ux-1） ----------
+
+@pytest.mark.parametrize(("has_key", "expected"), [(False, "本机未配置 key：运行 rulemason key"), (True, "要启用时在 AI 工具中运行 /rulemason")])
+def test_judge_label_mentions_key_when_conditions_met(joined, monkeypatch, has_key, expected):
+    _archive(joined, 3)
+    monkeypatch.setattr(check, "api_key", lambda: "k" if has_key else "")
+    label = check.judge_label(joined, 3)
+    assert expected in label
+    assert (shared.KEY_URL in label) is not has_key

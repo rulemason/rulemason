@@ -6,8 +6,10 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
+from string import Template
 from typing import Any, NamedTuple
 
 import yaml
@@ -37,6 +39,14 @@ TEMPLATES = Path(__file__).parent / "templates"
 VENDOR_DIRS = ("bower_components", "uni_modules", "third_party", "jspm_packages", "Pods")   # 第三方代码，不属于本项目
 VENDOR_MARKERS = ("autoload.php", "modules.txt")            # vendor/ 有 Composer 或 Go 的标记才算第三方；项目也会用它放自己的资源
 SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", COPY_DIR, ".pytest_cache", ".ruff_cache", "dist", "build"}
+KEY_URL = "https://typesafe.ai/"                            # 判断用的 Jev key 在这里申请
+# 终端配色：一个强调色（天空蓝）点标题、标签与命令；次要文字暗色；待办黄色。启动画面与 init 共用
+SKY_NUM = "117"                                             # 256 色的天空蓝（SkyBlue1）
+SKY = f"38;5;{SKY_NUM}"
+SKY_BOLD = f"1;38;5;{SKY_NUM}"
+DIM = "2"
+BOLD = "1"
+YELLOW = "33"
 
 
 class ManifestError(ValueError):
@@ -75,6 +85,23 @@ def template(name: str) -> str:
     return (TEMPLATES / name).read_text(encoding="utf-8")
 
 
+def color_enabled() -> bool:
+    """没设 NO_COLOR 且标准输出是终端才上色；被管道接走时不让转义进日志。"""
+    return not os.environ.get("NO_COLOR") and sys.stdout.isatty()
+
+
+def paint(text: str, code: str | None, color: bool | None = None) -> str:
+    """给文字加 ANSI 颜色；code 为 None 原样返回。color 不传时按当前终端决定。"""
+    if code is None or not (color_enabled() if color is None else color):
+        return text
+    return f"\033[{code}m{text}\033[0m"
+
+
+def has_openspec(root: Path) -> bool:
+    """项目接了 OpenSpec：方案写法规则、检查点提示与项目检查点规格都以此为前提。"""
+    return (root / "openspec").is_dir()
+
+
 def is_source_repo(root: Path) -> bool:
     """rulemason 源码仓库本身：直接引用 rules/，不生成副本。用目录特征判断，wheel 与可编辑安装下结论一致。"""
     return (root / f"skills/{NAME}/SKILL.md").is_file() and (root / "rules/code-style.md").is_file()
@@ -90,11 +117,12 @@ def skill_dirs(tools: list[str]) -> list[str]:
     return dirs
 
 
-def generated_files(tools: list[str]) -> dict[str, str]:
-    """项目内只读副本：相对路径 → 内容。.rulemason/ 固定 6 个文件加 README，再加各已选工具的 skill。"""
+def generated_files(tools: list[str], rules: tuple[str, ...] | list[str] = COPIED_SHARED) -> dict[str, str]:
+    """项目内只读副本：相对路径 → 内容。.rulemason/ 放 rules 指定的共享文件加 README，再加各已选工具的 skill。"""
     src = shared_root()
-    out = {f"{COPY_DIR}/{rel}": (src / rel).read_text(encoding="utf-8") for rel in COPIED_SHARED}
-    out[f"{COPY_DIR}/README.md"] = template("copies-README.md")
+    out = {f"{COPY_DIR}/{rel}": (src / rel).read_text(encoding="utf-8") for rel in rules}
+    listed = "\n".join(f"- `{rel}`" for rel in rules)
+    out[f"{COPY_DIR}/README.md"] = Template(template("copies-README.md")).safe_substitute(files=listed)
     for target in skill_dirs(tools):
         for rel in SKILL_FILES:
             out[f"{target}/{rel}"] = (src / f"skills/{NAME}" / rel).read_text(encoding="utf-8")

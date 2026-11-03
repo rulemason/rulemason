@@ -7,20 +7,27 @@ import re
 import shutil
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from string import Template
 
 import yaml
 
-from rulemason import banner, check
+from rulemason import banner, check, select
+from rulemason import key as key_cmd
 from rulemason.check import BlockError, block_body, find_block, for_languages, markers
+from rulemason.judge import judge as engine
 from rulemason.shared import (
     COPY_DIR,
+    DIM,
+    KEY_URL,
     MANIFEST,
     NAME,
+    SKY_BOLD,
     TOOL_IDS,
     TOOL_LABELS,
+    YELLOW,
     ConfigError,
     ManifestError,
     bullets,
@@ -28,10 +35,13 @@ from rulemason.shared import (
     dump_json,
     generated_files,
     has_git,
+    has_openspec,
+    ignored_files,
     is_source_repo,
     list_files,
     manifest_text,
     normalize_tools,
+    paint,
     read_manifest,
     sha256_file,
     sha256_text,
@@ -40,7 +50,9 @@ from rulemason.shared import (
     write_text,
 )
 
-TOOL_DIRS = {".opencode": "opencode", ".claude": "claude", ".cursor": "cursor", ".agents": "codex"}   # 已有目录 → 预勾选
+TOOL_DIRS = {".opencode": "opencode", ".claude": "claude", ".cursor": "cursor", ".agents": "codex"}   # 已有目录 → 标注「检测到」；--plan 时据此推断
+README_NAMES = ("README.md", "README.rst", "README")
+OPENSPEC_HINT = f"检查点与方案写法需要 OpenSpec：安装后在项目根运行 openspec init，再运行 {NAME} update 补齐"
 OPENSPEC_INSTALL = "npm install -g @fission-ai/openspec@latest"
 ROW_NAMES = ("判断", "ruff", "测试", "前端 lint", "文案检查")
 NEXT_STEP = f"下一步：在 AI 工具中运行 /{NAME}，补项目简介、红线并确认命令表。"
@@ -68,12 +80,22 @@ class Plan:
         return (root / rel).read_text(encoding="utf-8")
 
 
+def print_notes(notes: list[str], heading: str) -> None:
+    """打印需要用户自己处理的事项（黄色标题 + 列表）；没有就不打印。init 与 update 共用。"""
+    if notes:
+        print(paint(heading, YELLOW))
+        print(bullets(notes), end="")
+
+
 def interactive() -> bool:
     return sys.stdin.isatty()
 
 
+YES = ("y", "yes", "是")
+
+
 def ask_yes(question: str) -> bool:
-    return input(f"{question} [y/N] ").strip().lower() in ("y", "yes", "是")
+    return input(f"{question} [y/N] ").strip().lower() in YES
 
 
 # ---------- 1. 标记块（init 与 update 共用） ----------
@@ -102,7 +124,7 @@ def plan_blocks(root: Path, files: list[str], tools: list[str], plan: Plan, crea
             continue
         current = path.read_text(encoding="utf-8") if path.is_file() else ""
         base = plan.writes.get(rel, current)                 # 前一步已改过该文件时，以改后的内容为起点
-        text = base or (Template(template("AGENTS.md.tmpl")).safe_substitute(name=root.name) if rel == "AGENTS.md" else "")
+        text = base or (agents_template(root) if rel == "AGENTS.md" else "")
         try:
             if not create and any(find_block(text, name) is None for name, _ in blocks):
                 # 走到这里说明块不齐：只刷新模式不动这个文件，留给补齐计划
@@ -123,9 +145,9 @@ def plan_blocks(root: Path, files: list[str], tools: list[str], plan: Plan, crea
 
 # ---------- 2. 生成副本（init 与 update 共用） ----------
 
-def plan_copies(root: Path, tools: list[str], record: dict[str, str], plan: Plan) -> dict[str, str]:
+def plan_copies(root: Path, tools: list[str], rules: list[str], record: dict[str, str], plan: Plan) -> dict[str, str]:
     """把已选工具的副本刷新为当前版本；返回新的校验值记录。被手改过的副本照样覆盖，并记进 overwritten。"""
-    files = generated_files(tools)
+    files = generated_files(tools, rules)
     for rel, content in files.items():
         path = root / rel
         if path.is_file() and path.read_text(encoding="utf-8") == content:
@@ -182,17 +204,36 @@ def preflight(root: Path, command: str) -> dict | None:
         raise Stop(f"{exc}；请先修正 {MANIFEST}") from exc
 
 
-def default_tools(root: Path, manifest: dict | None) -> list[str]:
-    if manifest is not None:
-        return list(manifest["tools"])
+def detected_tools(root: Path) -> list[str]:
+    """项目里已有目录的工具：只看目录，不看清单。"""
     return normalize_tools([tool for d, tool in TOOL_DIRS.items() if (root / d).is_dir()])
 
 
-def ask_tools(defaults: list[str]) -> list[str]:
-    """打印带编号、已预勾选的清单；输入编号（逗号分隔），直接回车保持默认。"""
-    print("选择本项目使用的 AI 工具（输入编号，逗号分隔；直接回车保持默认）：")
-    for i, tool in enumerate(TOOL_IDS, 1):
-        print(f"  {i}. [{'x' if tool in defaults else ' '}] {TOOL_LABELS[tool]}（{tool}）")
+def default_tools(root: Path, manifest: dict | None) -> list[str]:
+    """--plan 不提问时用的工具：清单记录的，没有清单就按已有目录推断。"""
+    if manifest is not None:
+        return list(manifest["tools"])
+    return detected_tools(root)
+
+
+def ask_tools(checked: list[str], detected: list[str]) -> list[str]:
+    """终端里用空格勾选；读不了单键时退回编号输入。checked 是预勾的（重跑时为清单记录的），detected 只标注不预勾。"""
+    labels = [f"{TOOL_LABELS[tool]}（{tool}）" for tool in TOOL_IDS]
+    notes = ["检测到" if tool in detected and tool not in checked else "" for tool in TOOL_IDS]
+    try:
+        picked = select.choose("选择本项目使用的 AI 工具", labels, [tool in checked for tool in TOOL_IDS], notes)
+    except select.Unsupported:
+        return ask_tools_numbered(checked, labels, notes)
+    if picked is None:
+        raise Stop("已取消，未写任何文件。", 0)
+    return normalize_tools([TOOL_IDS[i] for i in picked])
+
+
+def ask_tools_numbered(defaults: list[str], labels: list[str], notes: list[str]) -> list[str]:
+    """读不了单键时的退路：打印带编号、已预勾选的清单；输入编号（逗号分隔），有预勾项时直接回车保持默认。"""
+    print("选择本项目使用的 AI 工具（输入编号，逗号分隔" + ("；直接回车保持默认" if defaults else "") + "）：")
+    for i, (tool, label, note) in enumerate(zip(TOOL_IDS, labels, notes, strict=True), 1):
+        print(f"  {i}. [{'x' if tool in defaults else ' '}] {label}" + (f"  {note}" if note else ""))
     while True:
         answer = input("> ").strip()
         if not answer and defaults:
@@ -212,21 +253,25 @@ def choose_tools(root: Path, manifest: dict | None, tools_arg: str | None) -> li
         if not tools:
             raise Stop("--tools 至少要选一个工具", 2)
         return tools
-    return ask_tools(default_tools(root, manifest))
+    checked = list(manifest["tools"]) if manifest is not None else []
+    return ask_tools(checked, detected_tools(root))
 
 
-def ensure_openspec(root: Path, tools: list[str], yes: bool) -> None:
-    """没有 openspec/ 时询问后代为运行 openspec init；拒绝、命令不存在或失败时抛 Stop。"""
-    if (root / "openspec").is_dir():
-        return
+def ensure_openspec(root: Path, tools: list[str], yes: bool) -> bool:
+    """返回项目是否有 openspec/。没有时：交互运行先问要不要代跑 openspec init；--yes、拒绝或本机没有命令时不跑，
+    只接入「读」层（规则副本、入口、lint）。代跑失败抛 Stop。"""
+    if has_openspec(root):
+        return True
     if shutil.which("openspec") is None:
-        raise Stop(f"项目没有 openspec/，本机也没有 openspec 命令。先安装：{OPENSPEC_INSTALL}，再运行 {NAME} init")
+        print(f"项目没有 openspec/，本机也没有 openspec 命令（安装：{OPENSPEC_INSTALL}）；先只接入规则与 lint。")
+        return False
     command = ["openspec", "init", "--tools", ",".join(tools), "--language", "zh-CN"]
-    if not yes and not ask_yes(f"项目没有 openspec/，现在运行 `{' '.join(command)}`？"):
-        raise Stop(f"未运行 openspec init，{NAME} 需要 openspec/：未写任何文件", 0)
+    if yes or not ask_yes(f"项目没有 openspec/，现在运行 `{' '.join(command)}`？（否则先只接入规则与 lint）"):
+        return False
     sys.stdout.flush()                                      # 先输出前面的提示，再让 openspec 直接写终端
     if subprocess.run(command, cwd=root).returncode != 0:
         raise Stop(f"openspec init 失败（输出见上），{NAME} 未写任何文件")
+    return True
 
 
 # ---------- 4. 只在 init 做的计划：工具增删、命令表、配置 ----------
@@ -268,7 +313,8 @@ def detect_commands(root: Path, files: list[str]) -> dict[str, str]:
             front += [f"`{prefix}{runner} run lint`"] if "lint" in scripts else []
             tests += [f"`{prefix}{runner} run test`"] if "test" in scripts else []
     skip = "无，跳过"
-    values = ("判断层未装", "；".join(ruff) or skip, "；".join(tests) or skip, "；".join(front) or skip, "判断层未装")
+    optional = "可选，未启用"
+    values = (optional, "；".join(ruff) or skip, "；".join(tests) or skip, "；".join(front) or skip, optional)
     return dict(zip(ROW_NAMES, values, strict=True))
 
 
@@ -460,10 +506,10 @@ def plan_lint(root: Path, files: list[str], plan: Plan) -> None:
         if check.eslint_shared_refs(root, f, text):
             continue
         ref = config_ref(root, f, base / "eslint-base.mjs")
-        if Path(f).name.startswith(".eslintrc") or text.count("export default [") != 1:
-            plan.notes.append(f"{f} 的格式无法自动识别：未修改，请手动 import \"{ref}\" 并展开进 rules")
-            continue
         imported = f'import rulemasonBase from "{ref}";\n'
+        if Path(f).name.startswith(".eslintrc") or text.count("export default [") != 1:
+            plan.notes.append(f"{f} 的格式无法自动识别：未修改，请手动加入这两段：{imported.strip()}  与数组第一项 {{ rules: rulemasonBase }}")
+            continue
         first_import = re.search(r"^import\s", text, re.M)
         at = first_import.start() if first_import else text.index("export default [")
         text = text[:at] + imported + text[at:]
@@ -592,25 +638,59 @@ def plan_drop_blocks(root: Path, rel: str, plan: Plan, why: str) -> None:
         plan.deletes.append(rel)
 
 
-def plan_fill(root: Path, files: list[str], tools: list[str], plan: Plan) -> None:
-    """补齐用户自己的文件：缺的标记块、OpenCode 入口、方案写法基础规则、检查点提示、lint 继承、项目 workflow-gates 规格。init 与 update 共用。"""
+def plan_gitignore(root: Path, tools: list[str], copies: list[str], plan: Plan) -> None:
+    """生成副本会被 .gitignore 挡住时，在文末追加放行规则：从被忽略的那一级目录起逐级放行，最后放行副本目录及其下全部文件，其余内容照旧忽略。"""
+    if not has_git(root):
+        return
+    rel = ".gitignore"
+    text = plan.text(root, rel) if rel in plan.writes or (root / rel).is_file() else ""
+    added: list[str] = []
+    for target in (COPY_DIR, *skill_dirs(tools)):
+        if unsafe_targets(root, [target]):
+            continue                                        # 目录是符号链接或在项目外：git 查不了，写入前的校验会报出来
+        parts = Path(target).parts
+        ancestors = ["/".join(parts[:i]) for i in range(1, len(parts) + 1)]
+        inside = [path for path in copies if path.startswith(f"{target}/")]
+        # 目录路径带上 /：副本还没生成时，git 只对带 / 的路径套用「只匹配目录」的规则
+        ignored = ignored_files(root, [*inside, *(f"{a}/" for a in ancestors)])
+        if not any(path in ignored for path in inside):
+            continue
+        if f"!{target}/**" in text:
+            # 走到这里说明放行规则已经写过，忽略来自别处（如子目录自己的 .gitignore）：不再重复追加，留给 check 报告
+            continue
+        top = next((a for a in ancestors if f"{a}/" in ignored), target)
+        # 从被忽略的那一级起，每一级先放行目录再忽略其内容；最后放行副本目录与其下全部文件（文件级规则如 *.md 也能放行）
+        for ancestor in ancestors[ancestors.index(top):-1]:
+            added += [f"!{ancestor}/", f"{ancestor}/*"]
+        added += [f"!{target}/", f"!{target}/**"]
+    if not added:
+        return
+    block = f"\n# {NAME} 生成的副本要随项目提交；其余仍按上面的规则忽略\n" + "\n".join(dict.fromkeys(added)) + "\n"
+    plan.writes[rel] = (text.rstrip("\n") + "\n" if text.strip() else "") + block
+
+
+def plan_fill(root: Path, files: list[str], tools: list[str], copies: list[str], plan: Plan) -> None:
+    """补齐用户自己的文件：缺的标记块、OpenCode 入口、lint 继承、.gitignore 放行；有 openspec/ 时再补方案写法基础规则、
+    检查点提示与项目 workflow-gates 规格。init 与 update 共用。"""
     plan_blocks(root, files, tools, plan, create=True)
     if "opencode" in tools:
         plan_opencode(root, files, plan)
-    plan_artifact_rules(root, plan)
-    plan_operations(root, plan)
+    if has_openspec(root):
+        plan_artifact_rules(root, plan)
+        plan_operations(root, plan)
+        plan_workflow_spec(root, plan)
     plan_lint(root, files, plan)
-    plan_workflow_spec(root, plan)
+    plan_gitignore(root, tools, copies, plan)
 
 
 def build_plan(root: Path, manifest: dict | None, tools: list[str]) -> Plan:
     files = list_files(root)
     plan = Plan()
     record = (manifest or {}).get("files") or {}
-    new_record = plan_copies(root, tools, record, plan)
+    new_record = plan_copies(root, tools, check.copied_rules(root, files), record, plan)
     plan_stale_copies(root, record, new_record, plan)
     plan_removed_entries(root, files, (manifest or {}).get("tools") or [], tools, plan)
-    plan_fill(root, files, tools, plan)
+    plan_fill(root, files, tools, list(new_record), plan)
     plan_command_table(root, files, plan)
     plan_manifest(root, manifest, tools, new_record, plan)
     return plan
@@ -634,21 +714,58 @@ def is_modify(root: Path, rel: str) -> bool:
 INIT_DELETE_TITLE = "删除（内容未改动的旧副本与旧清单，或已取消工具的副本）"
 
 
-def render_plan(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE) -> str:
+def split_writes(root: Path, plan: Plan) -> tuple[list[str], list[str]]:
+    """计划里的写入分成 (新增, 修改)。"""
     added = [rel for rel in plan.writes if not is_modify(root, rel)]
-    changed = [rel for rel in plan.writes if is_modify(root, rel)]
+    return added, [rel for rel in plan.writes if rel not in added]
+
+
+def untouched_line(root: Path, plan: Plan) -> str:
+    untouched = untouched_dirty(root, plan)
+    if untouched is None:
+        return "不会碰：没有 git，无法统计未提交改动；计划以外的文件都不改"
+    return f"不会碰：其余 {untouched} 个未提交改动不变"
+
+
+def render_plan(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE) -> str:
+    added, changed = split_writes(root, plan)
     lines = ["## 文件计划"]
     for title, items in (("新增", added), ("修改", changed), (delete_title, plan.deletes), ("覆盖手改过的副本", plan.overwritten)):
         if items:
             lines.append(f"{title}：")
             lines += [f"  - {rel}" for rel in items]
-    untouched = untouched_dirty(root, plan)
-    if untouched is None:
-        lines.append("不会碰：没有 git，无法统计未提交改动；计划以外的文件都不改")
-    else:
-        lines.append(f"不会碰：其余 {untouched} 个未提交改动不变")
+    lines.append(untouched_line(root, plan))
     if plan.notes:
         lines.append("已跳过，需要你处理：")
+        lines += [f"  - {note}" for note in plan.notes]
+    return "\n".join(lines)
+
+
+def _category(rel: str) -> str:
+    if rel.startswith(f"{COPY_DIR}/lint/"):
+        return "配置"
+    if rel.startswith(f"{COPY_DIR}/"):
+        return "规则副本"
+    if f"skills/{NAME}/" in rel:
+        return "skill"
+    if rel in ("AGENTS.md", "CLAUDE.md", ".gitignore", MANIFEST) or rel.endswith("opencode.jsonc"):
+        return "入口"
+    return "配置"
+
+
+def render_summary(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE) -> str:
+    """交互确认时看的摘要：新增按类别计数，修改与删除逐个列出，再写不会碰的改动数与需要处理的事。"""
+    added, changed = split_writes(root, plan)
+    lines = [paint("## 文件计划", SKY_BOLD)]
+    if added:
+        counts = Counter(map(_category, added))
+        lines.append(f"新增 {len(added)} 个文件：" + "、".join(f"{k} {v}" for k, v in counts.items()))
+    for title, items in (("修改", changed), (delete_title, plan.deletes), ("覆盖手改过的副本", plan.overwritten)):
+        if items:
+            lines.append(f"{title} {len(items)} 个：" + "、".join(paint(rel, DIM) for rel in items))
+    lines.append(untouched_line(root, plan))
+    if plan.notes:
+        lines.append(paint(f"需要你处理 {len(plan.notes)} 项：", YELLOW))
         lines += [f"  - {note}" for note in plan.notes]
     return "\n".join(lines)
 
@@ -678,7 +795,7 @@ def prepare(root: Path, tools_arg: str | None, plan_only: bool) -> tuple[dict | 
 
 
 def print_plan(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE) -> bool:
-    """打印文件计划；没有要改的文件时打印提示与跳过项。返回是否有要改的文件。"""
+    """打印完整文件计划（--plan 与 remove 用）；没有要改的文件时打印提示与跳过项。返回是否有要改的文件。"""
     if plan.writes or plan.deletes:
         print(render_plan(root, plan, delete_title))
         return True
@@ -687,30 +804,82 @@ def print_plan(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE) ->
     return False
 
 
+def confirm_plan(root: Path, plan: Plan, yes: bool) -> bool:
+    """交互确认：先看摘要，输入 d 展开完整清单后再问一次。--yes 只打印摘要。返回是否写入。"""
+    print(render_summary(root, plan))
+    if yes:
+        return True
+    while True:
+        answer = input("按计划写入？ [y/N/d]（d 看完整清单） ").strip().lower()
+        if answer == "d":
+            print(render_plan(root, plan))
+            continue
+        return answer in YES
+
+
 def show_plan(root: Path, plan: Plan, tools: list[str], as_json: bool) -> None:
     """init --plan：只打印计划，不写文件、不运行 openspec init。"""
-    openspec_init = not (root / "openspec").is_dir()
+    openspec_init = not has_openspec(root)
     if as_json:
         print(plan_to_json(root, plan, tools, openspec_init))
         return
     print("工具：" + ("、".join(tools) or "未选"))
     print_plan(root, plan)
     if openspec_init:
-        print("将先运行 openspec init；方案写法规则在那之后补齐。")
+        print(f"将先询问是否运行 openspec init；不运行时只接入规则与 lint。{OPENSPEC_HINT}")
     print(f"只列计划，未写任何文件。确认后运行 {NAME} init --tools {','.join(tools) or '<id,...>'} --yes")
 
 
-def report(root: Path, plan: Plan) -> None:
-    """写入之后的汇报：check 结果、本次改动的文件、下一步。"""
+def report(root: Path, plan: Plan, with_openspec: bool) -> None:
+    """写入之后的汇报：check 的结论一行、需要你处理的事、下一步；完整报告留给 rulemason check。"""
     try:
         text, _ = check.run(root)
     except ConfigError as exc:
         # 走到这里说明文件已写完，只是项目配置读不出来：照常收尾，不说成 init 失败
         text = f"check 未完成：{exc}；修正后运行 {NAME} check"
-    print("\n" + text + "\n")
+    print("\n" + paint(text.splitlines()[0], SKY_BOLD))
     if plan.writes or plan.deletes:
-        print("本次改动的文件：" + "、".join([*plan.writes, *plan.deletes]))
+        print(paint("本次改动的文件：" + "、".join([*plan.writes, *plan.deletes]), DIM))
+    print_notes(plan.notes, f"需要你处理 {len(plan.notes)} 项：")
+    if not with_openspec:
+        print(OPENSPEC_HINT)
     print(NEXT_STEP)
+
+
+def readme_intro(root: Path) -> str | None:
+    """README 第一段正文截到两句；跳过标题、徽章、图片、链接行；取不到返回 None。"""
+    path = next((root / name for name in README_NAMES if (root / name).is_file()), None)
+    if path is None:
+        return None
+    for paragraph in re.split(r"\n\s*\n", path.read_text(encoding="utf-8", errors="replace")):
+        lines = [line.strip() for line in paragraph.splitlines() if line.strip()]
+        if not lines or any(line.startswith(("#", "![", "<", "[![", "http", "---", ">", "|", "```", "=")) for line in lines):
+            continue
+        text = " ".join(lines)
+        # 句末：中文标点，或后面是空格 / 行尾的英文标点（「Node.js」「v1.0」里的点不算）
+        sentences = [m.group(0).strip() for m in re.finditer(r"\S.*?(?:[。！？]|[.!?](?=\s|$)|$)", text) if m.group(0).strip()]
+        joiner = "" if sentences[0][-1] in "。！？" else " "
+        return joiner.join(sentences[:2])
+    return None
+
+
+def agents_template(root: Path) -> str:
+    """新建 AGENTS.md 的内容：简介取自 README，取不到留占位。"""
+    intro = readme_intro(root) or f"待 /{NAME} 补充：一两句话写这个项目是什么、给谁用。"
+    return Template(template("AGENTS.md.tmpl")).safe_substitute(name=root.name, intro=intro)
+
+
+def guide_key(root: Path) -> None:
+    """交互 init 结尾：本机没有 key 时按判断条件提示或问一句；有 key 什么都不说。"""
+    if engine.api_key():
+        return
+    if check.judge_blockers(root, check.archived(root)):
+        print(f"判断功能需要 git 与至少 {check.MIN_ARCHIVED} 个已归档 change；满足后运行 {NAME} key 配置 Jev 的 key（申请：{KEY_URL}）")
+        return
+    if ask_yes(f"这个项目已满足开启判断的条件。现在配置 Jev 的 key（申请：{KEY_URL}）吗？"):
+        key_cmd.run()
+    else:
+        print(f"以后运行 {NAME} key 即可配置。")
 
 
 def run(root: Path, tools_arg: str | None, yes: bool, plan_only: bool = False, as_json: bool = False) -> int:
@@ -722,8 +891,7 @@ def run(root: Path, tools_arg: str | None, yes: bool, plan_only: bool = False, a
             banner.show(banner.INIT_FOOTER)
         # 2. 预检、选工具；只看计划时不运行 openspec init
         manifest, tools = prepare(root, tools_arg, plan_only)
-        if not plan_only:
-            ensure_openspec(root, tools, yes)
+        with_openspec = ensure_openspec(root, tools, yes) if not plan_only else has_openspec(root)
         # 3. 计划
         plan = build_plan(root, manifest, tools)
     except Stop as exc:
@@ -734,8 +902,8 @@ def run(root: Path, tools_arg: str | None, yes: bool, plan_only: bool = False, a
         return 0
 
     # 4. 确认后写入
-    if print_plan(root, plan):
-        if not yes and not ask_yes("按计划写入？"):
+    if plan.writes or plan.deletes:
+        if not confirm_plan(root, plan, yes):
             print("已取消，未写任何文件。")
             return 0
         try:
@@ -743,7 +911,11 @@ def run(root: Path, tools_arg: str | None, yes: bool, plan_only: bool = False, a
         except ValueError as exc:
             print(str(exc))
             return 1
+    else:
+        print_plan(root, plan)                                # 没有要改的文件：只打印提示与跳过项
 
-    # 5. 汇报：check 结果、改动清单、下一步
-    report(root, plan)
+    # 5. 汇报：结论、待办、下一步；交互时再引导配置 key
+    report(root, plan, with_openspec)
+    if not yes and interactive():
+        guide_key(root)
     return 0

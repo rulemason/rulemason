@@ -32,13 +32,15 @@ rulemason --version
 在项目根目录运行：
 
 ```bash
-rulemason init                              # 交互选择工具，列出文件计划，确认一次后写入
+rulemason init                              # 空格勾选工具，看一眼计划摘要（d 展开明细），确认一次后写入
 rulemason init --tools claude,codex --yes   # 非交互：不提问
 ```
 
-`init` 只做能确定做对的事：生成规则副本与各工具的入口，补齐方案写法规则、OpenSpec apply / archive 时给 AI 的检查点提示（`config.yaml` 的 `operations`）、ruff / ESLint 继承与项目的检查点规格；改不了的（例如 ruff 配置写了 `select`）只报告，不强行改写。不提交、不推送，不碰计划以外的文件。没有 `openspec/` 时会先询问并代为运行 `openspec init`。
+`init` 只做能确定做对的事：按项目用到的语言生成规则副本（Go 项目不会收到 Python、React 的落法）、各工具的入口、`.gitignore` 放行、ruff / ESLint 继承；有 `openspec/` 时再补方案写法规则、OpenSpec apply / archive 时给 AI 的检查点提示（`config.yaml` 的 `operations`）与项目的检查点规格。改不了的（例如 ruff 配置写了 `select`、ESLint 用了认不出的写法）只报告，并附上要粘贴的代码。不提交、不推送，不碰计划以外的文件。
 
-然后在 AI 工具里运行 `/rulemason`，补项目简介、红线（注明出处并逐条确认）与命令表。
+没有 `openspec/` 时会问要不要代为运行 `openspec init`；`--yes`、拒绝或本机没有 `openspec` 命令时只接入规则与 lint，装好 OpenSpec 后运行 `rulemason update` 补齐检查点。
+
+写完只给三行：`check` 的结论、需要你处理的事、下一步。AGENTS.md 的项目简介从 README 第一段预填，红线先写「暂无」；然后在 AI 工具里运行 `/rulemason`，核对简介、确认红线（注明出处并逐条确认）与命令表。判断条件满足而本机没有 key 时，init 结尾会问一句要不要配置（key 在 https://typesafe.ai/ 申请）。
 
 ## 日常
 
@@ -71,7 +73,7 @@ rulemason check     # 只读，在项目任意子目录运行都可以
 
 ```yaml
 - uses: astral-sh/setup-uv@v6
-- run: uv tool install rulemason==0.8.3
+- run: uv tool install rulemason==0.8.4
 - run: rulemason check
 ```
 
@@ -92,7 +94,7 @@ uv tool upgrade rulemason
 rulemason update
 ```
 
-`update` 直接刷新 rulemason 自己管的规则副本与入口；你自己的文件（ruff、ESLint、`openspec/config.yaml` 等）缺了配置时，它先列出补齐计划，确认后才写，非交互环境里要加 `--yes`。之后在项目里跑一遍 lint 与测试再提交。
+`update` 直接刷新 rulemason 自己管的规则副本与入口；副本只保留本项目用得上的文件，升级到 0.8.4 之后第一次 `update` 会删掉用不到的（例如没有 React 的项目里的 `react.md`），项目后来加了语言也由它补上。你自己的文件（ruff、ESLint、`openspec/config.yaml` 等）缺了配置时，它先列出补齐计划，确认后才写，非交互环境里要加 `--yes`。之后在项目里跑一遍 lint 与测试再提交。
 
 ## 判断（可选）
 

@@ -179,3 +179,8 @@ def test_bare_command_in_script_keeps_usage_error(monkeypatch, capsys):
     assert run_cli() == 2
     captured = capsys.readouterr()
     assert "required: command" in captured.err and captured.out == ""
+
+
+def test_commands_footer_lists_key():
+    assert ("rulemason key", "配置判断用的 Jev key（本机一次）") in banner.COMMANDS
+    assert "rulemason key" in banner.render("9.9.9", banner.COMMANDS_FOOTER, 80, False, True)

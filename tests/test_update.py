@@ -252,3 +252,18 @@ def test_update_treats_rulekit_manifest_as_not_joined(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "先运行 rulemason init" in out and "迁移" not in out
     assert snapshot(root) == before
+
+
+def test_update_drops_copies_the_project_no_longer_needs(tmp_path, capsys):
+    """升级前的全量副本：没有 React 的项目 update 后删掉 react.md 与 eslint-base。"""
+    root = _old_version_project(tmp_path)
+    manifest = shared.read_manifest(root)
+    for rel in ("rules/react.md", "lint/eslint-base.mjs"):
+        text = (shared.SOURCE_ROOT / rel).read_text(encoding="utf-8")
+        write(root, f".rulemason/{rel}", text)
+        manifest["files"][f".rulemason/{rel}"] = shared.sha256_text(text)
+    write_manifest(root, manifest)
+    assert update.run(root) == 0
+    assert not (root / ".rulemason/rules/react.md").exists() and not (root / ".rulemason/lint/eslint-base.mjs").exists()
+    assert ".rulemason/rules/react.md" not in shared.read_manifest(root)["files"]
+    assert ".rulemason/rules/react.md" in capsys.readouterr().out.split("更新的文件：", 1)[1]

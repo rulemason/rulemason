@@ -16,6 +16,7 @@ from rulemason.init import (
     plan_manifest,
     plan_stale_copies,
     preflight,
+    print_notes,
     unsafe_targets,
 )
 from rulemason.shared import (
@@ -35,7 +36,7 @@ def plan_update(root: Path, manifest: dict) -> tuple[Plan, Plan, dict[str, str]]
     # 1. 管理计划：副本、过时副本、已有标记块与清单
     managed = Plan()
     record = manifest.get("files") or {}
-    new_record = plan_copies(root, tools, record, managed)
+    new_record = plan_copies(root, tools, check.copied_rules(root, files), record, managed)
     plan_stale_copies(root, record, new_record, managed)
     plan_blocks(root, files, tools, managed, create=False)
     plan_manifest(root, manifest, tools, new_record, managed)
@@ -45,20 +46,13 @@ def plan_update(root: Path, manifest: dict) -> tuple[Plan, Plan, dict[str, str]]
 
     # 2. 补齐计划：以管理计划的结果为起点，只留新增的改动
     fill = Plan(writes=dict(managed.writes))
-    plan_fill(root, files, tools, fill)
+    plan_fill(root, files, tools, list(new_record), fill)
     fill_writes = {rel: text for rel, text in fill.writes.items() if managed.writes.get(rel) != text}
     for rel in unsafe_targets(root, list(fill_writes)):
         # 走到这里说明目标是符号链接（如 CLAUDE.md -> AGENTS.md）或在项目外：单独报告，其余补齐照写
         fill.notes.append(f"{rel} 是符号链接或在项目外，未补齐，请手动处理")
         del fill_writes[rel]
     return managed, fill, fill_writes
-
-
-def print_notes(notes: list[str]) -> None:
-    """打印要用户自己处理的跳过项；没有就不打印。"""
-    if notes:
-        print("已跳过，需要你处理：")
-        print(bullets(notes), end="")
 
 
 def show_dry_run(root: Path, managed: Plan, fill_writes: dict[str, str], notes: list[str], as_json: bool) -> None:
@@ -78,7 +72,7 @@ def show_dry_run(root: Path, managed: Plan, fill_writes: dict[str, str], notes: 
         print(bullets(managed.overwritten), end="")
     if fill_writes:
         print("补齐计划（你自己的文件）：" + "、".join(fill_writes))
-    print_notes(notes)
+    print_notes(notes, "已跳过，需要你处理：")
     print(f"只列计划，未写任何文件。确认后运行 {NAME} update（补齐计划加 --yes）")
 
 
@@ -117,5 +111,5 @@ def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = Fa
             print("已补齐。")
         else:
             print(f"待补齐：未写入，确认后运行 {NAME} update --yes")
-    print_notes(notes)
+    print_notes(notes, "已跳过，需要你处理：")
     return 0

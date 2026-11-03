@@ -9,8 +9,11 @@ from string import Template
 
 from rulemason import __version__
 from rulemason import judge as engine
+from rulemason.judge.judge import api_key
 from rulemason.shared import (
+    COPIED_SHARED,
     COPY_DIR,
+    KEY_URL,
     MANIFEST,
     NAME,
     TOOL_LABELS,
@@ -20,6 +23,7 @@ from rulemason.shared import (
     dirty_files,
     dump_json,
     has_git,
+    has_openspec,
     ignored_files,
     is_source_repo,
     parse_version,
@@ -105,6 +109,26 @@ def language_rules(root: Path, files: list[str]) -> list[str]:
     return [rule for rule in LANGUAGE_RULES if used[rule]]
 
 
+def frontend_dirs(files: list[str]) -> list[str]:
+    return _dirs_with(files, ("package.json",))
+
+
+def copied_rules(root: Path, files: list[str]) -> list[str]:
+    """项目用得上的共享文件：九条与检查点必复制；Python 落法与 ruff 基础配置随 Python；React 落法随 React 目录；
+    ESLint 基础配置随 React 目录或已有的 ESLint 配置；文案语气随前端目录或已启用的判断。"""
+    react = bool(react_dirs(root, files))
+    wanted = {"rules/code-style.md", "rules/workflow-gates.md"}
+    if has_python(files):
+        wanted |= {"rules/python.md", "lint/ruff-base.toml"}
+    if react:
+        wanted.add("rules/react.md")
+    if react or eslint_configs(files):
+        wanted.add("lint/eslint-base.mjs")
+    if frontend_dirs(files) or (root / "openspec/judgments.yaml").is_file():
+        wanted.add("rules/copy-voice.md")
+    return [rel for rel in COPIED_SHARED if rel in wanted]
+
+
 def for_languages(text: str, root: Path, files: list[str]) -> str:
     """去掉模板里项目用不到的语言落法的引用行。"""
     absent = set(LANGUAGE_RULES) - set(language_rules(root, files))
@@ -112,7 +136,9 @@ def for_languages(text: str, root: Path, files: list[str]) -> str:
 
 
 def block_body(name: str, root: Path, files: list[str]) -> str:
-    """标记块在当前版本下应有的内容。"""
+    """标记块在当前版本下应有的内容；没接 OpenSpec 的项目，检查点块用说明「未启用」的版本。"""
+    if name == "workflow-gates" and not has_openspec(root):
+        return template("workflow-gates-no-openspec.block.md")
     return for_languages(template(f"{name}.block.md"), root, files)
 
 
@@ -238,12 +264,12 @@ def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, entry_i
     # 2. 目录
     report.facts.append(("Python 目录", "、".join(_dirs_with(files, ("pyproject.toml", "requirements.txt"))) or "—"))
     react = react_dirs(root, files)
-    front = [f"{d}（React）" if d in react else d for d in _dirs_with(files, ("package.json",))]
+    front = [f"{d}（React）" if d in react else d for d in frontend_dirs(files)]
     report.facts.append(("前端目录", "、".join(front) or "—"))
     report.facts.append(("跳过", skipped_label(scanned.skipped)))
 
     # 3. openspec、CI、工作区
-    report.facts.append(("openspec", "有" if (root / "openspec").is_dir() else "无"))
+    report.facts.append(("openspec", "有" if has_openspec(root) else f"无（方案检查点未启用：安装 OpenSpec 并 openspec init 后运行 {NAME} update）"))
     report.facts.append(("已归档 change", str(n_archived)))
     report.facts.append(("判断", judge_label(root, n_archived)))
     refs = ci_refs(root, files)
@@ -488,8 +514,9 @@ def layers(root: Path, files: list[str], sel: Selection, entry_issues: list[str]
     report.layers["接入 工具入口"] = sel.problems + entry_issues
     if not is_source_repo(root):
         report.layers["接入 生成副本"] = copy_issues(root, sel) + block_issues(root, files, sel)
-    # 产物写法只看有没有 rules 段；有但与基础版不一致是巡检发现，不是没装
-    report.layers["接入 产物写法"] = [] if project_artifact_rules(root) else ["openspec/config.yaml 没有 rules 段"]
+    # 产物写法只看有没有 rules 段；有但与基础版不一致是巡检发现，不是没装。没接 OpenSpec 的项目这一层不算缺，识别表写明检查点未启用
+    if has_openspec(root):
+        report.layers["接入 产物写法"] = [] if project_artifact_rules(root) else ["openspec/config.yaml 没有 rules 段"]
     report.layers["接入 lint 继承"] = check_lint(root, files)
 
 
@@ -499,17 +526,25 @@ def block_issues(root: Path, files: list[str], sel: Selection) -> list[str]:
     return [f"{STALE_BLOCK}：{rel} 的 {name}" for rel, name in stale_blocks(root, files, sel.manifest)]
 
 
-def judge_label(root: Path, n_archived: int) -> str:
-    """判断是可选功能：已启用，或写明启用还缺什么。"""
-    if (root / "openspec/judgments.yaml").exists():
-        return "已启用"
+def judge_blockers(root: Path, n_archived: int) -> list[str]:
+    """启用判断还缺什么：没有 git，或已归档 change 不够；空表示条件已满足。"""
     missing = []
     if not has_git(root):
         missing.append("当前没有 git")
     if n_archived < MIN_ARCHIVED:
         missing.append(f"还差 {MIN_ARCHIVED - n_archived} 个")
+    return missing
+
+
+def judge_label(root: Path, n_archived: int) -> str:
+    """判断是可选功能：已启用，或写明启用还缺什么。"""
+    if (root / "openspec/judgments.yaml").exists():
+        return "已启用"
+    missing = judge_blockers(root, n_archived)
     if missing:
         return f"可选，未启用（需要 git 与至少 {MIN_ARCHIVED} 个已归档 change；{'，'.join(missing)}）"
+    if not api_key():
+        return f"可选，未启用（条件已满足；本机未配置 key：运行 {NAME} key，申请地址 {KEY_URL}）"
     return f"可选，未启用（条件已满足：要启用时在 AI 工具中运行 /{NAME}）"
 
 

@@ -91,31 +91,38 @@ def test_new_dir_agrees_to_openspec_init(tmp_path, tty, fake_openspec, monkeypat
     assert "没有 git" in capsys.readouterr().out
 
 
-def test_declining_openspec_init_writes_nothing(tmp_path, tty, fake_openspec, monkeypatch):
+def test_declining_openspec_init_installs_rules_layer_only(tmp_path, tty, fake_openspec, monkeypatch, capsys):
     root = tmp_path / "fresh"
     write(root, "main.py", "x = 1\n")
-    _answers(monkeypatch, "n")
+    _answers(monkeypatch, "n", "y")
 
     assert init.run(root, "claude", False) == 0
-    assert _files(root) == {"main.py"} and not fake_openspec.exists()
+    assert not fake_openspec.exists() and not (root / "openspec").exists()
+    assert (root / ".rulemason/rules/code-style.md").is_file() and (root / ".rulemason.yaml").is_file()
+    agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "还没有接 OpenSpec" in agents and ".rulemason/rules/workflow-gates.md" in agents
+    assert "需要 OpenSpec" in capsys.readouterr().out
 
 
-def test_missing_openspec_command_stops(tmp_path, monkeypatch, capsys):
+def test_missing_openspec_command_installs_rules_layer_only(tmp_path, monkeypatch, capsys):
     root = tmp_path / "fresh"
     write(root, "main.py", "x = 1\n")
     monkeypatch.setattr(init.shutil, "which", lambda name: None)
 
-    assert _init(root) == 1
-    assert "npm install -g @fission-ai/openspec" in capsys.readouterr().out
-    assert _files(root) == {"main.py"}
+    assert _init(root) == 0
+    out = capsys.readouterr().out
+    assert "npm install -g @fission-ai/openspec" in out and "需要 OpenSpec" in out
+    assert not (root / "openspec").exists() and (root / ".rulemason/rules/code-style.md").is_file()
+    assert not (root / "openspec/specs/workflow-gates/spec.md").exists()
 
 
-def test_failed_openspec_init_stops(tmp_path, fake_openspec, monkeypatch):
+def test_failed_openspec_init_stops(tmp_path, tty, fake_openspec, monkeypatch):
     root = tmp_path / "fresh"
     write(root, "main.py", "x = 1\n")
     monkeypatch.setenv("FAKE_OPENSPEC_FAIL", "1")
+    _answers(monkeypatch, "y")
 
-    assert _init(root) == 1
+    assert init.run(root, "claude", False) == 1
     assert fake_openspec.is_file() and _files(root) == {"main.py"}
 
 
@@ -128,15 +135,21 @@ def test_refuses_rulemason_repo_itself(capsys):
 
 # ---------- 3. 选工具（4.2） ----------
 
-def test_interactive_selection_prechecks_existing_dirs(project, monkeypatch, capsys):
+def test_numbered_fallback_marks_detected_dirs_without_prechecking(project, monkeypatch, capsys):
+    """读不了单键时退回编号输入：第一次全不勾，只标注检测到的目录；输入编号多选。"""
     (project / ".claude").mkdir()
     (project / ".cursor").mkdir()
-    _answers(monkeypatch, "")
-    assert init.choose_tools(project, None, None) == ["claude", "cursor"]
-    assert "[x] Claude Code" in capsys.readouterr().out
-
-    _answers(monkeypatch, "9", "4，2")
+    _answers(monkeypatch, "", "9", "4，2")
     assert init.choose_tools(project, None, None) == ["claude", "codex"]
+    out = capsys.readouterr().out
+    assert "[ ] Claude Code（claude）  检测到" in out and "[ ] Codex（codex）" in out and "[x]" not in out
+    assert out.count("至少选一个") == 2                       # 空输入与越界各提示一次
+
+
+def test_numbered_fallback_prechecks_recorded_tools(project, monkeypatch, capsys):
+    _answers(monkeypatch, "")
+    assert init.choose_tools(project, {"tools": ["claude", "cursor"]}, None) == ["claude", "cursor"]
+    assert "[x] Claude Code" in capsys.readouterr().out
 
 
 def test_tools_flag_does_not_ask(project, monkeypatch):
@@ -157,14 +170,17 @@ def test_generated_copies_match_shared_source_and_manifest(project):
     assert _init(project, "claude,codex") == 0
 
     src = shared.shared_root()
-    for rel in shared.COPIED_SHARED:
+    rules = check.copied_rules(project, shared.list_files(project))
+    assert rules == ["rules/code-style.md", "rules/python.md", "rules/workflow-gates.md", "lint/ruff-base.toml"]
+    for rel in rules:
         assert (project / ".rulemason" / rel).read_text(encoding="utf-8") == (src / rel).read_text(encoding="utf-8")
+    assert not (project / ".rulemason/rules/react.md").exists() and not (project / ".rulemason/lint/eslint-base.mjs").exists()
     for target in (".claude/skills/rulemason", ".agents/skills/rulemason"):
         for rel in shared.SKILL_FILES:
             assert (project / target / rel).read_bytes() == (src / "skills/rulemason" / rel).read_bytes()
     manifest = shared.read_manifest(project)
     assert manifest["tools"] == ["claude", "codex"] and manifest["rulemason"] == shared.__version__
-    assert manifest["files"] == {rel: shared.sha256_file(project / rel) for rel in shared.generated_files(["claude", "codex"])}
+    assert manifest["files"] == {rel: shared.sha256_file(project / rel) for rel in shared.generated_files(["claude", "codex"], rules)}
 
 
 # ---------- 5. 标记块（4.4） ----------
@@ -189,7 +205,8 @@ def test_existing_agents_content_is_kept_verbatim(project):
 def test_new_agents_from_template_marks_pending(project):
     assert _init(project) == 0
     text = (project / "AGENTS.md").read_text(encoding="utf-8")
-    assert text.startswith(f"# {project.name}\n") and text.count("待 /rulemason 补充") == 4
+    assert text.startswith(f"# {project.name}\n") and text.count("待 /rulemason 补充") == 2       # 简介（没有 README）与样板豁免
+    assert "## 红线（不可违反）\n\n暂无\n" in text and "红线规则：暂无。" in text
 
 
 def test_unpaired_markers_leave_file_untouched(project, capsys):
@@ -259,7 +276,7 @@ def test_existing_workflow_spec_is_reported_not_changed(project, capsys):
 
 def test_commands_uv_with_tests(project):
     rows = init.detect_commands(project, shared.list_files(project))
-    assert rows == {"判断": "判断层未装", "ruff": "`uv run ruff check .`", "测试": "`uv run pytest`", "前端 lint": "无，跳过", "文案检查": "判断层未装"}
+    assert rows == {"判断": "可选，未启用", "ruff": "`uv run ruff check .`", "测试": "`uv run pytest`", "前端 lint": "无，跳过", "文案检查": "可选，未启用"}
 
 
 def test_commands_pnpm_scripts(tmp_path):
@@ -524,7 +541,7 @@ def test_plan_without_openspec_does_not_create_it(project, monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["openspec_init"] is True
     assert not (root / "openspec").exists()
     assert init.run(root, "claude", False, plan_only=True) == 0
-    assert "将先运行 openspec init" in capsys.readouterr().out
+    assert "将先询问是否运行 openspec init" in capsys.readouterr().out
 
 
 def test_plan_without_git_has_null_dirty_count(project, capsys):
@@ -740,3 +757,200 @@ def test_init_proceeds_despite_sibling_rulekit_reference(project):
     commit(project)
     assert _init(project) == 0
     assert "../rulekit/rules/code-style.md" in (project / "AGENTS.md").read_text(encoding="utf-8")
+
+
+# ---------- init 体验（init-ux-1） ----------
+
+def _fake_select(monkeypatch, picked):
+    """把单键选择器换成固定返回；记录传给它的预勾与标注。"""
+    seen = {}
+
+    def choose(title, labels, checked, notes, **_):
+        seen.update(labels=labels, checked=checked, notes=notes)
+        return picked
+
+    monkeypatch.setattr(init.select, "choose", choose)
+    return seen
+
+
+def test_first_run_checks_nothing_and_marks_detected(project, monkeypatch):
+    (project / ".claude").mkdir()
+    seen = _fake_select(monkeypatch, [1, 3])
+    assert init.choose_tools(project, None, None) == ["claude", "codex"]
+    assert seen["checked"] == [False, False, False, False]
+    assert seen["notes"] == ["", "检测到", "", ""]
+
+
+def test_rerun_prechecks_recorded_tools(project, monkeypatch):
+    (project / ".claude").mkdir()
+    seen = _fake_select(monkeypatch, [1])
+    assert init.choose_tools(project, {"tools": ["claude", "cursor"]}, None) == ["claude"]
+    assert seen["checked"] == [False, True, True, False] and seen["notes"] == ["", "", "", ""]
+
+
+def test_cancelling_selector_writes_nothing(project, tty, monkeypatch, capsys):
+    _fake_select(monkeypatch, None)
+    before = snapshot(project)
+    assert init.run(project, None, False) == 0
+    assert "已取消" in capsys.readouterr().out and snapshot(project) == before
+
+
+def test_summary_then_d_expands_full_plan(project, tty, monkeypatch, capsys):
+    asked = _answers(monkeypatch, "d", "y")
+    assert init.run(project, "claude", False) == 0
+    out = capsys.readouterr().out
+    summary, full = out.split("## 文件计划\n新增：", 1)                               # 摘要在前，d 之后才是完整清单
+    assert "新增 " in summary and "规则副本" in summary and "  - .rulemason/rules/code-style.md" not in summary
+    assert "  - .rulemason/rules/code-style.md" in full
+    assert [q.startswith("按计划写入？ [y/N/d]") for q in asked] == [True, True]          # 展开后再问一次
+
+
+def test_report_gives_conclusion_and_todos_only(project, capsys):
+    write(project, "web/.eslintrc.json", "{}\n")
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    tail = out.split("本次改动的文件", 1)[0]
+    assert "## 识别表" not in out and "## 各层状态" not in out
+    assert check.run(project)[0].splitlines()[0] in out and out.rstrip().endswith(init.NEXT_STEP)
+    assert "需要你处理" in out and "import rulemasonBase from" in out and "{ rules: rulemasonBase }" in out
+    assert tail.rstrip().endswith(check.run(project)[0].splitlines()[0])     # 结论行紧接在改动清单之前
+
+
+@pytest.mark.parametrize("rule", [".claude/", ".claude/skills/", "*.md", "SKILL.md"])
+def test_gitignore_is_opened_for_skill_copy(project, capsys, rule):
+    write(project, ".gitignore", f"{rule}\n")
+    commit(project)
+    assert _init(project) == 0
+    text = (project / ".gitignore").read_text(encoding="utf-8")
+    assert text.startswith(f"{rule}\n") and "!.claude/skills/rulemason/" in text and "随项目提交" in text
+    assert ("!.claude/\n.claude/*\n" in text) is (rule == ".claude/")                 # 只从被忽略的那一级起放行
+    assert ("!.rulemason/**" in text) is (rule == "*.md")                                    # *.md 也挡住规则副本，一并放行
+    assert shared.ignored_files(project, [".claude/skills/rulemason/SKILL.md"]) == []
+    assert "fix_gitignore" not in json.loads(check.run(project, as_json=True)[0])["next"]["code"]
+
+
+def test_gitignore_opens_rulemason_dir_itself(project):
+    write(project, ".gitignore", ".rulemason/\n")
+    assert _init(project) == 0
+    text = (project / ".gitignore").read_text(encoding="utf-8")
+    assert "!.rulemason/\n!.rulemason/**" in text and "!.claude/" not in text
+    assert shared.ignored_files(project, [".rulemason/rules/code-style.md"]) == []
+
+
+def test_gitignore_is_not_appended_twice_for_nested_ignore(project):
+    """忽略来自子目录自己的 .gitignore 时，根文件的放行规则没用：写过一次就不再重复追加。"""
+    write(project, ".claude/.gitignore", "*\n")
+    write(project, ".gitignore", "!.claude/skills/rulemason/\n!.claude/skills/rulemason/**\n")
+    commit(project)
+    before = (project / ".gitignore").read_text(encoding="utf-8")
+    assert _init(project) == 0
+    assert (project / ".gitignore").read_text(encoding="utf-8") == before
+
+
+def test_gitignore_is_left_alone_when_copy_not_ignored(project):
+    write(project, ".gitignore", ".venv/\n")
+    assert _init(project) == 0
+    assert (project / ".gitignore").read_text(encoding="utf-8") == ".venv/\n"
+
+
+def test_yes_without_openspec_installs_rules_layer_only(tmp_path, fake_openspec, capsys):
+    root = tmp_path / "fresh"
+    git_init(root)
+    write(root, "main.py", "x = 1\n")
+    assert _init(root) == 0
+    assert not fake_openspec.exists() and not (root / "openspec").exists()
+    assert sorted(p.name for p in (root / ".claude").iterdir()) == ["skills"]
+    assert "还没有接 OpenSpec" in (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "需要 OpenSpec" in capsys.readouterr().out
+    text, code = check.run(root)
+    assert code == 0 and "检查点" not in text.split("\n", 1)[0]
+
+
+def test_update_completes_gates_once_openspec_appears(tmp_path, fake_openspec, capsys):
+    root = tmp_path / "fresh"
+    git_init(root)
+    write(root, "main.py", "x = 1\n")
+    assert _init(root) == 0
+    write(root, "openspec/config.yaml", "schema: spec-driven\n")
+    assert update.run(root, yes=True) == 0
+    agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "还没有接 OpenSpec" not in agents and "开始或完成 OpenSpec 方案与实现阶段时" in agents
+    assert (root / "openspec/specs/workflow-gates/spec.md").is_file()
+    assert "rules:" in (root / "openspec/config.yaml").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(("readme", "expected"), [
+    ("# 章法\n\n[![ci](x)](y)\n\n章法是一个字帖检索站，按书家浏览单字。它只收录公有领域作品。第三句不要。\n", "章法是一个字帖检索站，按书家浏览单字。它只收录公有领域作品。"),
+    ("# 标题\n\n![logo](a.png)\n\n> 引用\n\nOne line intro without period\n", "One line intro without period"),
+    ("# T\n\nBuilt on Node.js v1.0 for teams. Ships as a CLI. Third sentence.\n", "Built on Node.js v1.0 for teams. Ships as a CLI."),
+    ("# 只有标题\n", None),
+])
+def test_agents_intro_is_prefilled_from_readme(project, readme, expected):
+    write(project, "README.md", readme)
+    assert _init(project) == 0
+    text = (project / "AGENTS.md").read_text(encoding="utf-8")
+    intro = text.split("\n\n")[1]
+    assert intro == (expected or "待 /rulemason 补充：一两句话写这个项目是什么、给谁用。")
+    assert "## 红线（不可违反）\n\n暂无\n" in text
+
+
+def test_existing_agents_intro_is_kept(project):
+    write(project, "README.md", "一句简介。\n")
+    write(project, "AGENTS.md", "# 自写\n\n别的简介。\n")
+    assert _init(project) == 0
+    assert (project / "AGENTS.md").read_text(encoding="utf-8").startswith("# 自写\n\n别的简介。\n")
+
+
+def _archives(root, n):
+    for i in range(n):
+        write(root, f"openspec/changes/archive/2026-01-0{i + 1}-c{i}/proposal.md", "# P\n")
+
+
+def test_key_prompt_when_conditions_met(project, tty, monkeypatch, capsys):
+    _archives(project, 3)
+    monkeypatch.setattr(init.engine, "api_key", lambda: "")
+    called = []
+    monkeypatch.setattr(init.key_cmd, "run", lambda: called.append(True) or 0)
+    asked = _answers(monkeypatch, "y", "y")
+    assert init.run(project, "claude", False) == 0
+    assert "现在配置 Jev 的 key" in asked[1] and shared.KEY_URL in asked[1] and called == [True]
+
+
+def test_key_hint_only_when_conditions_not_met(project, tty, monkeypatch, capsys):
+    monkeypatch.setattr(init.engine, "api_key", lambda: "")
+    _answers(monkeypatch, "y")
+    assert init.run(project, "claude", False) == 0
+    out = capsys.readouterr().out
+    assert "判断功能需要 git 与至少 3 个已归档 change" in out and "现在配置" not in out
+
+
+@pytest.mark.parametrize("has_key", [True, False])
+def test_no_key_prompt_with_key_or_yes(project, tty, monkeypatch, capsys, has_key):
+    _archives(project, 3)
+    monkeypatch.setattr(init.engine, "api_key", lambda: "k" if has_key else "")
+    asked = _answers(monkeypatch, "y")
+    assert init.run(project, "claude", not has_key) == 0           # 有 key 时交互运行，没 key 时 --yes
+    assert "Jev 的 key" not in capsys.readouterr().out and all("key" not in q for q in asked)
+
+
+def test_go_project_gets_only_generic_rules_and_update_adds_python_later(tmp_path, capsys):
+    root = tmp_path / "svc"
+    git_init(root)
+    write(root, "go.mod", "module x\n")
+    write(root, "main.go", "package main\n")
+    write(root, "openspec/config.yaml", "schema: spec-driven\n")
+    commit(root)
+    assert _init(root) == 0
+    assert sorted(p.relative_to(root / ".rulemason").as_posix() for p in (root / ".rulemason").rglob("*") if p.is_file()) == [
+        "README.md", "rules/code-style.md", "rules/workflow-gates.md",
+    ]
+    assert "- `rules/code-style.md`" in (root / ".rulemason/README.md").read_text(encoding="utf-8")
+    assert check.run(root)[1] == 0
+
+    write(root, "pyproject.toml", '[project]\nname = "x"\n')
+    write(root, "app/main.py", "x = 1\n")
+    assert update.run(root, yes=True) == 0
+    assert (root / ".rulemason/rules/python.md").is_file() and (root / ".rulemason/lint/ruff-base.toml").is_file()
+    assert ".rulemason/rules/python.md" in shared.read_manifest(root)["files"]
+    assert ".rulemason/rules/python.md" in (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert check.run(root)[1] == 0
