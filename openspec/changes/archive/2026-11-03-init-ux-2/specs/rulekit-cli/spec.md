@@ -142,7 +142,7 @@
 
 ### Requirement: 按项目语言引用 React 落法
 
-某个 `package.json` 的 `dependencies`、`devDependencies` 或 `peerDependencies` 含 `react` 时，所在目录 SHALL 视为 React 目录。项目有 React 目录时，`init` 与 `update` 写的标记块和工具入口 SHALL 引用 `.rulemason/rules/react.md`，没有时 MUST NOT 引用；已有 OpenCode 配置缺少应引用的落法时，补齐计划 SHALL 追加到其唯一的 instructions 数组末尾，无法安全追加时只提示；识别表的前端目录 SHALL 只列依赖含界面框架（react、vue、svelte、@angular/core、preact、solid-js、next、nuxt）或同目录有 index.html 的 package.json 所在目录，并标出 React。`rulemason check` SHALL 在巡检「React 目录缺少 ESLint」中列出本身及上级目录都没有 ESLint 配置的 React 目录，MUST NOT 因此以非 0 退出。
+某个 `package.json` 的 `dependencies`、`devDependencies` 或 `peerDependencies` 含 `react` 时，所在目录 SHALL 视为 React 目录。项目有 React 目录时，`init` 与 `update` 写的标记块和工具入口 SHALL 引用 `.rulemason/rules/react.md`，没有时 MUST NOT 引用；已有 OpenCode 配置缺少应引用的落法时，补齐计划 SHALL 追加到其唯一的 instructions 数组末尾，无法安全追加时只提示；识别表的前端目录 SHALL 只列依赖含界面框架（react、vue、svelte、@angular/core、preact、solid-js、next、nuxt）或同目录有 index.html 的目录，并标出 React。`rulemason check` SHALL 在巡检「React 目录缺少 ESLint」中列出本身及上级目录都没有 ESLint 配置的 React 目录，MUST NOT 因此以非 0 退出。
 
 #### Scenario: React 项目
 - **WHEN** `web/package.json` 依赖 `react`，运行 `rulemason init --tools claude,opencode --yes`
