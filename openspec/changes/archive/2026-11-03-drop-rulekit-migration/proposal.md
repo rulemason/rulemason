@@ -12,7 +12,7 @@ rulemason 的前身 rulekit 0.5 只有作者本人用过；三个接入项目和
 - `/rulemason` skill 删去第二阶段第 0 步「旧名残留」与状态表里的 `legacy`、`migrate`、`fix_residue` 三行；描述中不再提迁移。
 - README 删去「从 rulekit 迁移」一节与「出了问题怎么办」表里的迁移行；`AGENTS.md` 目录说明不再提迁移逻辑；`cli` 帮助文字同步。
 - 规格：`rulekit-cli` 删除 3 条要求（init 从 rulekit 格式迁移、迁移前核对旧副本、check 报告旧名残留），另有 7 条要求与 `rules-layer-setup` 3 条要求去掉涉及迁移的句子与场景。
-- 版本 0.8.2。
+- 版本 0.8.3（0.8.2 已被上一个 change 占用）。
 - 不做：改规格 id `rulekit-cli`；改 `judge` 读旧 key 位置 `~/.config/jev-judge/env` 的只读兜底（作者自己的机器仍在用）；改 `judge-engine` 规格「判定口径与迁移前一致」（说的是引擎口径，与 rulekit 无关）。
 - 不做：清理 `update` 对 0.6.x 旧模板副本的删除逻辑（那是 rulemason 自己的历史版本，仍有用）。
 
