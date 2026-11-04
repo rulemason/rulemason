@@ -139,6 +139,19 @@ def test_skill_ruff_baseline_section():
     assert "「判断用的红线规则」一行（旧写法「红线规则：…」一行同理）改为列出用户确认的规则 id" in skill
 
 
+def test_skill_common_red_line_candidates():
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    step = skill[skill.index("2. **红线候选**"):skill.index("3. **样板与豁免**")]
+
+    for trigger in ("有数据库访问", "有部署脚本或 CI 发布流程", "有区分生产环境的配置"):
+        assert trigger in step, trigger
+    for candidate in ("「线上数据库只读，迁移与改数据由人执行」", "「不代为发布到生产，发布由人触发」", "「生产凭据只给人用，AI 会话不使用生产写权限」"):
+        assert candidate in step, candidate
+    for text in ("「rulemason 常见红线（触发文件）」", "没有对应的东西就不提", "逐条请用户确认", "`.env.production`"):
+        assert text in step, text
+    assert "或「rulemason 常见红线」及触发它的文件" in skill
+
+
 # ---------- 3. 共享 workflow-gates 与审查子代理 ----------
 
 def test_workflow_gates_fix_only_problems_this_change_introduced():
@@ -293,6 +306,24 @@ def test_rules_wording_key_sections():
         assert "不把正文抄进项目指令，不手改副本" in path.read_text(encoding="utf-8").splitlines()[0], path.name
 
 
+def test_code_style_external_operations_and_secrets():
+    code_style = (ROOT / "rules/code-style.md").read_text(encoding="utf-8")
+    section = code_style[code_style.index("\n## 外部操作与凭据\n"):]
+
+    assert code_style.index("\n## 九条之外\n") < code_style.index("\n## 外部操作与凭据\n")
+    assert len(section.strip().splitlines()) <= 15
+    for text in ("项目指令对某类操作另有写明的从项目指令", "有写权限不等于可以写",
+                 "**读**（不含密钥值与个人数据）：直接做",
+                 "**写**", "发布、发送消息、推送 tag", "等用户同意", "同意只管这一次",
+                 "**删除或作废**", "强推覆盖共享分支", "说不清会不会销毁的也算", "不执行，给出操作入口"):
+        assert text in section, text
+    for text in ("不让用户把密钥值贴进对话", "确认不会被提交", "只引用变量名", "不把密钥值打印到命令输出", "只检查是否存在",
+                 "按泄露处理", "一个用途一把", "预发与生产分开"):
+        assert text in section, text
+    eighth = next(line for line in code_style.splitlines() if line.startswith("8. "))
+    assert "静默改走另一条路径" in eighth
+
+
 def test_copy_voice_levels_unchanged():
     """项目判断规则照抄这三行，改一个字各项目就对不上。"""
     text = (ROOT / "rules/copy-voice.md").read_text(encoding="utf-8")
@@ -308,6 +339,7 @@ def test_artifact_base_limits():
     base = yaml.safe_load((ROOT / "openspec-base/artifact-rules.yaml").read_text(encoding="utf-8"))["rules"]
     assert any("60 行以内" in item for item in base["proposal"])
     assert any("500 个字符" in item for item in base["specs"])
+    assert "Context 里的关键事实注明出处（文件与行，或可复现的命令），没有核实的标「未核实」" in base["design"]
 
 
 # ---------- 不走 OpenSpec 的改动与归档（spec-guard） ----------

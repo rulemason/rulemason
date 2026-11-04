@@ -389,10 +389,58 @@ def test_symlinked_dir_pointing_outside_writes_nothing(project, tmp_path, capsys
     assert not (project / "AGENTS.md").exists() and snapshot(project) == before
 
 
-def test_existing_agents_import_in_claude_md_is_reported(project, capsys):
-    write(project, "CLAUDE.md", "@AGENTS.md\n")
+def test_lone_agents_import_in_claude_md_is_replaced_by_block(project, capsys):
+    write(project, "CLAUDE.md", "@AGENTS.md\n\n## 项目自己的说明\n\n先读 README。\n")
     assert _init(project) == 0
-    assert "块外已有 @AGENTS.md" in capsys.readouterr().out
+    text = (project / "CLAUDE.md").read_text(encoding="utf-8")
+
+    assert text.startswith("<!-- rulemason:claude -->\n@AGENTS.md\n")                # 块放在原来那一行的位置
+    assert text.count("@AGENTS.md") == 1
+    assert text.endswith("<!-- /rulemason:claude -->\n\n## 项目自己的说明\n\n先读 README。\n")
+    assert "块外已导入 AGENTS.md" not in capsys.readouterr().out
+    assert _init(project) == 0 and (project / "CLAUDE.md").read_text(encoding="utf-8") == text    # 再跑一次不变
+
+
+@pytest.mark.parametrize(("claude", "suffix"), [("说明\r\n@AGENTS.md\r\n尾部\r\n", "\r\n尾部\r\n"), ("说明\n\n@AGENTS.md", "")])
+def test_lone_agents_import_keeps_its_line_ending(project, claude, suffix):
+    write(project, "CLAUDE.md", claude)
+    assert _init(project) == 0
+    text = (project / "CLAUDE.md").read_bytes().decode("utf-8")
+    assert text.count("@AGENTS.md") == 1 and text.endswith("<!-- /rulemason:claude -->" + suffix)
+
+
+def test_lone_agents_import_with_another_form_is_replaced_and_the_other_reported(project, capsys):
+    write(project, "CLAUDE.md", "@AGENTS.md\n\n@./AGENTS.md\n")
+    assert _init(project) == 0
+    text = (project / "CLAUDE.md").read_text(encoding="utf-8")
+    assert text.startswith("<!-- rulemason:claude -->\n@AGENTS.md\n") and "\n@./AGENTS.md\n" in text
+    assert "块外已导入 AGENTS.md" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("claude", ["```\n@AGENTS.md\n```\n", "~~~\n@AGENTS.md\n```\n@AGENTS.md\n~~~\n"])
+def test_agents_import_inside_code_fence_is_left_alone(project, claude, capsys):
+    write(project, "CLAUDE.md", claude)
+    assert _init(project) == 0
+    text = (project / "CLAUDE.md").read_text(encoding="utf-8")
+    assert text.startswith(claude) and text.endswith("<!-- /rulemason:claude -->\n")       # 示例不动，块加在文末
+    assert "块外已导入 AGENTS.md" not in capsys.readouterr().out                             # 代码块里的不算导入
+
+
+def test_lone_agents_import_next_to_fenced_example_is_replaced(project):
+    write(project, "CLAUDE.md", "@AGENTS.md\n\n```\n@AGENTS.md\n```\n")
+    assert _init(project) == 0
+    text = (project / "CLAUDE.md").read_text(encoding="utf-8")
+    assert text.startswith("<!-- rulemason:claude -->\n@AGENTS.md\n") and text.endswith("```\n@AGENTS.md\n```\n")
+
+
+@pytest.mark.parametrize("claude", ["@./AGENTS.md\n", "@AGENTS.md\n\n@AGENTS.md\n", "  @AGENTS.md\n",
+                                    "见 @AGENTS.md\n@AGENTS.md\n"])
+def test_other_agents_import_forms_are_still_reported(project, claude, capsys):
+    write(project, "CLAUDE.md", claude)
+    assert _init(project) == 0
+    text = (project / "CLAUDE.md").read_text(encoding="utf-8")
+    assert text.startswith(claude) and "<!-- rulemason:claude -->" in text                 # 原行不动，块照常写入
+    assert "块外已导入 AGENTS.md" in capsys.readouterr().out
 
 
 def test_rewrites_keep_crlf_and_mode_and_handle_missing_final_newline(project):
@@ -1025,6 +1073,7 @@ def test_new_ruff_config_goes_to_the_only_python_dir(tmp_path, extra, home):
 def test_remove_then_init_points_ruff_back_to_copy(project, capsys):
     from rulemason import remove
     assert _init(project) == 0
+    first_claude = (project / "CLAUDE.md").read_text(encoding="utf-8")
     assert remove.run(project, yes=True) == 0
     assert '\nextend = "lint/ruff-base.toml"' in (project / "ruff.toml").read_text(encoding="utf-8")
     capsys.readouterr()
@@ -1036,6 +1085,8 @@ def test_remove_then_init_points_ruff_back_to_copy(project, capsys):
     assert "ruff" not in todos                                                              # ruff 不算待处理
     assert "提示：\n  - lint/ruff-base.toml 是基础配置的旧位置副本" in out
     assert check.collect(project)[0].layers["接入 lint 继承"] == []
+    assert (project / "CLAUDE.md").read_text(encoding="utf-8") == first_claude              # remove 留下的那一行由新块接替，与初次接入逐字相同
+    assert "块外已导入 AGENTS.md" not in out
 
 
 def test_edited_old_ruff_copy_is_not_changed(project, capsys):

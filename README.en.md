@@ -8,7 +8,7 @@ Shared rules and checkpoints for AI coding tools (Claude Code, OpenCode, Cursor,
 
 ## What it does
 
-- **Rules**: the conventions an AI must follow when it writes plans and code — nine general principles, per-language guides (Python, React), a copy-voice guide for UI text, and plan-writing rules. They are maintained once in this repository, and each project gets a read-only copy that is committed with the project, so teammates, cloud agents and CI can read them without installing rulemason.
+- **Rules**: the conventions an AI must follow when it writes plans and code — nine general principles, per-language guides (Python, React), a copy-voice guide for UI text, plan-writing rules, and how to handle external platforms and secrets (reads go ahead, writes need approval each time, deletions are left to a person; secrets never pass through the chat). They are maintained once in this repository, and each project gets a read-only copy that is committed with the project, so teammates, cloud agents and CI can read them without installing rulemason.
 - **Checkpoints**: after a plan is written, before code is written, and after code is written, the AI checks its own work automatically — judging the plan, simplifying the code, running an independent review, lint and tests. Small changes made without OpenSpec are checked against the project's main specs first: only a change to a behavior the specs already promise starts a minimal OpenSpec change and asks you once; everything else is edited directly and then linted and tested. Archiving merges spec changes without asking.
 - **Judgment** (optional): the Jev model from TypeSafe judges whether a plan breaks a written rule and returns pass / review / block. Without a key, the rules are checked by hand.
 

@@ -118,6 +118,15 @@ def test_update_refreshes_claude_block_only(tmp_path):
     assert text.startswith("自写说明\n\n<!-- rulemason:claude -->\n@AGENTS.md\n@.rulemason/rules/code-style.md\n")
 
 
+def test_update_yes_replaces_lone_agents_import_with_claude_block(tmp_path, capsys):
+    root = _old_version_project(tmp_path)
+    write(root, "CLAUDE.md", "@AGENTS.md\n\n自写说明\n")                               # claude 块被删，只剩 remove 留下的那一行
+    assert update.run(root, yes=True) == 0
+    text = (root / "CLAUDE.md").read_text(encoding="utf-8")
+    assert text.startswith("<!-- rulemason:claude -->\n@AGENTS.md\n") and text.endswith("-->\n\n自写说明\n")
+    assert text.count("@AGENTS.md") == 1 and "块外已导入 AGENTS.md" not in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("case", ["self", "invalid"])
 def test_update_stops_without_writing(tmp_path, case, capsys):
     if case == "self":

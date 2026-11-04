@@ -22,6 +22,7 @@ rules:
     - Risks 每条用「[风险] → 对策」格式，一行一条
     - Migration Plan 写明上线顺序与回滚方式
     - 列出新增与修改的文件及每个文件的估计行数，apply 后对照；超出一倍要说明原因
+    - Context 里的关键事实注明出处（文件与行，或可复现的命令），没有核实的标「未核实」
   specs:
     - 每个 Requirement 至少一个 Scenario，用 WHEN / THEN
     - 用 SHALL / MUST 表达约束，不用 should / may
