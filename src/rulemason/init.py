@@ -113,19 +113,53 @@ def ask_yes(question: str) -> bool:
 
 # ---------- 1. 标记块（init 与 update 共用） ----------
 
+def unfenced(lines: list[str]) -> list[tuple[int, str]]:
+    """``` 或 ~~~ 代码块以外的行及其下标；代码块以开头同一种字符的标记结束。Claude Code 不解析代码块里的导入。"""
+    out, fence = [], None
+    for i, line in enumerate(lines):
+        mark = line[:3]
+        if mark in ("```", "~~~") and fence in (None, mark):
+            fence = None if fence else mark
+        elif fence is None:
+            out.append((i, line))
+    return out
+
+
+def seed_line(lines: list[str], seed: str) -> int | None:
+    """代码块以外，seed 只出现一次、且恰好顶格独占一行时返回该行下标，否则返回 None。"""
+    outside = unfenced(lines)
+    if sum(line.count(seed) for _, line in outside) != 1:
+        return None
+    return next((i for i, line in outside if line.splitlines()[0] == seed), None)
+
+
 def set_block(text: str, name: str, body: str, heading: str | None) -> str:
-    """把标记块内容换成 body；没有标记块时插到 heading 标题下，没有该标题就在文末新建（heading 为 None 直接加在文末）。"""
+    """把标记块内容换成 body；没有标记块时插到 heading 标题下，没有该标题就在文末新建。
+    heading 为 None（即 CLAUDE.md 的 claude 块）时，正文第一行（模板里是 @AGENTS.md，remove 后会单独留下这一行）
+    若按 seed_line 的条件独占一行，就地换成整块，否则加在文末。"""
     start, end = markers(name)
     block = f"{start}\n{body}{end}"
     span = find_block(text, name)
     if span:
         return text[: span[0]] + block + text[span[1]:]
+    lines = text.splitlines(keepends=True)
+    at = seed_line(lines, body.splitlines()[0]) if heading is None and body.strip() else None
+    if at is not None:
+        lines[at] = block + lines[at][len(lines[at].splitlines()[0]):]          # 保留原行的换行符
+        return "".join(lines)
     match = re.search(rf"^##\s+{re.escape(heading)}.*$", text, re.M) if heading else None
     if match:
         return text[: match.end()] + "\n\n" + block + text[match.end():]
     title = f"## {heading}\n\n" if heading else ""
     prefix = text.rstrip("\n") + "\n\n" if text.strip() else ""
     return f"{prefix}{title}{block}\n"
+
+
+AGENTS_IMPORT = re.compile(r"@(?:\./)?AGENTS\.md\b")
+
+
+def imports_agents(text: str) -> bool:
+    return any(AGENTS_IMPORT.search(line) for _, line in unfenced(text.splitlines()))
 
 
 def plan_blocks(root: Path, files: list[str], tools: list[str], plan: Plan, create: bool) -> None:
@@ -150,8 +184,8 @@ def plan_blocks(root: Path, files: list[str], tools: list[str], plan: Plan, crea
             plan.writes.pop(rel, None)
             plan.notes.append(f"{rel}：{exc}；未修改")
             continue
-        if rel == "CLAUDE.md" and find_block(base, "claude") is None and "@AGENTS.md" in base:
-            plan.notes.append(f"CLAUDE.md 在 {NAME}:claude 块外已有 @AGENTS.md，与块内重复导入：请删去块外那一行")
+        if rel == "CLAUDE.md" and find_block(base, "claude") is None and imports_agents(drop_block(text, "claude")):
+            plan.notes.append(f"CLAUDE.md 在 {NAME}:claude 块外已导入 AGENTS.md，与块内重复导入：请删去块外那一行")
         if text != current:
             plan.writes[rel] = text
 
