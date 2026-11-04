@@ -250,3 +250,12 @@ def test_chain_tail_reference_moves_to_project_lint(joined):
     assert (joined / "ruff.toml").read_text(encoding="utf-8") == 'extend = "config/ruff-shared.toml"\n'
     assert (joined / "config/ruff-shared.toml").read_text(encoding="utf-8") == 'extend = "../lint/ruff-base.toml"\n'
     assert (joined / "lint/ruff-base.toml").read_text(encoding="utf-8") == copy
+
+
+def test_remove_in_subdirectory_of_unjoined_repo_stops(tmp_path, monkeypatch, capsys):
+    repo = tmp_path / "repo"
+    git_init(repo)
+    write(repo, "web/main.py", "x = 1\n")
+    monkeypatch.chdir(repo / "web")
+    assert run_cli("remove", "--yes") == 1
+    assert f"判断的项目根：{(repo / 'web').resolve()}" in capsys.readouterr().out

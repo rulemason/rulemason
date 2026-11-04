@@ -24,7 +24,14 @@ from typing import Any, Literal
 import json5
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
-from rulemason.shared import ConfigError, find_root, has_git, read_judgments, read_yaml
+from rulemason.shared import (
+    ConfigError,
+    find_root,
+    has_git,
+    read_judgments,
+    read_yaml,
+    repo_root,
+)
 
 BASE = Path(__file__).parent / "base"                       # 随引擎提供的通用规则与通用词表
 KEY_NAME = "TYPESAFE_API_KEY"                               # Jev 的 key 在环境变量与 key 文件里的名字
@@ -45,10 +52,12 @@ Answers = dict[str, Answer]                                 # 规则 id → Answ
 
 @cache
 def root() -> Path:
-    """项目根：与 init / check 同一规则（最近的 .rulemason.yaml，不越过 git 仓库根），且必须在 git 里、有 openspec/。不满足就退出。"""
+    """项目根：最近的 .rulemason.yaml（不越过 git 仓库根），没有清单时用 git 仓库根，且必须在 git 里、有 openspec/。不满足就退出。
+    与 init 不同：没有清单时不用当前目录，因为未接入 rulemason 的仓库也要能在子目录里找到 openspec/。"""
     if not has_git(Path.cwd()):
         sys.exit("✗ 当前目录不在 git 仓库里：请在接入项目内运行 rulemason judge")
-    path = find_root(Path.cwd().resolve())
+    cwd = Path.cwd().resolve()
+    path = find_root(cwd) or repo_root(cwd) or cwd             # 走到 or cwd 说明 git 认得仓库却找不到 .git（如 GIT_DIR 指向别处）
     if not (path / "openspec").is_dir():
         sys.exit(f"✗ {path} 下没有 openspec/：请在接入项目内运行 rulemason judge")
     return path

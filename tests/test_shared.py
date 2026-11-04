@@ -137,7 +137,7 @@ def test_ignored_files_handles_non_ascii_paths(tmp_path):
     assert shared.ignored_files(root, ["文档/说明.md", "app/main.py"]) == ["文档/说明.md"]
 
 
-# ---------- 项目根：往上找最近的清单，以 git 仓库根为边界 ----------
+# ---------- 项目根：往上找最近的清单，以 git 仓库根为边界；找不到返回 None ----------
 
 
 def test_find_root_from_subdirectory(tmp_path):
@@ -152,25 +152,33 @@ def test_find_root_stops_at_nested_repo(tmp_path):
     write(tmp_path / "ws", ".rulemason.yaml", "version: 1\ntools: []\n")      # 工作区根已接入、没有 git
     git_init(tmp_path / "ws/app-a")
     (tmp_path / "ws/app-a/src").mkdir()
-    assert shared.find_root(tmp_path / "ws/app-a/src") == tmp_path / "ws/app-a"
+    assert shared.find_root(tmp_path / "ws/app-a/src") is None               # 到了 app-a 仓库根还没有清单：不往上找工作区的
 
 
 def test_find_root_ignores_rulekit_manifest(tmp_path):
     write(tmp_path / "old", ".rulekit.yaml", 'version: 1\ntools: [claude]\nrulekit: 0.5.2\nfiles: {}\n')
     (tmp_path / "old/src").mkdir()
-    assert shared.find_root(tmp_path / "old/src") == tmp_path / "old/src"      # 没有 git 也没有清单：停在起点
+    assert shared.find_root(tmp_path / "old/src") is None                      # 旧格式清单不算
 
 
 def test_find_root_stops_at_git_file(tmp_path):
     write(tmp_path / "wt", ".git", "gitdir: /elsewhere\n")                  # worktree 与子模块的 .git 是文件
     (tmp_path / "wt/src").mkdir()
-    assert shared.find_root(tmp_path / "wt/src") == tmp_path / "wt"
+    assert shared.find_root(tmp_path / "wt/src") is None
+    assert shared.repo_root(tmp_path / "wt/src") == tmp_path / "wt"
 
 
-def test_find_root_without_git_or_manifest_returns_start(tmp_path):
+def test_find_root_without_git_or_manifest_returns_none(tmp_path):
     start = tmp_path / "a/b"
     start.mkdir(parents=True)
-    assert shared.find_root(start) == start
+    assert shared.find_root(start) is None
+    assert shared.repo_root(start) is None                                    # 不在 git 里
+
+
+def test_repo_root_from_subdirectory(tmp_path):
+    git_init(tmp_path / "repo")
+    (tmp_path / "repo/web/src").mkdir(parents=True)
+    assert shared.repo_root(tmp_path / "repo/web/src") == tmp_path / "repo"
 
 
 # ---------- 项目文件的边界：子仓库、子项目、第三方目录 ----------

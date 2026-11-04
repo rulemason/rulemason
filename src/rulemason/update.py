@@ -28,6 +28,7 @@ from rulemason.shared import (
     dump_json,
     has_openspec,
     list_files,
+    repo_root_hint,
 )
 
 FILL_TITLE = "补齐计划（写进项目文件的 rulemason 基础配置，升级时与副本一起提交）："
@@ -92,6 +93,8 @@ def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = Fa
         return exc.code
     if manifest is None:
         print(f"没有 {MANIFEST}：先运行 {NAME} init（判断的项目根：{root}）")
+        if hint := repo_root_hint(root):
+            print(hint)
         return 1
     # 2. 两份计划；--dry-run 只打印，到此为止
     managed, fill, fill_writes = plan_update(root, manifest)

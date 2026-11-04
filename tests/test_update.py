@@ -10,6 +10,7 @@ from conftest import (
     drop_operations,
     git,
     git_init,
+    run_cli,
     snapshot,
     write,
     write_manifest,
@@ -337,3 +338,14 @@ def test_update_repoints_old_copy(tmp_path, capsys):
     assert (root / "ruff.toml").read_text(encoding="utf-8") == 'extend = ".rulemason/lint/ruff-base.toml"\n'
     assert "提示：" in out and "lint/ruff-base.toml 是基础配置的旧位置副本" in out
     assert check.collect(root)[0].layers["接入 lint 继承"] == []
+
+
+def test_update_in_subdirectory_of_unjoined_repo_names_repo_root(tmp_path, monkeypatch, capsys):
+    repo = tmp_path / "repo"
+    git_init(repo)
+    write(repo, "web/main.py", "x = 1\n")
+    monkeypatch.chdir(repo / "web")
+    assert run_cli("update") == 1
+    out = capsys.readouterr().out
+    assert f"先运行 rulemason init（判断的项目根：{(repo / 'web').resolve()}）" in out
+    assert f"当前目录在 git 仓库 {repo.resolve()} 里；要接入整个仓库，到仓库根运行，或运行 rulemason init {repo.resolve()}" in out

@@ -464,7 +464,13 @@ def test_other_commands_reject_unknown_arguments(capsys):
     assert "无法识别的参数" in capsys.readouterr().err
 
 
-# ---------- 项目根：与 init / check 同一规则 ----------
+# ---------- 项目根：往上找清单；没有清单时用 git 仓库根（与 init 不同） ----------
+
+
+def test_root_without_manifest_is_repo_root(project):
+    """未接入 rulemason 的仓库，在子目录 api/ 运行：没有清单就用 git 仓库根，才能找到 openspec/。"""
+    assert Path.cwd() == (project / "api").resolve() and not (project / ".rulemason.yaml").exists()   # 夹具已切到 api/、没有清单
+    assert judge.root() == project.resolve()
 
 
 def test_root_is_nearest_subproject(project, monkeypatch):

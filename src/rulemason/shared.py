@@ -72,16 +72,35 @@ def has_manifest(path: Path) -> bool:
     return (path / MANIFEST).is_file()
 
 
-def find_root(start: Path) -> Path:
-    """项目根：从 start 往上找最近的有清单的目录，不越过所在 git 仓库的根。
-    找不到清单时返回 git 仓库根，不在 git 里则返回 start。"""
+def find_root(start: Path) -> Path | None:
+    """已接入的项目根：从 start 往上找最近的有清单的目录，不越过所在 git 仓库的根。找不到返回 None，
+    由调用方决定用什么（init、check、update、remove 用当前目录，judge 用 git 仓库根）。"""
+    repo = repo_root(start)
     for current in (start, *start.parents):
         if has_manifest(current):
             return current
-        if (current / ".git").exists():
-            # 走到这里说明到了仓库根还没有清单：不再往上，上层目录属于别的项目或工作区
-            return current
-    return start
+        if current == repo:
+            break                                            # 到了仓库根还没有清单：上层目录属于别的项目或工作区
+    return None
+
+
+def repo_root(start: Path) -> Path | None:
+    """start 所在 git 仓库的根（.git 是目录或文件都算，worktree 与子模块的 .git 是文件）；不在 git 里返回 None。"""
+    return next((current for current in (start, *start.parents) if (current / ".git").exists()), None)
+
+
+def outer_repo(root: Path) -> Path | None:
+    """root 还没接入、又是某个 git 仓库的子目录时，返回那个仓库根；已接入（子目录项目是有意建的）、就是仓库根或不在 git 里返回 None。"""
+    repo = repo_root(root)
+    if has_manifest(root) or repo in (None, root):
+        return None
+    return repo
+
+
+def repo_root_hint(root: Path) -> str | None:
+    """写明仓库根与接入整个仓库的做法；不需要时（见 outer_repo）返回 None。"""
+    repo = outer_repo(root)
+    return f"当前目录在 git 仓库 {repo} 里；要接入整个仓库，到仓库根运行，或运行 {NAME} init {repo}" if repo else None
 
 
 def template(name: str) -> str:
