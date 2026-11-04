@@ -114,18 +114,41 @@ def test_skill_reads_check_json_and_lists_every_code():
 def test_skill_stage_order_and_guards():
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
 
-    order = [skill.index(title) for title in ("## 2. 补项目信息", "## 3. 日常巡检", "## 4. 启用判断（可选", "## 5. 汇报")]
+    order = [skill.index(title) for title in ("## 2. 补项目信息", "## 3. 日常巡检", "## 4. 启用判断（可选", "## 5. 建立 ruff 基线", "## 6. 汇报")]
     assert order == sorted(order)
     assert "不改 rulemason 标记块" in skill
     assert "项目没有 git 时，说明判断层需要 git" in skill
     assert "去掉「自动识别，请确认」" in skill
     assert "MUST NOT 复制共享检查点正文" in skill and "语义等价的 requirement" in skill
-    assert "只读，不改文件" in skill and "不代填 key" in skill
+    assert "只读，不改文件（例外见「不可违反」）" in skill and "唯一的例外是用户确认的 ruff 基线计划" in skill and "不代填 key" in skill
     assert "rulemason judge --template judgments" in skill and "rulemason key" in skill
     assert "templates/judgments.yaml" not in skill                       # 模板不再随 skill 复制
 
 
+def test_skill_ruff_baseline_section():
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    section = skill[skill.index("## 5. 建立 ruff 基线"):skill.index("## 6. 汇报")]
+
+    assert "转到「5. 建立 ruff 基线」" in skill
+    for text in ("--select I001,F401 --extend-exclude __init__.py --force-exclude --fix", "extend-immutable-calls", '"scripts/**" = ["T201"]',
+                 "# 接入前遗留，改到该文件时清掉", "用户确认后才运行", "ruff 通过，无需建立基线"):
+        assert text in section, text
+    for name in ("fastapi.Depends", "fastapi.Query", "fastapi.Security", "typer.Option", "typer.Argument"):
+        assert f'"{name}"' in section, name
+    assert "不加 `--unsafe-fixes`" in section and "不用 `# noqa`" in section and "`--diff`" in section
+    assert "「判断用的红线规则」一行（旧写法「红线规则：…」一行同理）改为列出用户确认的规则 id" in skill
+
+
 # ---------- 3. 共享 workflow-gates 与审查子代理 ----------
+
+def test_workflow_gates_fix_only_problems_this_change_introduced():
+    text = (ROOT / "rules/workflow-gates.md").read_text(encoding="utf-8")
+
+    assert "「红线规则」指命令表之后列出、供判断使用的实质类规则" in text
+    assert "直到通过" not in text
+    assert text.count("建议运行 `/rulemason` 建立基线") == 2
+    assert "修掉本次改动引入的问题" in text and "改动前就有的问题不修" in text
+
 
 def test_workflow_gate_uses_automatic_review_not_simplify():
     text = (ROOT / "rules/workflow-gates.md").read_text(encoding="utf-8")

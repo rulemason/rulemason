@@ -57,6 +57,8 @@ rulemason init --tools claude,codex --yes   # 非交互：不提问
 
 自动精简只处理本次改动里的重复、死代码、冗余抽象或过复杂逻辑，保持需求、外部行为与 API 不变；Claude Code 下这一步用内置的 `/simplify`。独立审查者拿不到文件与命令工具，只看提供给它的改动与方案；必须修的问题自动修复并重新审查，不要求你逐条审核代码。
 
+已有大量代码的项目接入后，ruff 往往报出很多改动前就有的问题；先在 AI 工具里运行 `/rulemason` 建立 ruff 基线（自动修复 import、声明框架写法、其余按文件记为「接入前遗留」，都等你确认），之后检查点只修每次改动新引入的问题。
+
 ## 看现状
 
 ```bash
@@ -76,7 +78,7 @@ rulemason check     # 只读，在项目任意子目录运行都可以
 
 ```yaml
 - uses: astral-sh/setup-uv@v7
-- run: uv tool install rulemason==0.8.11
+- run: uv tool install rulemason==0.8.12
 - run: rulemason check
 ```
 

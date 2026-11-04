@@ -206,7 +206,7 @@ def test_new_agents_from_template_marks_pending(project):
     assert _init(project) == 0
     text = (project / "AGENTS.md").read_text(encoding="utf-8")
     assert text.startswith(f"# {project.name}\n") and text.count("待 /rulemason 补充") == 2       # 简介（没有 README）与样板豁免
-    assert "## 红线（不可违反）\n\n暂无\n" in text and "红线规则：暂无。" in text
+    assert "## 红线（不可违反）\n\n暂无\n" in text and "判断用的红线规则：暂无（判断未启用；项目红线见上文「红线」一节）" in text
 
 
 def test_unpaired_markers_leave_file_untouched(project, capsys):
