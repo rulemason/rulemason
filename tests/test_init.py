@@ -82,9 +82,18 @@ def test_new_dir_agrees_to_openspec_init(tmp_path, tty, fake_openspec, monkeypat
     root = tmp_path / "fresh"
     write(root, "main.py", "x = 1\n")
     _answers(monkeypatch, "y", "y")
+    launched, real_run = [], init.subprocess.run
+
+    def spy(cmd, **kwargs):
+        launched.append(cmd)
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(init.subprocess, "run", spy)
 
     assert init.run(root, "claude,codex", False) == 0
 
+    openspec_cmd = next(cmd for cmd in launched if cmd[1:3] == ["init", "--tools"])
+    assert openspec_cmd[0] == init.shutil.which("openspec")    # 以 which 找到的完整路径启动：Windows 上是 openspec.cmd
     args = fake_openspec.read_text(encoding="utf-8").split()
     assert args[:3] == ["init", "--tools", "claude,codex"] and args[3:] == ["--language", "zh-CN"]
     assert (root / "AGENTS.md").is_file() and (root / ".rulemason.yaml").is_file()

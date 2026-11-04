@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from functools import cache
 from pathlib import Path
 from string import Template
 from typing import Any, NamedTuple
@@ -88,8 +89,24 @@ def template(name: str) -> str:
 
 
 def color_enabled() -> bool:
-    """没设 NO_COLOR 且标准输出是终端才上色；被管道接走时不让转义进日志。"""
-    return not os.environ.get("NO_COLOR") and sys.stdout.isatty()
+    """没设 NO_COLOR 且标准输出是终端才上色；被管道接走时不让转义进日志。Windows 上还要控制台能解析 ANSI。"""
+    if os.environ.get("NO_COLOR") or not sys.stdout.isatty():
+        return False
+    return sys.platform != "win32" or windows_ansi()
+
+
+@cache
+def windows_ansi() -> bool:
+    """为 Windows 控制台的标准输出打开 ANSI 解析（ENABLE_VIRTUAL_TERMINAL_PROCESSING）；旧版控制台打不开时返回 False。只试一次。
+    ctypes 在这里才导入：缺 libffi 的 Python 导入它会失败，不能让其他平台跟着用不了；ctypes.windll 也只在 Windows 上存在。"""
+    import ctypes
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GetStdHandle.restype = ctypes.c_void_p          # 句柄是指针宽度，按默认 int 取会在 64 位上截断
+    handle = ctypes.c_void_p(kernel32.GetStdHandle(-11))     # STD_OUTPUT_HANDLE；传回时也按指针宽度传
+    mode = ctypes.c_uint32()
+    if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+        return False
+    return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
 
 
 def paint(text: str, code: str | None, color: bool | None = None) -> str:

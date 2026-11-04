@@ -30,6 +30,8 @@ from rulemason.shared import (
     list_files,
 )
 
+FILL_TITLE = "补齐计划（写进项目文件的 rulemason 基础配置，升级时与副本一起提交）："
+
 
 def plan_update(root: Path, manifest: dict) -> tuple[Plan, Plan, dict[str, str]]:
     """返回 (管理计划, 补齐计划, 补齐计划里真正要写的文件)。管理计划直接写；补齐计划碰的是用户自己的文件。"""
@@ -74,10 +76,11 @@ def show_dry_run(root: Path, managed: Plan, fill_writes: dict[str, str], notes: 
         print("以下副本或标记块与共享版本不一致，将按共享版本刷新：")
         print(bullets(managed.overwritten), end="")
     if fill_writes:
-        print("补齐计划（你自己的文件）：" + "、".join(fill_writes))
+        print(FILL_TITLE + "、".join(fill_writes))
     print_notes(notes, "已跳过，需要你处理：")
     print_notes(tips, TIPS_TITLE, color=None)
-    print(f"只列计划，未写任何文件。确认后运行 {NAME} update（补齐计划加 --yes）")
+    ask = f"终端里运行 {NAME} update 会询问是否补齐；非交互环境加 --yes" if fill_writes else f"确认后运行 {NAME} update"
+    print(f"只列计划，未写任何文件。{ask}")
 
 
 def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = False) -> int:
@@ -110,12 +113,12 @@ def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = Fa
 
     # 4. 补齐：交互确认或 --yes 才写，否则只列为待补齐
     if fill_writes:
-        print("补齐计划（你自己的文件）：" + "、".join(fill_writes))
+        print(FILL_TITLE + "、".join(fill_writes))
         if yes or (interactive() and ask_yes("按补齐计划写入？")):
             apply(root, Plan(writes=fill_writes))             # 不安全的目标已在 plan_update 里挑出去
-            print("已补齐。")
+            print("已补齐。这些文件属于这次升级，请与副本、.rulemason.yaml 一起提交。")
         else:
-            print(f"待补齐：未写入，确认后运行 {NAME} update --yes")
+            print(f"待补齐：未写入；终端里重新运行 {NAME} update 并答 y，非交互环境加 --yes")
     print_notes(notes, "已跳过，需要你处理：")
     print_notes(tips, TIPS_TITLE, color=None)
     if not has_openspec(root):

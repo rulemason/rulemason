@@ -309,14 +309,16 @@ def ensure_openspec(root: Path, tools: list[str], yes: bool) -> bool:
     只接入「读」层（规则副本、入口、lint）。代跑失败抛 Stop。"""
     if has_openspec(root):
         return True
-    if shutil.which("openspec") is None:
+    found = shutil.which("openspec")
+    if found is None:
         print(f"项目没有 openspec/，本机也没有 openspec 命令（安装：{OPENSPEC_INSTALL}）；先只接入规则与 lint。")
         return False
     command = ["openspec", "init", "--tools", ",".join(tools), "--language", "zh-CN"]
     if yes or not ask_yes(f"项目没有 openspec/，现在运行 `{' '.join(command)}`？（否则先只接入规则与 lint）"):
         return False
     sys.stdout.flush()                                      # 先输出前面的提示，再让 openspec 直接写终端
-    if subprocess.run(command, cwd=root).returncode != 0:
+    # 用 which 找到的完整路径启动：Windows 上 npm 装的是 openspec.cmd，只给名字时不会补扩展名
+    if subprocess.run([found, *command[1:]], cwd=root).returncode != 0:
         raise Stop(f"openspec init 失败（输出见上），{NAME} 未写任何文件")
     return True
 

@@ -52,3 +52,13 @@ def test_existing_open_directory_is_tightened(env_file):
     env_file.parent.mkdir(parents=True, mode=0o755)
     assert key.run() == 0
     assert stat.S_IMODE(env_file.parent.stat().st_mode) == 0o700
+
+
+def test_writes_without_posix_permissions(env_file, monkeypatch, capsys):
+    monkeypatch.delattr(key.os, "O_NOFOLLOW")
+    monkeypatch.delattr(key.os, "fchmod")
+    monkeypatch.setattr(key.os, "name", "nt")
+    assert key.run() == 0
+    assert env_file.read_text(encoding="utf-8") == "TYPESAFE_API_KEY=sk-test-value\n"
+    out = capsys.readouterr().out
+    assert "在当前用户目录下" in out and "权限 600" not in out and "sk-test-value" not in out
