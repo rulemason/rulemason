@@ -152,6 +152,15 @@ def test_skill_common_red_line_candidates():
     assert "或「rulemason 常见红线」及触发它的文件" in skill
 
 
+def test_skill_treats_fill_plan_as_part_of_the_upgrade():
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    for text in ("在终端里运行会询问是否补齐，由用户答 y；非交互环境（包括你代为运行）才加 `--yes`",
+                 "补齐计划写进项目文件的内容", "不是项目自己加的规则", "升级产出，提交时与副本一起带上", "本 skill 不提交",
+                 "补齐写进项目文件的内容属于这次升级，提交时与副本一起带上", "*_shared/openspec-base/*.yaml", "以 `rulemason update --dry-run` 列出的补齐计划为准",
+                 "只查基础条目有没有缺，不能用来认定新增条目是基础版"):
+        assert text in skill, text
+
+
 # ---------- 3. 共享 workflow-gates 与审查子代理 ----------
 
 def test_workflow_gates_fix_only_problems_this_change_introduced():

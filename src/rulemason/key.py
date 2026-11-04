@@ -22,11 +22,16 @@ def run() -> int:
     path = judge.USER_ENV
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
     kept = [line for line in lines if line.partition("=")[0].strip() != judge.KEY_NAME]
+    posix = os.name == "posix"
     path.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(path.parent, 0o700)                             # 目录若是指向别处的链接，收紧的是链接目标；key 文件本身不跟随链接
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
-    os.fchmod(descriptor, 0o600)                             # 已有文件可能是 644：写入 key 之前先收紧
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)   # Windows 没有 O_NOFOLLOW
+    flags |= getattr(os, "O_BINARY", 0)                     # Windows 默认文本模式会再转一次换行，叠成 \r\r\n
+    descriptor = os.open(path, flags, 0o600)
+    if posix:
+        os.fchmod(descriptor, 0o600)                         # 已有文件可能是 644：写入 key 之前先收紧
     with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
         stream.write("\n".join([*kept, f"{judge.KEY_NAME}={value}"]) + "\n")
-    print(f"已写入 {path}（权限 600）；rulemason judge 会自动用 Jev 判断")
+    where = "权限 600" if posix else "在当前用户目录下"         # 走到 else 说明平台没有 POSIX 权限，不声称 600
+    print(f"已写入 {path}（{where}）；rulemason judge 会自动用 Jev 判断")
     return 0
