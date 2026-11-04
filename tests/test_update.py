@@ -288,3 +288,31 @@ def test_update_yes_repoints_broken_ruff_extend(tmp_path):
     assert update.run(root, yes=True) == 0
     assert (root / "ruff.toml").read_text(encoding="utf-8") == 'extend = ".rulemason/lint/ruff-base.toml"\n'
     assert check.collect(root)[0].layers["接入 lint 继承"] == []
+
+
+# ---------- lint 继承链与旧位置副本（lint-fix-guidance） ----------
+
+def test_update_fills_chain_tail_then_plans_nothing(tmp_path, capsys):
+    root = _joined_before_python(tmp_path)
+    write(root, "app/main.py", "x = 1\n")
+    write(root, "ruff.toml", 'extend = "config/ruff-shared.toml"\n')
+    write(root, "config/ruff-shared.toml", "line-length = 100\n")
+    assert update.run(root, yes=True) == 0
+    assert (root / "ruff.toml").read_text(encoding="utf-8") == 'extend = "config/ruff-shared.toml"\n'
+    assert (root / "config/ruff-shared.toml").read_text(encoding="utf-8").startswith('extend = "../.rulemason/lint/ruff-base.toml"')
+    capsys.readouterr()
+    assert update.run(root, dry_run=True, as_json=True) == 0
+    assert json.loads(capsys.readouterr().out)["fill"] == []
+
+
+def test_update_repoints_old_copy(tmp_path, capsys):
+    root = _joined_before_python(tmp_path)
+    write(root, "app/main.py", "x = 1\n")
+    write(root, "lint/ruff-base.toml", (shared.shared_root() / "lint/ruff-base.toml").read_text(encoding="utf-8"))   # 副本还没生成：与本机版本将写入的内容比
+    write(root, "ruff.toml", 'extend = "lint/ruff-base.toml"\n')
+    capsys.readouterr()
+    assert update.run(root, yes=True) == 0
+    out = capsys.readouterr().out
+    assert (root / "ruff.toml").read_text(encoding="utf-8") == 'extend = ".rulemason/lint/ruff-base.toml"\n'
+    assert "提示：" in out and "lint/ruff-base.toml 是基础配置的旧位置副本" in out
+    assert check.collect(root)[0].layers["接入 lint 继承"] == []

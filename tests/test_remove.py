@@ -240,3 +240,13 @@ def test_claude_md_symlink_to_agents_is_left_alone(joined):
     assert remove.run(joined, yes=True) == 0
     assert claude.is_symlink()
     assert "rulemason:" not in (joined / "AGENTS.md").read_text(encoding="utf-8")
+
+
+def test_chain_tail_reference_moves_to_project_lint(joined):
+    write(joined, "ruff.toml", 'extend = "config/ruff-shared.toml"\n')
+    write(joined, "config/ruff-shared.toml", 'extend = "../.rulemason/lint/ruff-base.toml"\n')
+    copy = (joined / ".rulemason/lint/ruff-base.toml").read_text(encoding="utf-8")
+    assert remove.run(joined, yes=True) == 0
+    assert (joined / "ruff.toml").read_text(encoding="utf-8") == 'extend = "config/ruff-shared.toml"\n'
+    assert (joined / "config/ruff-shared.toml").read_text(encoding="utf-8") == 'extend = "../lint/ruff-base.toml"\n'
+    assert (joined / "lint/ruff-base.toml").read_text(encoding="utf-8") == copy

@@ -42,9 +42,12 @@ DELETE_TITLE = "删除（rulemason 生成且未改动的文件）"
 # ---------- 1. lint 继承改到项目 lint/ ----------
 
 def lint_configs(root: Path, files: list[str]) -> list[tuple[str, Callable[[Path, str, str], list[str]], str]]:
-    """(配置文件, 取共享引用的函数, 共享基础配置文件名)：项目里的 ruff 与 ESLint 配置。"""
-    configs = [(f, check.ruff_shared_refs, "ruff-base.toml") for f, _ in check.ruff_configs(root, files)]
-    return configs + [(f, check.eslint_shared_refs, "eslint-base.mjs") for f in check.eslint_configs(files)]
+    """(配置文件, 取共享引用的函数, 共享基础配置文件名)：项目里的 ESLint 配置，以及 ruff 配置沿继承链经过的每一份
+    （引用副本的可能是链末端那份任意命名的 .toml），同一份只列一次。"""
+    chains = [check.ruff_chain(root, f, text).links for f, text in check.ruff_configs(root, files)]
+    ruff_files = list(dict.fromkeys(rel for links in chains for rel, _ in links))
+    configs = [(f, check.ruff_shared_refs, Path(check.RUFF_BASE).name) for f in ruff_files]
+    return configs + [(f, check.eslint_shared_refs, Path(check.ESLINT_BASE).name) for f in check.eslint_configs(files)]
 
 
 def plan_lint_move(root: Path, files: list[str], plan: Plan) -> list[str]:

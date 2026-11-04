@@ -38,7 +38,7 @@ rulemason init                              # 空格勾选工具，看一眼计�
 rulemason init --tools claude,codex --yes   # 非交互：不提问
 ```
 
-`init` 只做能确定做对的事：按项目用到的语言生成规则副本（Go 项目不会收到 Python、React 的落法）、各工具的入口、`.gitignore` 放行、ruff / ESLint 继承；有 `openspec/` 时再补方案写法规则、OpenSpec apply / archive 时给 AI 的检查点提示（`config.yaml` 的 `operations`）与项目的检查点规格。改不了的（例如 ruff 配置写了 `select`、ESLint 用了认不出的写法）只报告，并附上要粘贴的代码。不提交、不推送，不碰计划以外的文件。
+`init` 只做能确定做对的事：按项目用到的语言生成规则副本（Go 项目不会收到 Python、React 的落法）、各工具的入口、`.gitignore` 放行、ruff / ESLint 继承；有 `openspec/` 时再补方案写法规则、OpenSpec apply / archive 时给 AI 的检查点提示（`config.yaml` 的 `operations`）与项目的检查点规格。ruff 配置已继承项目里的其他配置时，把基础规则接到继承链末端那份配置里；引用的是旧位置的基础配置副本（例如卸载时移到 `lint/` 的那份）时改回 `.rulemason/` 下的副本。改不了的（例如 ruff 配置写了 `select`、继承了项目外的配置、ESLint 用了认不出的写法）只报告，写明文件、行号、原文与改法。不提交、不推送，不碰计划以外的文件。
 
 没有 `openspec/` 时会问要不要代为运行 `openspec init`；`--yes`、拒绝或本机没有 `openspec` 命令时只接入规则与 lint，装好 OpenSpec 后运行 `rulemason update` 补齐检查点。
 
@@ -130,7 +130,7 @@ rulemason remove --plan   # 只看计划，不改任何文件
 rulemason remove          # 列出计划，确认后卸载；非交互环境加 --yes
 ```
 
-`remove` 删掉 rulemason 生成的东西：规则副本、各工具的 skill、`.rulemason.yaml`、AGENTS.md / CLAUDE.md 里的 rulemason 标记块、OpenCode 配置里指向 `.rulemason/` 的条目，以及没被改过的 `operations` 提示。ruff、ESLint 还在继承基础规则时，会把这两个文件移到项目的 `lint/` 并改好路径，lint 结果不变。手改过的副本保留；产物写法规则、项目的检查点规格、命令表和红线已是项目内容，只在汇报里列出，不删。本机装的 rulemason 不受影响，不用了再运行 `uv tool uninstall rulemason`。
+`remove` 删掉 rulemason 生成的东西：规则副本、各工具的 skill、`.rulemason.yaml`、AGENTS.md / CLAUDE.md 里的 rulemason 标记块、OpenCode 配置里指向 `.rulemason/` 的条目，以及没被改过的 `operations` 提示。ruff、ESLint 还在继承基础规则时，会把这两个文件移到项目的 `lint/` 并改好路径，lint 结果不变。手改过的副本保留；产物写法规则、项目的检查点规格、命令表和红线已是项目内容，只在汇报里列出，不删。本机装的 rulemason 不受影响，不用了再运行 `uv tool uninstall rulemason`。卸载后再接入时，`lint/` 下没改过的基础配置会改回引用 `.rulemason/` 下的副本，旧文件留给你确认后删除。
 
 ## 出了问题怎么办
 
@@ -145,6 +145,7 @@ rulemason 往项目里写三类东西，都由它管理，不要手改：
 | `接入：运行 rulemason update` | 副本或标记块被手改、入口缺失、配置没补齐 | 运行 `rulemason update`；要改规矩，到本仓库改了发布新版本 |
 | `接入：修改 .gitignore，放行 skills/rulemason/` | `.gitignore` 忽略了工具目录，副本提交不上去 | 改成只放行 `skills/rulemason/`；说明单独写一行，git 不支持行尾注释 |
 | `接入：运行 rulemason init` | 这个目录（或它所在的仓库）还没接入 | 在项目根运行 `rulemason init` |
+| `接入：手动修改 <文件>（rulemason update 改不了）：…` | lint 配置有 rulemason 不替你决定的写法：ruff 写了 `select`、继承了项目外的配置、旧副本被改过、ESLint 写法认不出或重复引入基础规则 | 按 `rulemason check` 报告「接入 lint 继承」下写明的文件、行号与做法改，改完照提示运行 `rulemason update` 或 `rulemason check` |
 | `接入：先修正 .rulemason.yaml` | 清单被改坏，读不出来 | 按提示修正，或删掉它后重新 `rulemason init` |
 | `补项目信息：…` | 项目简介、红线待补 | 在 AI 工具里运行 `/rulemason` |
 

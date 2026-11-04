@@ -8,6 +8,7 @@ import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from string import Template
 
@@ -55,6 +56,7 @@ OPENSPEC_HINT = f"检查点与方案写法需要 OpenSpec：安装后在项目�
 OPENSPEC_INSTALL = "npm install -g @fission-ai/openspec@latest"
 ROW_NAMES = ("判断", "ruff", "测试", "前端 lint", "文案检查")
 NEXT_STEP = f"下一步：在 AI 工具中运行 /{NAME}，补项目简介、红线并确认命令表。"
+TIPS_TITLE = "提示："
 
 
 class Stop(Exception):
@@ -71,6 +73,7 @@ class Plan:
     deletes: list[str] = field(default_factory=list)
     overwritten: list[str] = field(default_factory=list)     # 被覆盖的手改副本
     notes: list[str] = field(default_factory=list)           # 跳过并需要人处理的情况
+    tips: list[str] = field(default_factory=list)            # 顺带告诉人的事（如旧副本可删），不算待处理
 
     def text(self, root: Path, rel: str) -> str:
         """计划里已改过的内容优先（同一次 init 里前一步刚改过的文件），否则读磁盘。"""
@@ -79,11 +82,22 @@ class Plan:
         return (root / rel).read_text(encoding="utf-8")
 
 
-def print_notes(notes: list[str], heading: str) -> None:
-    """打印需要用户自己处理的事项（黄色标题 + 列表）；没有就不打印。init 与 update 共用。"""
+def print_notes(notes: list[str], heading: str, color: str | None = YELLOW) -> None:
+    """打印标题 + 列表；没有就不打印。需要用户处理的事用黄色标题，顺带告诉人的事（tips）不上色。init 与 update 共用。"""
     if notes:
-        print(paint(heading, YELLOW))
+        print(paint(heading, color) if color else heading)
         print(bullets(notes), end="")
+
+
+def add_once(items: list[str], item: str | None) -> None:
+    """item 非空且还没有时追加；多份配置共用一个末端时同一条说明只出现一次。"""
+    if item and item not in items:
+        items.append(item)
+
+
+def list_block(title: str, items: list[str]) -> list[str]:
+    """计划里的一段列表：标题一行，每项一行「  - 项」；没有项时为空。"""
+    return [title, *(f"  - {item}" for item in items)] if items else []
 
 
 def interactive() -> bool:
@@ -469,14 +483,15 @@ def plan_lint(root: Path, files: list[str], plan: Plan) -> None:
     configs = check.ruff_configs(root, files)
     if check.needs_ruff_config(files, configs):
         rel = (Path(ruff_home(files)) / "ruff.toml").as_posix()
-        ref = check.config_ref(root, rel, root / COPY_DIR / "lint/ruff-base.toml")
+        ref = check.config_ref(root, rel, root / COPY_DIR / check.RUFF_BASE)
         plan.writes[rel] = Template(template("ruff.toml.tmpl")).substitute(extend=ref)
     for f in [*(f for f, _ in configs), *check.eslint_configs(files)]:
-        fix = check.lint_fix(root, f, plan.text(root, f))
+        # 继承链上的其他配置读计划里的内容：两份配置共用一个末端时，第二份看到的是已补好的末端，不会重复改
+        fix = check.lint_fix(root, f, plan.text(root, f), partial(plan.text, root))
         if fix.text is not None:
-            plan.writes[f] = fix.text
-        if fix.note:
-            plan.notes.append(fix.note)
+            plan.writes[fix.target] = fix.text
+        add_once(plan.notes, fix.note)
+        add_once(plan.tips, fix.tip)
 
 
 def opencode_template(root: Path, files: list[str]) -> str:
@@ -698,9 +713,8 @@ def render_plan(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE) -
             lines.append(f"{title}：")
             lines += [f"  - {rel}" for rel in items]
     lines.append(untouched_line(root, plan))
-    if plan.notes:
-        lines.append("已跳过，需要你处理：")
-        lines += [f"  - {note}" for note in plan.notes]
+    lines += list_block("已跳过，需要你处理：", plan.notes)
+    lines += list_block(TIPS_TITLE, plan.tips)
     return "\n".join(lines)
 
 
@@ -727,9 +741,8 @@ def render_summary(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE
         if items:
             lines.append(f"{title} {len(items)} 个：" + "、".join(paint(rel, DIM) for rel in items))
     lines.append(untouched_line(root, plan))
-    if plan.notes:
-        lines.append(paint(f"需要你处理 {len(plan.notes)} 项：", YELLOW))
-        lines += [f"  - {note}" for note in plan.notes]
+    lines += list_block(paint(f"需要你处理 {len(plan.notes)} 项：", YELLOW), plan.notes)
+    lines += list_block(TIPS_TITLE, plan.tips)
     return "\n".join(lines)
 
 
@@ -804,6 +817,7 @@ def report(root: Path, plan: Plan, with_openspec: bool) -> None:
     if plan.writes or plan.deletes:
         print(paint("本次改动的文件：" + "、".join([*plan.writes, *plan.deletes]), DIM))
     print_notes(plan.notes, f"需要你处理 {len(plan.notes)} 项：")
+    print_notes(plan.tips, TIPS_TITLE, color=None)
     if not with_openspec:
         print(OPENSPEC_HINT)
     print(NEXT_STEP)

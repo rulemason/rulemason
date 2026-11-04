@@ -363,13 +363,16 @@ def test_ruff_header_gets_extend(project, header):
     assert f'{header}\nextend = ".rulemason/lint/ruff-base.toml"' in text and "line-length = 100" in text
 
 
-def test_other_ruff_extend_and_legacy_eslint_are_reported(project, capsys):
+def test_other_ruff_extend_gets_base_at_chain_tail_and_legacy_eslint_is_reported(project, capsys):
     write(project, "ruff.toml", 'extend = "base.toml"\n')
+    write(project, "base.toml", "line-length = 100\n")
     write(project, "web/.eslintrc.json", "{}\n")
     assert _init(project) == 0
     out = capsys.readouterr().out
-    assert "ruff.toml 已继承其他 ruff 配置" in out and "web/.eslintrc.json 的格式无法自动识别" in out
-    assert (project / "ruff.toml").read_text(encoding="utf-8") == 'extend = "base.toml"\n'
+    assert (project / "ruff.toml").read_text(encoding="utf-8") == 'extend = "base.toml"\n'          # 起点逐字不变
+    assert (project / "base.toml").read_text(encoding="utf-8").startswith('extend = ".rulemason/lint/ruff-base.toml"')
+    assert "已继承其他 ruff 配置" not in out and "ruff.toml" not in out.split("需要你处理", 1)[1]
+    assert "web/.eslintrc.json 是旧格式 .eslintrc" in out and "npx @eslint/migrate-config web/.eslintrc.json" in out
     assert (project / "web/.eslintrc.json").read_text(encoding="utf-8") == "{}\n"
 
 
@@ -806,7 +809,7 @@ def test_summary_then_d_expands_full_plan(project, tty, monkeypatch, capsys):
 
 
 def test_report_gives_conclusion_and_todos_only(project, capsys):
-    write(project, "web/.eslintrc.json", "{}\n")
+    write(project, "web/eslint.config.js", "module.exports = [];\n")
     assert _init(project) == 0
     out = capsys.readouterr().out
     tail = out.split("本次改动的文件", 1)[0]
@@ -1015,3 +1018,192 @@ def test_new_ruff_config_goes_to_the_only_python_dir(tmp_path, extra, home):
     assert f'extend = "{expected}"' in config.read_text(encoding="utf-8")
     assert sorted(p.relative_to(root).as_posix() for p in root.rglob("ruff.toml") if ".rulemason" not in p.parts) == [config.relative_to(root).as_posix()]
     assert check.collect(root)[0].layers["接入 lint 继承"] == []
+
+
+# ---------- 11. lint 继承链、旧位置副本与手动项说明（lint-fix-guidance） ----------
+
+def test_remove_then_init_points_ruff_back_to_copy(project, capsys):
+    from rulemason import remove
+    assert _init(project) == 0
+    assert remove.run(project, yes=True) == 0
+    assert '\nextend = "lint/ruff-base.toml"' in (project / "ruff.toml").read_text(encoding="utf-8")
+    capsys.readouterr()
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert '\nextend = ".rulemason/lint/ruff-base.toml"' in (project / "ruff.toml").read_text(encoding="utf-8")
+    assert (project / "lint/ruff-base.toml").is_file()                                     # 不代为删除
+    todos = out.split("需要你处理", 1)[1].split("提示：", 1)[0] if "需要你处理" in out else ""
+    assert "ruff" not in todos                                                              # ruff 不算待处理
+    assert "提示：\n  - lint/ruff-base.toml 是基础配置的旧位置副本" in out
+    assert check.collect(project)[0].layers["接入 lint 继承"] == []
+
+
+def test_edited_old_ruff_copy_is_not_changed(project, capsys):
+    write(project, "lint/ruff-base.toml", "[lint]\nselect = []\n")
+    write(project, "ruff.toml", 'extend = "lint/ruff-base.toml"\n')
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert (project / "ruff.toml").read_text(encoding="utf-8") == 'extend = "lint/ruff-base.toml"\n'
+    assert "ruff.toml 继承的 lint/ruff-base.toml 与基础配置不同（被改过或来自旧版本）：未修改" in out
+    assert "diff lint/ruff-base.toml .rulemason/lint/ruff-base.toml" in out
+    assert '再把第 1 行 extend = "lint/ruff-base.toml" 里的 lint/ruff-base.toml 改为 .rulemason/lint/ruff-base.toml' in out
+
+
+def test_eslint_import_of_old_copy_is_repointed(project):
+    write(project, "lint/eslint-base.mjs", (shared.shared_root() / "lint/eslint-base.mjs").read_text(encoding="utf-8"))
+    old = 'import legacyBase from "../../lint/eslint-base.mjs";\n\nexport default [\n  { rules: legacyBase },\n];\n'
+    write(project, "apps/admin-web/eslint.config.js", old)
+    assert _init(project) == 0
+    text = (project / "apps/admin-web/eslint.config.js").read_text(encoding="utf-8")
+    assert text == old.replace("../../lint/", "../../.rulemason/lint/")
+    assert text.count("eslint-base.mjs") == 1
+
+
+def test_two_configs_share_one_chain_tail(project):
+    write(project, "apps/api/ruff.toml", 'extend = "../../ruff-common.toml"\n')
+    write(project, "apps/worker/ruff.toml", 'extend = "../../ruff-common.toml"\n')
+    write(project, "ruff-common.toml", "line-length = 100\n")
+    assert _init(project) == 0
+    common = (project / "ruff-common.toml").read_text(encoding="utf-8")
+    assert common.count("extend =") == 1 and common.startswith('extend = ".rulemason/lint/ruff-base.toml"')
+    for sub in ("api", "worker"):
+        assert (project / f"apps/{sub}/ruff.toml").read_text(encoding="utf-8") == 'extend = "../../ruff-common.toml"\n'
+    assert check.collect(project)[0].layers["接入 lint 继承"] == []
+
+
+def test_three_level_chain_only_tail_changes(project):
+    write(project, "ruff.toml", 'extend = "a.toml"\n')
+    write(project, "a.toml", 'extend = "b.toml"\n')
+    write(project, "b.toml", "line-length = 100\n")
+    assert _init(project) == 0
+    assert (project / "a.toml").read_text(encoding="utf-8") == 'extend = "b.toml"\n'
+    assert (project / "b.toml").read_text(encoding="utf-8").startswith('extend = ".rulemason/lint/ruff-base.toml"')
+
+
+def test_cycle_is_reported_and_nothing_changes(project, capsys):
+    write(project, "ruff.toml", 'extend = "a.toml"\n')
+    write(project, "a.toml", 'extend = "ruff.toml"\n')
+    assert _init(project) == 0
+    assert "ruff 继承链绕回自己：ruff.toml → a.toml → ruff.toml" in capsys.readouterr().out
+    assert (project / "a.toml").read_text(encoding="utf-8") == 'extend = "ruff.toml"\n'
+
+
+def test_select_note_gives_line_and_two_options(project, capsys):
+    write(project, "ruff.toml", '# 项目 ruff\n[lint]\nselect = ["E", "F"]\n')
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert 'ruff.toml 写了 select' in out and '位置：第 3 行 select = ["E", "F"]' in out
+    assert 'extend-select = ["E", "F"]' in out and "删去这一行" in out and "改完运行：rulemason update" in out
+    assert "sed" not in out
+
+
+def test_outside_config_note_gives_new_line_and_copy_reminder(project, capsys):
+    write(project, "ruff.toml", 'extend = "~/configs/ruff.toml"\n')
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert "ruff.toml 继承了项目外的 ~/configs/ruff.toml：未修改" in out and "位置：第 1 行" in out
+    assert '改为：extend = ".rulemason/lint/ruff-base.toml"' in out and "~/configs/ruff.toml 里本项目要用的设置" in out
+    assert (project / "ruff.toml").read_text(encoding="utf-8") == 'extend = "~/configs/ruff.toml"\n'
+
+
+def test_unrecognized_eslint_note_gives_import_and_entry(project, capsys):
+    write(project, "web/eslint.config.js", 'import js from "@eslint/js";\nmodule.exports = [js.configs.recommended];\n')
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert 'web/eslint.config.js 的格式无法自动识别：未修改' in out
+    assert '在第 1 行（第一条 import）之前加入：import rulemasonBase from "../.rulemason/lint/eslint-base.mjs";' in out
+    assert "{ rules: rulemasonBase }," in out
+
+
+def test_duplicate_eslint_import_is_reported_not_changed(project, capsys):
+    write(project, "lint/eslint-base.mjs", "export default {};\n")
+    text = (
+        'import js from "@eslint/js";\nimport legacyBase from "../../lint/eslint-base.mjs";\n'
+        'import rulemasonBase from "../../.rulemason/lint/eslint-base.mjs";\n\nexport default [\n'
+        "  { rules: rulemasonBase },\n  js.configs.recommended,\n  {\n  },\n  { rules: legacyBase },\n];\n"
+    )
+    write(project, "apps/admin-web/eslint.config.js", text)
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert (project / "apps/admin-web/eslint.config.js").read_text(encoding="utf-8") == text
+    assert "apps/admin-web/eslint.config.js 重复引入基础规则（../../lint/eslint-base.mjs 与 .rulemason/ 下的副本）" in out
+    assert "@eslint/js" not in out.split("重复引入基础规则", 1)[1].splitlines()[0]          # 与基础规则无关的引入不算
+    assert '删去第 2 行 import legacyBase from "../../lint/eslint-base.mjs";' in out
+    assert "再删去用到它的第 10 行 { rules: legacyBase }," in out
+    report, _ = check.collect(project)
+    assert any(item.startswith("apps/admin-web/eslint.config.js 重复引入基础规则") for item in report.layers["接入 lint 继承"])
+    assert check.exit_code(report) == 1
+
+
+def test_pyproject_tail_without_tool_ruff_gets_two_line_note(project, capsys):
+    write(project, "ruff.toml", 'extend = "pyproject.toml"\n')
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert "pyproject.toml 无法安全写入 extend（找不到 [tool.ruff] 表头）：未修改" in out
+    assert '在文件里加入这两行：[tool.ruff] 与 extend = ".rulemason/lint/ruff-base.toml"' in out
+
+
+def test_edited_old_eslint_copy_is_not_changed(project, capsys):
+    write(project, "lint/eslint-base.mjs", "export default { 'no-console': 'off' };\n")
+    old = 'import legacyBase from "../lint/eslint-base.mjs";\n\nexport default [\n  { rules: legacyBase },\n];\n'
+    write(project, "web/eslint.config.js", old)
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert (project / "web/eslint.config.js").read_text(encoding="utf-8") == old
+    assert "web/eslint.config.js 引入的 lint/eslint-base.mjs 与基础配置不同（被改过或来自旧版本）：未修改" in out
+    assert "diff lint/eslint-base.mjs .rulemason/lint/eslint-base.mjs" in out
+
+
+def test_remove_then_init_points_eslint_back_to_copy(project):
+    from rulemason import remove
+    write(project, "web/package.json", '{"dependencies": {"react": "18.0.0"}}\n')
+    write(project, "web/eslint.config.mjs", "export default [\n];\n")
+    assert _init(project) == 0
+    assert remove.run(project, yes=True) == 0
+    assert '"../lint/eslint-base.mjs"' in (project / "web/eslint.config.mjs").read_text(encoding="utf-8")
+    assert _init(project) == 0
+    text = (project / "web/eslint.config.mjs").read_text(encoding="utf-8")
+    assert '"../.rulemason/lint/eslint-base.mjs"' in text and text.count("eslint-base.mjs") == 1
+
+
+def test_duplicate_import_of_edited_old_copy_says_diff_first(project, capsys):
+    write(project, "lint/eslint-base.mjs", "export default { 'no-console': 'off' };\n")
+    text = (
+        'import legacyBase from "../lint/eslint-base.mjs";\nimport rulemasonBase from "../.rulemason/lint/eslint-base.mjs";\n\n'
+        "export default [\n  { rules: rulemasonBase },\n  { rules: legacyBase },\n];\n"
+    )
+    write(project, "web/eslint.config.js", text)
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert "先看差异：diff lint/eslint-base.mjs .rulemason/lint/eslint-base.mjs，要保留的规则写进 web/eslint.config.js" in out
+    assert out.index("先看差异") < out.index("删去第 1 行")
+
+
+def test_duplicate_note_covers_named_import_and_every_use(project, capsys):
+    text = (
+        'import { base } from "../gone/eslint-base.mjs";\nimport legacy from "../../gone2/eslint-base.mjs";\n'
+        'import rulemasonBase from "../.rulemason/lint/eslint-base.mjs";\n\nexport default [\n'
+        "  { rules: rulemasonBase },\n  { rules: legacy },\n  { files: ['*.ts'], rules: { ...legacy } },\n];\n"
+    )
+    write(project, "web/eslint.config.js", text)
+    assert _init(project) == 0
+    out = capsys.readouterr().out
+    assert "删去第 1 行 import { base }" in out and "再删去配置里用到它的地方" in out
+    assert "再删去用到它的第 7 行 { rules: legacy }," in out
+    assert "再在第 8 行去掉对 legacy 的使用：{ files: ['*.ts'], rules: { ...legacy } }," in out
+
+
+def test_broken_reference_at_chain_tail_is_repointed_in_tail(project):
+    write(project, "ruff.toml", 'extend = "config/ruff-shared.toml"\n')
+    write(project, "config/ruff-shared.toml", 'extend = "../gone/ruff-base.toml"\n')
+    assert _init(project) == 0
+    assert (project / "ruff.toml").read_text(encoding="utf-8") == 'extend = "config/ruff-shared.toml"\n'
+    assert (project / "config/ruff-shared.toml").read_text(encoding="utf-8") == 'extend = "../.rulemason/lint/ruff-base.toml"\n'
+
+
+def test_unreadable_chain_file_is_reported_by_init(project, capsys):
+    write(project, "ruff.toml", 'extend = "bad.toml"\n')
+    (project / "bad.toml").write_bytes(b"\xff\xfe")
+    assert _init(project) == 0
+    assert "ruff.toml 继承的 bad.toml 读不出" in capsys.readouterr().out
+    assert (project / "ruff.toml").read_text(encoding="utf-8") == 'extend = "bad.toml"\n'
