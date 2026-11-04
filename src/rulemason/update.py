@@ -5,6 +5,7 @@ from pathlib import Path
 
 from rulemason import check
 from rulemason.init import (
+    TIPS_TITLE,
     Plan,
     Stop,
     apply,
@@ -57,7 +58,7 @@ def plan_update(root: Path, manifest: dict) -> tuple[Plan, Plan, dict[str, str]]
     return managed, fill, fill_writes
 
 
-def show_dry_run(root: Path, managed: Plan, fill_writes: dict[str, str], notes: list[str], as_json: bool) -> None:
+def show_dry_run(root: Path, managed: Plan, fill_writes: dict[str, str], notes: list[str], tips: list[str], as_json: bool) -> None:
     """update --dry-run：打印管理计划与补齐计划，不写、不问。"""
     if as_json:
         data = {
@@ -75,6 +76,7 @@ def show_dry_run(root: Path, managed: Plan, fill_writes: dict[str, str], notes: 
     if fill_writes:
         print("补齐计划（你自己的文件）：" + "、".join(fill_writes))
     print_notes(notes, "已跳过，需要你处理：")
+    print_notes(tips, TIPS_TITLE, color=None)
     print(f"只列计划，未写任何文件。确认后运行 {NAME} update（补齐计划加 --yes）")
 
 
@@ -91,8 +93,9 @@ def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = Fa
     # 2. 两份计划；--dry-run 只打印，到此为止
     managed, fill, fill_writes = plan_update(root, manifest)
     notes = list(dict.fromkeys(managed.notes + fill.notes))
+    tips = list(dict.fromkeys(managed.tips + fill.tips))
     if dry_run:
-        show_dry_run(root, managed, fill_writes, notes, as_json)
+        show_dry_run(root, managed, fill_writes, notes, tips, as_json)
         return 0
     # 3. 管理计划直接写
     try:
@@ -114,6 +117,7 @@ def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = Fa
         else:
             print(f"待补齐：未写入，确认后运行 {NAME} update --yes")
     print_notes(notes, "已跳过，需要你处理：")
+    print_notes(tips, TIPS_TITLE, color=None)
     if not has_openspec(root):
         print(CHECKPOINTS_OFF)
     return 0

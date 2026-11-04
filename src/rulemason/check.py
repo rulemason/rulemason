@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from string import Template
@@ -47,6 +48,10 @@ INSTRUCTIONS_ARRAY = re.compile(r'"instructions"\s*:\s*\[(.*?)\]', re.S)   # Ope
 DEPENDENCY_KEYS = ("dependencies", "devDependencies", "peerDependencies")   # 判断 React 与前端目录时看的 package.json 依赖段
 FRONTEND_DEPS = ("react", "vue", "svelte", "@angular/core", "preact", "solid-js", "next", "nuxt")   # 有这些依赖才算前端目录
 ESLINT_ANCHORS = ("export default [", "export default defineConfig([", "export default tseslint.config(")   # 能自动插入基础规则的写法
+RUFF_BASE = "lint/ruff-base.toml"
+ESLINT_BASE = "lint/eslint-base.mjs"
+CHAIN_LIMIT = 10                                            # ruff 继承链最多走这么多层，再深按「过深」报告
+RERUN = f"改完运行：{NAME} update"
 ENGINE_BASE = Path(engine.__file__).parent / "base"      # 引擎自带的通用规则与通用词表
 SHOWN_SKIPPED = 10                                          # 识别表「跳过」一行最多列出的目录数
 MIN_ARCHIVED = 3                                            # 判断层至少要这么多已归档 change 作测试用例
@@ -142,11 +147,11 @@ def copied_rules(root: Path, files: list[str]) -> list[str]:
     react = bool(react_dirs(root, files))
     wanted = {"rules/code-style.md", "rules/workflow-gates.md"}
     if has_python(files):
-        wanted |= {"rules/python.md", "lint/ruff-base.toml"}
+        wanted |= {"rules/python.md", RUFF_BASE}
     if react:
         wanted.add("rules/react.md")
     if react or eslint_configs(files):
-        wanted.add("lint/eslint-base.mjs")
+        wanted.add(ESLINT_BASE)
     if frontend_dirs(root, files) or (root / "openspec/judgments.yaml").is_file():
         wanted.add("rules/copy-voice.md")
     return [rel for rel in COPIED_SHARED if rel in wanted]
@@ -572,49 +577,34 @@ def eslint_refs(text: str) -> list[str]:
 
 def ruff_shared_refs(root: Path, file: str, text: str) -> list[str]:
     """ruff 配置 extend 里指向共享基础配置的引用原文。"""
-    return [ref for ref in ruff_refs(text) if _resolves_to(root, file, ref, "lint/ruff-base.toml")]
+    return [ref for ref in ruff_refs(text) if _resolves_to(root, file, ref, RUFF_BASE)]
 
 
 def eslint_shared_refs(root: Path, file: str, text: str) -> list[str]:
     """ESLint 配置 import 里指向共享基础规则的引用原文。"""
-    return [ref for ref in eslint_refs(text) if _resolves_to(root, file, ref, "lint/eslint-base.mjs")]
+    return [ref for ref in eslint_refs(text) if _resolves_to(root, file, ref, ESLINT_BASE)]
+
+
+def _ref_kind(root: Path, file: str, ref: str, canonical: str) -> str | None:
+    """一个引用与基础配置的关系：linked 指向项目内副本；broken 同名但目标不存在或在项目外（多是旧路径）；
+    old_copy 同名、在项目内存在却不是 .rulemason/ 副本（旧位置副本，如 remove 移到 lint/ 的）；None 与基础配置无关。
+    ruff 与 ESLint 共用这一个判断。"""
+    if _resolves_to(root, file, ref, canonical):
+        return "linked"
+    if Path(ref).name != Path(canonical).name:
+        return None
+    target = _target(root, file, ref)
+    return "old_copy" if target.is_file() and root.resolve() in target.parents else "broken"
 
 
 def broken_refs(root: Path, file: str, refs: list[str], canonical: str) -> list[str]:
     """文件名与基础配置相同、却不指向项目内副本，且目标不存在或在项目外的引用原文（多是旧路径）。"""
-    project = root.resolve()
-    bad = []
-    for ref in refs:
-        if Path(ref).name != Path(canonical).name or _resolves_to(root, file, ref, canonical):
-            continue
-        target = _target(root, file, ref)
-        if not target.is_file() or project not in target.parents:
-            bad.append(ref)
-    return bad
+    return [ref for ref in refs if _ref_kind(root, file, ref, canonical) == "broken"]
 
 
-class _Refs(NamedTuple):
-    ref: str            # 这份配置应写的基础配置路径
-    linked: bool        # 已有指向项目内副本的引用
-    bad: list[str]      # 指向不存在或项目外文件的同名引用
-
-
-def _refs(root: Path, file: str, refs: list[str], canonical: str) -> _Refs:
-    return _Refs(
-        config_ref(root, file, root / shared_ref(root, canonical)),
-        any(_resolves_to(root, file, ref, canonical) for ref in refs),
-        broken_refs(root, file, refs, canonical),
-    )
-
-
-def _inherit_problem(root: Path, file: str, refs: list[str], canonical: str, verb: str) -> str | None:
-    """一份配置接基础配置的问题：引用的文件不存在优先报，其次是没有接上；接好了返回 None。"""
-    found = _refs(root, file, refs, canonical)
-    if found.bad:
-        return f"{file} 引用的基础配置不存在：{'、'.join(found.bad)}"
-    if not found.linked:
-        return f"{file} 没有{verb} {shared_ref(root, canonical)}"
-    return None
+def _base_ref(root: Path, file: str, canonical: str) -> str:
+    """这份配置里应写的基础配置路径（指向项目内副本，按配置所在目录写相对路径）。"""
+    return config_ref(root, file, root / shared_ref(root, canonical))
 
 
 def has_select(text: str) -> bool:
@@ -624,7 +614,8 @@ def has_select(text: str) -> bool:
 def _insert_ruff_extend(name: str, text: str, ref: str) -> str:
     line = f'extend = "{ref}"   # 选用规则与复杂度来自 {NAME} 基础配置的项目内副本\n'
     text = text if text.endswith("\n") else text + "\n"      # 末行没有换行时，插入行会被并进注释或表头
-    if name == "ruff.toml":
+    if name != "pyproject.toml":
+        # 走到这里说明是 ruff 格式的配置：ruff.toml，或继承链上任意命名的 .toml
         lines = text.splitlines(keepends=True)
         at = next((i for i, l in enumerate(lines) if l.strip() and not l.lstrip().startswith("#")), len(lines))
         return "".join(lines[:at] + [line] + lines[at:])
@@ -647,9 +638,14 @@ def config_ref(root: Path, config: str, target: Path) -> str:
 
 @dataclass(frozen=True)
 class LintFix:
-    """一份 lint 配置怎么接上基础配置：text 是改好的内容，note 是改不了时给人的说明；都为 None 表示已接好。"""
+    """一份 lint 配置怎么接上基础配置；全为 None 表示已接好。
+    text：target（为空即这份配置本身）改好的内容；note：改不了时给人的说明（第一行摘要，后面缩进写步骤）；
+    problem：能自动改时 check 报告里的那一行；tip：改完后顺带告诉人的事，不算待处理。"""
     text: str | None = None
     note: str | None = None
+    problem: str | None = None
+    tip: str | None = None
+    target: str | None = None
 
 
 def repoint(text: str, refs: list[str], new_ref: str) -> str:
@@ -659,60 +655,271 @@ def repoint(text: str, refs: list[str], new_ref: str) -> str:
     return text
 
 
-def lint_fix(root: Path, file: str, text: str) -> LintFix:
-    """init、update 与 check 共用的判断：这份 ruff 或 ESLint 配置能否自动接上基础配置。"""
+def _lines_with(text: str, pattern: str) -> list[tuple[int, str]]:
+    """匹配 pattern 的各行：(行号从 1 起, 去掉首尾空白的原文)。"""
+    return [(n, line.strip()) for n, line in enumerate(text.splitlines(), 1) if re.search(pattern, line)]
+
+
+def _line_with(text: str, pattern: str) -> tuple[int, str]:
+    """第一处匹配 pattern 的行；找不到返回 (0, "")。"""
+    return next(iter(_lines_with(text, pattern)), (0, ""))
+
+
+def _manual(summary: str, *steps: str) -> str:
+    """改不了的项给人的说明：第一行摘要（check 第一行只取它），后面每步缩进一行。"""
+    return summary + "".join(f"\n    {step}" for step in steps)
+
+
+def _project_rel(root: Path, target: Path) -> str:
+    return target.relative_to(root.resolve()).as_posix()
+
+
+def _is_base_copy(root: Path, target: Path, canonical: str) -> bool:
+    """项目内另一份同名文件是否就是基础配置：与项目里的副本（若已生成）或本机版本将写入的内容相同（换行统一成 LF 再比）。"""
+    candidates = [shared_root() / canonical, root / shared_ref(root, canonical)]
+    return sha256_file(target) in {sha256_file(p) for p in candidates if p.is_file()}
+
+
+def _old_copy_fix(root: Path, file: str, text: str, old_ref: str, canonical: str, verb: str) -> LintFix:
+    """配置引用的是项目内旧位置的基础配置（如 remove 移到 lint/ 的）：内容没改过就改指向项目内副本，改过就写明怎么手动合并。"""
+    ref = _base_ref(root, file, canonical)
+    target = _target(root, file, old_ref)
+    old = _project_rel(root, target)
+    if _is_base_copy(root, target, canonical):
+        return LintFix(
+            text=repoint(text, [old_ref], ref), target=file,
+            problem=f"{file} {verb}的是旧位置的基础配置副本：{old_ref}",
+            tip=f"{old} 是基础配置的旧位置副本；{file} 改为引用 {COPY_DIR}/ 下的副本后，确认没有别处引用就可以删除",
+        )
+    n, line = _line_with(text, re.escape(old_ref))
+    return LintFix(note=_manual(
+        f"{file} {verb}的 {old} 与基础配置不同（被改过或来自旧版本）：未修改",
+        f"先看差异：diff {old} {shared_ref(root, canonical)}",
+        f"把被改过的那份里要保留的设置（如 ignore、per-file-ignores、line-length）写进 {file}",
+        f"再把第 {n} 行 {line} 里的 {old_ref} 改为 {ref}",
+        RERUN,
+    ), target=file)
+
+
+def lint_fix(root: Path, file: str, text: str, read: Callable[[str], str] | None = None) -> LintFix:
+    """init、update 与 check 共用的判断：这份 ruff 或 ESLint 配置能否自动接上基础配置；read 见 ruff_chain。"""
     if Path(file).name in ("ruff.toml", "pyproject.toml"):
-        return _ruff_fix(root, file, text)
-    return _eslint_fix(root, file, text)
+        fix = _ruff_fix(root, file, text, read)
+    else:
+        fix = _eslint_fix(root, file, text)
+    return replace(fix, target=fix.target or file)
 
 
-def _ruff_fix(root: Path, file: str, text: str) -> LintFix:
-    refs = ruff_refs(text)
-    ref, linked, bad = _refs(root, file, refs, "lint/ruff-base.toml")
-    if has_select(text):
-        return LintFix(note=f"{file} 写了 select，会覆盖基础规则：未修改，请删去 select 后重跑 {NAME} update")
-    if linked:
+# ---------- 2.1 ruff 继承链 ----------
+
+class Chain(NamedTuple):
+    """一份 ruff 配置沿 extend 走出的继承链。
+    links：链上项目内的配置 (路径, 内容)，第一份是起点，最后一份是走到的位置。
+    end：linked 接上了项目内副本；tail 到了没有 extend 的末端；broken 引用同名基础配置但目标不存在或在项目外；
+         old_copy 引用项目内旧位置的同名基础配置；outside 继承了项目外的配置；missing 继承的文件不存在；
+         cycle 绕回链上已有的配置；deep 超过 CHAIN_LIMIT 层；unreadable 继承的文件读不出（不是 UTF-8 文本或没有读权限）。
+    ref：最后一份配置里让链停下的引用原文（tail 时为空）。"""
+    links: list[tuple[str, str]]
+    end: str
+    ref: str = ""
+
+
+def ruff_chain(root: Path, file: str, text: str, read: Callable[[str], str] | None = None) -> Chain:
+    """沿 extend 走链，相对路径按所在配置文件的目录解析；ruff 的 extend 只能写一个路径。
+    read 读链上其他配置（init 传计划里已改的内容），默认读磁盘。"""
+    read = read or (lambda rel: _read(root, rel))
+    project = root.resolve()
+    links = [(file, text)]
+    while True:
+        current, body = links[-1]
+        refs = ruff_refs(body)
+        if not refs:
+            return Chain(links, "tail")
+        ref = refs[0]
+        kind = _ref_kind(root, current, ref, RUFF_BASE)
+        if kind:
+            return Chain(links, kind, ref)
+        target = _target(root, current, ref)
+        if project not in target.parents:
+            return Chain(links, "outside", ref)
+        if not target.is_file():
+            return Chain(links, "missing", ref)
+        rel = _project_rel(root, target)
+        if rel in {f for f, _ in links}:
+            return Chain(links, "cycle", ref)
+        if len(links) >= CHAIN_LIMIT:
+            return Chain(links, "deep", ref)
+        try:
+            links.append((rel, read(rel)))
+        except (OSError, UnicodeDecodeError):
+            return Chain(links, "unreadable", ref)
+
+
+def _select_note(file: str, text: str) -> str:
+    n, line = _line_with(text, r"^\s*select\s*=")
+    multiline = "（数组跨多行时只改这一行开头的 select）" if line.endswith("[") else ""
+    return _manual(
+        f"{file} 写了 select，会覆盖基础规则：未修改",
+        f"位置：第 {n} 行 {line}",
+        f"做法一（在基础规则上多开几条）：改为 {re.sub(r'^select', 'extend-select', line)}{multiline}",
+        "做法二（不需要额外规则）：删去这一行（数组跨多行时连同整个数组）",
+        RERUN,
+    )
+
+
+def _chain_note(root: Path, chain: Chain, ref: str) -> str:
+    """继承链走到项目外、引用不存在、绕回自己或过深时给人的说明；ref 是末端配置应写的基础配置路径。"""
+    file, body = chain.links[-1]
+    n, line = _line_with(body, re.escape(chain.ref))
+    if chain.end == "outside":
+        return _manual(
+            f"{file} 继承了项目外的 {chain.ref}：未修改（{NAME} 不改项目外的文件）",
+            f"位置：第 {n} 行 {line}",
+            f'改为：extend = "{ref}"',
+            f"{chain.ref} 里本项目要用的设置（如 ignore、line-length）复制进 {file}",
+            RERUN,
+        )
+    if chain.end == "missing":
+        return _manual(f"{file} 继承的 {chain.ref} 不存在：未修改", f"位置：第 {n} 行 {line}", f'改为：extend = "{ref}"', RERUN)
+    if chain.end == "unreadable":
+        return _manual(
+            f"{file} 继承的 {chain.ref} 读不出（不是 UTF-8 文本或没有读权限）：未修改",
+            f"把 {chain.ref} 存成 UTF-8 文本或放开读权限；或把第 {n} 行 {line} 改为：extend = \"{ref}\"",
+            RERUN,
+        )
+    if chain.end == "cycle":
+        loop = " → ".join([f for f, _ in chain.links] + [_project_rel(root, _target(root, file, chain.ref))])
+        return _manual(f"ruff 继承链绕回自己：{loop}：未修改", f"删去 {file} 第 {n} 行 {line}，或让其中一份不再 extend", RERUN)
+    # 走到这里说明链超过 CHAIN_LIMIT 层
+    return _manual(
+        f"{chain.links[0][0]} 的 ruff 继承链超过 {CHAIN_LIMIT} 层：未修改",
+        f"把链上某一份配置的 extend 直接改为继承 {shared_ref(root, RUFF_BASE)}（按该文件所在目录写相对路径）",
+        RERUN,
+    )
+
+
+def _ruff_fix(root: Path, file: str, text: str, read: Callable[[str], str] | None) -> LintFix:
+    """先看链上有没有 select，再按链停下的原因处理：接上了不改；末端能补就在末端补一行；旧位置副本改指向；其余写明怎么手动改。"""
+    chain = ruff_chain(root, file, text, read)
+    for rel, body in chain.links:
+        if has_select(body):
+            return LintFix(note=_select_note(rel, body), target=rel)
+    if chain.end == "linked":
         return LintFix()
-    if bad:
-        return LintFix(text=repoint(text, bad, ref))
-    if refs:
-        return LintFix(note=f"{file} 已继承其他 ruff 配置：未修改，请改为继承 {ref}")
+    tail, body = chain.links[-1]
+    ref = _base_ref(root, tail, RUFF_BASE)
+    if chain.end == "broken":
+        return LintFix(text=repoint(body, [chain.ref], ref), target=tail, problem=f"{tail} 引用的基础配置不存在：{chain.ref}")
+    if chain.end == "old_copy":
+        return _old_copy_fix(root, tail, body, chain.ref, RUFF_BASE, "继承")
+    if chain.end != "tail":
+        return LintFix(note=_chain_note(root, chain, ref), target=tail)
+    via = f"（继承链末端 {tail}）" if tail != file else ""
     try:
-        return LintFix(text=_insert_ruff_extend(Path(file).name, text, ref))
+        new = _insert_ruff_extend(Path(tail).name, body, ref)
     except ValueError as exc:
-        return LintFix(note=f"{file} 无法安全写入 extend（{exc}）：未修改，请手动继承 {ref}")
+        return LintFix(note=_manual(
+            f"{tail} 无法安全写入 extend（{exc}）：未修改",
+            f'在文件里加入这两行：[tool.ruff] 与 extend = "{ref}"',
+            RERUN,
+        ), target=tail)
+    return LintFix(text=new, target=tail, problem=f"{file} 没有继承 {shared_ref(root, RUFF_BASE)}{via}")
+
+
+# ---------- 2.2 ESLint ----------
+
+def _use_steps(text: str, n: int, line: str) -> list[str]:
+    """删去第 n 行的引入后，还要处理的每一处使用：只有这一项的整行删，还有别的内容的只去掉对它的使用；
+    认不出引入的名字（如 import { x }、import * as x）时笼统提醒一句。"""
+    name = re.fullmatch(r"import\s+(\w+)\s+from.*", line)
+    if not name:
+        return ["再删去配置里用到它的地方"]
+    var = name.group(1)
+    steps = []
+    for m, use in _lines_with(text, rf"\b{var}\b"):
+        if m == n:
+            continue
+        alone = re.fullmatch(rf"(\{{\s*rules:\s*{var}\s*\}}|\.\.\.{var}),?", use)
+        # 用到它的那一行还有别的内容时整行删会删坏配置：只说去掉对它的使用
+        steps.append(f"再删去用到它的第 {m} 行 {use}" if alone else f"再在第 {m} 行去掉对 {var} 的使用：{use}")
+    return steps
+
+
+def _duplicate_note(root: Path, file: str, text: str, others: list[str]) -> str:
+    """同一份配置既引入了项目内副本，又引入了别处的同名基础规则：写明要删的引入行与每一处使用；
+    别处那份是被改过（或来自旧版本）的旧副本时，先提醒看差异，免得删掉自定义规则。"""
+    steps = []
+    for ref in others:
+        target = _target(root, file, ref)
+        n, line = _line_with(text, re.escape(ref))
+        if target.is_file() and not _is_base_copy(root, target, ESLINT_BASE):
+            old = _project_rel(root, target)
+            steps.append(f"先看差异：diff {old} {shared_ref(root, ESLINT_BASE)}，要保留的规则写进 {file}")
+        steps.append(f"删去第 {n} 行 {line}")
+        steps += _use_steps(text, n, line)
+    return _manual(f"{file} 重复引入基础规则（{'、'.join(others)} 与 {COPY_DIR}/ 下的副本）：未修改", *steps, f"改完运行：{NAME} check")
+
+
+def _eslint_manual(root: Path, file: str, text: str) -> str:
+    """ESLint 配置写法认不出时给人的说明。"""
+    if Path(file).name.startswith(".eslintrc"):
+        return _manual(
+            f"{file} 是旧格式 .eslintrc，{NAME} 只接扁平配置：未修改",
+            f"先运行：npx @eslint/migrate-config {file}（在同目录生成 eslint.config.mjs）",
+            f"再运行：{NAME} update",
+        )
+    ref = _base_ref(root, file, ESLINT_BASE)
+    n, _ = _line_with(text, r"^import\s")
+    where = f"第 {n} 行（第一条 import）之前" if n else "文件开头"
+    return _manual(
+        f"{file} 的格式无法自动识别：未修改",
+        f'在{where}加入：import rulemasonBase from "{ref}";',
+        "在导出的配置数组（或 config( 调用）的第一项加入：{ rules: rulemasonBase },",
+        RERUN,
+    )
 
 
 def _eslint_fix(root: Path, file: str, text: str) -> LintFix:
-    ref, linked, bad = _refs(root, file, eslint_refs(text), "lint/eslint-base.mjs")
-    if linked:
-        if bad:
-            # 走到这里说明已有正确引入、又留着旧引入：删行要连带删变量的用法，不自动做
-            return LintFix(note=f"{file} 已引入 {ref}，另有引用 {'、'.join(bad)} 指向不存在的文件：未修改，请删去该引入及其用法")
-        return LintFix()
+    kinds = {r: _ref_kind(root, file, r, ESLINT_BASE) for r in eslint_refs(text)}
+    others = [r for r, kind in kinds.items() if kind in ("broken", "old_copy")]
+    if "linked" in kinds.values():
+        # 走到这里说明已有正确引入；还留着别处的同名引入时，删行要连带删变量的用法，不自动做
+        return LintFix(note=_duplicate_note(root, file, text, others)) if others else LintFix()
+    ref = _base_ref(root, file, ESLINT_BASE)
+    bad = [r for r, kind in kinds.items() if kind == "broken"]
     if bad:
-        return LintFix(text=repoint(text, bad, ref))
+        return LintFix(text=repoint(text, bad, ref), problem=f"{file} 引用的基础配置不存在：{'、'.join(bad)}")
+    if others:
+        # 走到这里说明引用的是项目内旧位置的同名基础规则
+        return _old_copy_fix(root, file, text, others[0], ESLINT_BASE, "引入")
     imported = f'import rulemasonBase from "{ref}";\n'
     anchors = [anchor for anchor in ESLINT_ANCHORS if anchor in text]
     if Path(file).name.startswith(".eslintrc") or len(anchors) != 1 or text.count(anchors[0]) != 1:
-        return LintFix(note=f"{file} 的格式无法自动识别：未修改，请手动加入这两段：{imported.strip()}  与配置数组（或 config( 调用）的第一项 {{ rules: rulemasonBase }}")
+        return LintFix(note=_eslint_manual(root, file, text))
     anchor = anchors[0]
     first_import = re.search(r"^import\s", text, re.M)
     at = first_import.start() if first_import else text.index(anchor)
     text = text[:at] + imported + text[at:]
-    return LintFix(text=text.replace(anchor, f"{anchor}\n  {{ rules: rulemasonBase }},", 1))
+    return LintFix(
+        text=text.replace(anchor, f"{anchor}\n  {{ rules: rulemasonBase }},", 1),
+        problem=f"{file} 没有引入 {shared_ref(root, ESLINT_BASE)}",
+    )
+
+
+def _with_eslint(root: Path, files: list[str], ruff: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """ruff 配置之后接上全部 ESLint 配置的 (文件, 内容)。"""
+    return ruff + [(f, _read(root, f)) for f in eslint_configs(files)]
 
 
 def manual_lint(root: Path, files: list[str]) -> tuple[str, str] | None:
-    """lint 层的缺口 update 全都改不了时，返回第一个 (文件, 说明)；update 能改其中任何一处时返回 None。"""
-    configs = ruff_configs(root, files)
-    if needs_ruff_config(files, configs):
+    """lint 层的缺口 update 全都改不了时，返回第一个 (要改的文件, 说明)；update 能改其中任何一处时返回 None。"""
+    ruff = ruff_configs(root, files)
+    if needs_ruff_config(files, ruff):
         return None
-    configs += [(f, _read(root, f)) for f in eslint_configs(files)]
-    fixes = [(f, lint_fix(root, f, text)) for f, text in configs]
-    if any(fix.text is not None for _, fix in fixes):
+    fixes = [lint_fix(root, f, text) for f, text in _with_eslint(root, files, ruff)]
+    if any(fix.text is not None for fix in fixes):
         return None
-    return next(((f, fix.note) for f, fix in fixes if fix.note), None)
+    return next(((fix.target, fix.note) for fix in fixes if fix.note), None)
 
 
 def react_without_eslint(root: Path, files: list[str]) -> list[str]:
@@ -728,20 +935,13 @@ def needs_ruff_config(files: list[str], configs: list[tuple[str, str]]) -> bool:
 
 
 def check_lint(root: Path, files: list[str]) -> list[str]:
-    """ruff 继承基础配置且不写 select；ESLint 引入基础规则。只检查项目实际有的语言。"""
-    problems = []
-    configs = ruff_configs(root, files)
-    if needs_ruff_config(files, configs):
-        problems.append("有 Python 代码但没有 ruff 配置")
-    for f, text in configs:
-        if problem := _inherit_problem(root, f, ruff_refs(text), "lint/ruff-base.toml", "继承"):
-            problems.append(problem)
-        if has_select(text):
-            problems.append(f"{f} 仍写 select，会覆盖基础规则")
-    for f in eslint_configs(files):
-        if problem := _inherit_problem(root, f, eslint_refs(_read(root, f)), "lint/eslint-base.mjs", "引入"):
-            problems.append(problem)
-    return problems
+    """ruff 沿继承链接上基础配置且链上不写 select；ESLint 引入基础规则且不重复引入。只检查项目实际有的语言。
+    能自动改的报一行问题，改不了的报带步骤的说明；多份配置共用一个末端时同一条只报一次。"""
+    ruff = ruff_configs(root, files)
+    problems = ["有 Python 代码但没有 ruff 配置"] if needs_ruff_config(files, ruff) else []
+    fixes = [lint_fix(root, f, text) for f, text in _with_eslint(root, files, ruff)]
+    problems += [fix.note or fix.problem for fix in fixes if fix.note or fix.problem]
+    return list(dict.fromkeys(problems))
 
 
 def layers(root: Path, files: list[str], sel: Selection, entry_issues: list[str], behind: list[str], report: Report) -> None:
@@ -868,8 +1068,8 @@ def _next_by_cause(root: Path, files: list[str], report: Report, sel: Selection)
         return Next("接入", "fix_gitignore", f"修改 .gitignore，放行 skills/{NAME}/（副本要随项目提交）")
     manual = manual_lint(root, files) if missing == ["接入 lint 继承"] else None
     if manual:
-        # 走到这里说明接入只剩 update 改不了的 lint 项：给出要手动改的文件与内容，不再让人原地重跑 update
-        return Next("接入", "manual_lint", f"手动修改 {manual[0]}（{NAME} update 改不了）：{manual[1]}")
+        # 走到这里说明接入只剩 update 改不了的 lint 项：第一行写要改的文件与摘要，具体步骤在「接入 lint 继承」下，不再让人原地重跑 update
+        return Next("接入", "manual_lint", f"手动修改 {manual[0]}（{NAME} update 改不了）：{manual[1].splitlines()[0]}")
     if missing:
         return Next("接入", "update", f"运行 {NAME} update")
     if _has_pending(root):

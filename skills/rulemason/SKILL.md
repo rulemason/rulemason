@@ -27,7 +27,7 @@ rulemason 管三件事：**规则**（写法规矩）、**检查点**（方案�
 | `fix_manifest` | 说明清单读不出来的原因（见 `layers` 的「接入 工具入口」），请用户修正，或删掉后重新 `rulemason init`。停下 |
 | `fix_gitignore` | 列出要改的 `.gitignore` 规则（只放行 `skills/rulemason/`，说明单独写一行），用户确认后修改，再运行 `rulemason check --json` |
 | `update` | 提示用户运行 `rulemason update`；可先用 `rulemason update --dry-run` 给用户看计划。它列出「补齐计划」时，由用户决定是否 `rulemason update --yes`。停下 |
-| `manual_lint` | 接入只剩 `rulemason update` 改不了的 lint 项：把 `next.action` 里的文件与要加的内容列给用户（`layers` 的「接入 lint 继承」有全部项），用户同意后照改，再运行 `rulemason check --json`。不要让用户重跑 update |
+| `manual_lint` | 接入只剩 `rulemason update` 改不了的 lint 项：`next.action` 写了要改的文件与摘要，把 `layers` 的「接入 lint 继承」里各项的行号、原文与做法列给用户；有几种做法时由用户选，用户同意后照改，再运行 `rulemason check --json`。不要让用户重跑 update |
 | `fill_project_info` | 第 2 步 |
 | `upgrade_machine` | 本机 rulemason 比项目记录的旧：按上面第 1 条给出安装命令。停下 |
 | `none` | 第 3 步；用户说要启用判断时做第 4 步。`next.action` 附有「版本号落后」时，提一句可运行 `rulemason update` 更新记录 |

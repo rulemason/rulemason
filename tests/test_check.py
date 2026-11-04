@@ -445,8 +445,7 @@ ACTION_SETUPS = {
     "upgrade_machine": (lambda root: (_fill_project_info(root), _set_recorded_version(root, "99.0.0")), "日常巡检：先升级本机 rulemason", 0),
     "manual_lint": (
         lambda root: (_fill_project_info(root), write(root, ".eslintrc.json", "{}\n"), update.run(root, yes=True)),
-        "接入：手动修改 .eslintrc.json（rulemason update 改不了）：.eslintrc.json 的格式无法自动识别：未修改，"
-        '请手动加入这两段：import rulemasonBase from "./.rulemason/lint/eslint-base.mjs";  与配置数组（或 config( 调用）的第一项 { rules: rulemasonBase }',
+        "接入：手动修改 .eslintrc.json（rulemason update 改不了）：.eslintrc.json 是旧格式 .eslintrc，rulemason 只接扁平配置：未修改",
         1,
     ),
     "none": (_fill_project_info, "日常巡检：一切一致", 0),
@@ -678,8 +677,11 @@ def test_broken_eslint_ref_next_to_correct_one_is_manual(inited):
     write(inited, "web/eslint.config.js", 'import a from "../.rulemason/lint/eslint-base.mjs";\nimport b from "../../gone/.rulekit/lint/eslint-base.mjs";\nexport default [{ rules: { ...a, ...b } }];\n')
     assert update.run(inited, yes=True) == 0                              # 补上 eslint-base 副本；两条引用并存的配置不改
     report, nxt = check.collect(inited)
-    assert report.layers["接入 lint 继承"] == ["web/eslint.config.js 引用的基础配置不存在：../../gone/.rulekit/lint/eslint-base.mjs"]
-    assert nxt.code == "manual_lint" and "请删去该引入及其用法" in nxt.action
+    [item] = report.layers["接入 lint 继承"]
+    assert item.splitlines()[0].startswith("web/eslint.config.js 重复引入基础规则（../../gone/.rulekit/lint/eslint-base.mjs")
+    assert '删去第 2 行 import b from "../../gone/.rulekit/lint/eslint-base.mjs";' in item
+    assert "再在第 3 行去掉对 b 的使用：export default [{ rules: { ...a, ...b } }];" in item      # 这行还有别的内容，不能整行删
+    assert nxt.code == "manual_lint" and nxt.action == f"手动修改 web/eslint.config.js（rulemason update 改不了）：{item.splitlines()[0]}"
 
 
 def _age_copy(root, rel: str, version: str) -> None:
@@ -775,3 +777,97 @@ def test_same_day_archives_are_all_checked(joined):
 
 def test_no_archive_means_no_gate_findings(tmp_path):
     assert check.gate_records(tmp_path) == []
+
+
+# ---------- lint 继承链与旧位置副本（lint-fix-guidance） ----------
+
+def _chain(root, files: dict[str, str]):
+    """写入 {路径: 内容}，返回从 ruff.toml 走出的继承链。"""
+    for rel, text in files.items():
+        write(root, rel, text)
+    return check.ruff_chain(root, "ruff.toml", (root / "ruff.toml").read_text(encoding="utf-8"))
+
+
+def test_chain_two_and_three_levels(joined):
+    two = _chain(joined, {"ruff.toml": 'extend = "a.toml"\n', "a.toml": "line-length = 100\n"})
+    assert (two.end, [f for f, _ in two.links]) == ("tail", ["ruff.toml", "a.toml"])
+    three = _chain(joined, {"a.toml": 'extend = "b.toml"\n', "b.toml": "line-length = 100\n"})
+    assert (three.end, [f for f, _ in three.links]) == ("tail", ["ruff.toml", "a.toml", "b.toml"])
+
+
+def test_chain_stops_outside_project_on_cycle_and_when_too_deep(joined):
+    assert _chain(joined, {"ruff.toml": 'extend = "~/configs/ruff.toml"\n'}).end == "outside"
+    cycle = _chain(joined, {"ruff.toml": 'extend = "a.toml"\n', "a.toml": 'extend = "ruff.toml"\n'})
+    assert (cycle.end, cycle.ref) == ("cycle", "ruff.toml")
+    deep = {f"c{i}.toml": f'extend = "c{i + 1}.toml"\n' for i in range(check.CHAIN_LIMIT + 1)}
+    for rel, text in deep.items():
+        write(joined, rel, text)
+    deep_chain = check.ruff_chain(joined, "ruff.toml", 'extend = "c0.toml"\n')
+    assert deep_chain.end == "deep" and len(deep_chain.links) == check.CHAIN_LIMIT
+
+
+def test_chain_tail_inherits_base_counts_as_inherited(joined):
+    write(joined, "ruff.toml", 'extend = "config/ruff-shared.toml"\n')
+    write(joined, "config/ruff-shared.toml", 'extend = "../.rulemason/lint/ruff-base.toml"\n')
+    report, _ = check.collect(joined)
+    assert report.layers["接入 lint 继承"] == [] and check.exit_code(report) == 0
+
+
+def test_select_on_chain_is_reported(joined):
+    write(joined, "ruff.toml", 'extend = "config/ruff-shared.toml"\n')
+    write(joined, "config/ruff-shared.toml", '[lint]\nselect = ["E"]\n')
+    report, _ = check.collect(joined)
+    [item] = report.layers["接入 lint 继承"]
+    assert item.startswith("config/ruff-shared.toml 写了 select，会覆盖基础规则") and check.exit_code(report) == 1
+
+
+def test_chain_tail_without_base_is_fixable_by_update(joined):
+    write(joined, "ruff.toml", 'extend = "config/ruff-shared.toml"\n')
+    write(joined, "config/ruff-shared.toml", "line-length = 100\n")
+    report, nxt = check.collect(joined)
+    assert report.layers["接入 lint 继承"] == ["ruff.toml 没有继承 .rulemason/lint/ruff-base.toml（继承链末端 config/ruff-shared.toml）"]
+    assert nxt.code == "update"
+
+
+def test_old_ruff_copy_same_content_is_fixable_by_update(joined):
+    write(joined, "lint/ruff-base.toml", (joined / ".rulemason/lint/ruff-base.toml").read_text(encoding="utf-8"))
+    write(joined, "ruff.toml", 'extend = "lint/ruff-base.toml"\n')
+    report, nxt = check.collect(joined)
+    assert report.layers["接入 lint 继承"] == ["ruff.toml 继承的是旧位置的基础配置副本：lint/ruff-base.toml"]
+    assert nxt.code == "update" and nxt.line == "接入：运行 rulemason update"
+
+
+def test_old_ruff_copy_edited_is_manual_with_diff_steps(joined):
+    write(joined, "lint/ruff-base.toml", "[lint]\nselect = []\n")
+    write(joined, "ruff.toml", 'extend = "lint/ruff-base.toml"\n')
+    report, nxt = check.collect(joined)
+    [item] = report.layers["接入 lint 继承"]
+    assert item.splitlines()[0] == "ruff.toml 继承的 lint/ruff-base.toml 与基础配置不同（被改过或来自旧版本）：未修改"
+    assert "先看差异：diff lint/ruff-base.toml .rulemason/lint/ruff-base.toml" in item and "改完运行：rulemason update" in item
+    assert nxt.code == "manual_lint" and nxt.action == f"手动修改 ruff.toml（rulemason update 改不了）：{item.splitlines()[0]}"
+    assert "\n" not in nxt.line
+
+
+def test_missing_and_deep_and_unreadable_chain_notes_name_file_and_ref(joined):
+    write(joined, "ruff.toml", 'extend = "config/gone.toml"\n')
+    [item] = check.collect(joined)[0].layers["接入 lint 继承"]
+    assert item.splitlines()[0] == "ruff.toml 继承的 config/gone.toml 不存在：未修改" and '位置：第 1 行 extend = "config/gone.toml"' in item
+
+    for i in range(check.CHAIN_LIMIT + 1):
+        write(joined, f"c{i}.toml", f'extend = "c{i + 1}.toml"\n')
+    write(joined, "ruff.toml", 'extend = "c0.toml"\n')
+    [item] = check.collect(joined)[0].layers["接入 lint 继承"]
+    assert item.startswith(f"ruff.toml 的 ruff 继承链超过 {check.CHAIN_LIMIT} 层：未修改")
+
+    (joined / "bad.toml").write_bytes(b"\xff\xfe")
+    write(joined, "ruff.toml", 'extend = "bad.toml"\n')
+    report, nxt = check.collect(joined)
+    [item] = report.layers["接入 lint 继承"]
+    assert item.startswith("ruff.toml 继承的 bad.toml 读不出") and nxt.code == "manual_lint"
+
+
+def test_check_json_fields_unchanged_with_manual_lint(joined):
+    write(joined, "ruff.toml", 'extend = "config/gone.toml"\n')
+    data = json.loads(check.run(joined, as_json=True)[0])
+    assert set(data) == {"schema", "root", "next", "facts", "layers", "findings", "exit_code", "text"}
+    assert set(data["next"]) == {"stage", "code", "action"} and "\n" not in data["next"]["action"]

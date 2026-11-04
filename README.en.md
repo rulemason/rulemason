@@ -35,7 +35,7 @@ rulemason --version
 | Judge one plan by hand | `rulemason judge --change <change-name>` |
 | Inside your AI tool: fill in the project summary, red lines and command table, or enable judgment | `/rulemason` |
 
-`rulemason check` exits non-zero when the setup is incomplete, so it can run in CI as is.
+`rulemason check` exits non-zero when the setup is incomplete, so it can run in CI as is. When a lint setting cannot be fixed for you, the report names the file and line, quotes it, and says what to change.
 
 ## License
 
