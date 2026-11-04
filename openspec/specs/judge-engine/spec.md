@@ -23,7 +23,7 @@
 
 ### Requirement: 命令在项目根目录运行
 
-命令 `rulemason judge` SHALL 在任一接入项目内运行，这样确定项目根：与 `init`、`update`、`check` 一样从当前目录往上找最近的 `.rulemason.yaml`，不越过所在 git 仓库的根目录；找不到时以 git 仓库根为项目根（`init` 等命令找不到时用当前目录，judge 要在未接入 rulemason 的仓库子目录里也找到 `openspec/`）。引擎读取该项目根下的 `openspec/`。参数与原 `jev-judge` 一致：`--change <name>` 依次在 `openspec/changes/<name>`、`openspec/changes/archive/<name>`、`openspec/changes/archive/` 下唯一名为 `YYYY-MM-DD-<name>` 的目录中查找产物（只认日期前缀加完整名称；匹配到多个时列出并以非 0 退出），`--copy` 审相对主分支新增或修改的界面文案，`--lint-only` 只跑正则检查不联网，`--dry-run` 打印将要发送的请求而不发送。参数 SHALL 只在引擎里定义一处，`rulemason` 命令原样转交。
+命令 `rulemason judge` SHALL 在任一接入项目内运行，这样确定项目根：从当前目录往上找最近的 `.rulemason.yaml`，不越过所在 git 仓库的根目录；找不到时以 git 仓库根为项目根（与 `init` 不同，以便在未接入的仓库子目录里找到 `openspec/`）。引擎读取该项目根下的 `openspec/`。参数与原 `jev-judge` 一致：`--change <name>` 依次在 `openspec/changes/<name>`、`openspec/changes/archive/<name>`、`openspec/changes/archive/` 下唯一名为 `YYYY-MM-DD-<name>` 的目录中查找产物（只认日期前缀加完整名称；匹配到多个时列出并以非 0 退出），`--copy` 审相对主分支新增或修改的界面文案，`--lint-only` 只跑正则检查不联网，`--dry-run` 打印将要发送的请求而不发送。参数 SHALL 只在引擎里定义一处，`rulemason` 命令原样转交。
 
 #### Scenario: 在子目录运行
 - **WHEN** 在项目甲的 `api/` 目录下运行 `rulemason judge --change adopt-shared-rules`
