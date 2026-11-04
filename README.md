@@ -31,7 +31,7 @@ rulemason --version
 
 ## 第一次接入
 
-在项目根目录运行：
+在要接入的目录运行（和 `openspec init` 一样，接入的就是这个目录；monorepo 要接入整个仓库，就到仓库根运行，或运行 `rulemason init <仓库根>`）：
 
 ```bash
 rulemason init                              # 空格勾选工具，看一眼计划摘要（d 展开明细），确认一次后写入
@@ -146,7 +146,7 @@ rulemason 往项目里写三类东西，都由它管理，不要手改：
 |---|---|---|
 | `接入：运行 rulemason update` | 副本或标记块被手改、入口缺失、配置没补齐 | 运行 `rulemason update`；要改规矩，到本仓库改了发布新版本 |
 | `接入：修改 .gitignore，放行 skills/rulemason/` | `.gitignore` 忽略了工具目录，副本提交不上去 | 改成只放行 `skills/rulemason/`；说明单独写一行，git 不支持行尾注释 |
-| `接入：运行 rulemason init` | 这个目录（或它所在的仓库）还没接入 | 在项目根运行 `rulemason init` |
+| `接入：运行 rulemason init` | 这个目录还没接入 | 在要接入的目录运行 `rulemason init` |
 | `接入：手动修改 <文件>（rulemason update 改不了）：…` | lint 配置有 rulemason 不替你决定的写法：ruff 写了 `select`、继承了项目外的配置、旧副本被改过、ESLint 写法认不出或重复引入基础规则 | 按 `rulemason check` 报告「接入 lint 继承」下写明的文件、行号与做法改，改完照提示运行 `rulemason update` 或 `rulemason check` |
 | `接入：先修正 .rulemason.yaml` | 清单被改坏，读不出来 | 按提示修正，或删掉它后重新 `rulemason init` |
 | `补项目信息：…` | 项目简介、红线待补 | 在 AI 工具里运行 `/rulemason` |

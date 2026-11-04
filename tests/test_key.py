@@ -62,3 +62,30 @@ def test_writes_without_posix_permissions(env_file, monkeypatch, capsys):
     assert env_file.read_text(encoding="utf-8") == "TYPESAFE_API_KEY=sk-test-value\n"
     out = capsys.readouterr().out
     assert "在当前用户目录下" in out and "权限 600" not in out and "sk-test-value" not in out
+
+
+@pytest.mark.parametrize(("typed", "reason"), [("\x16", "Ctrl+Shift+V"), ("sk-ab cd", "含空白"), ("sk-密钥", "非 ASCII")])
+def test_invalid_key_is_not_written(env_file, monkeypatch, capsys, typed, reason):
+    """Windows 旧控制台按 Ctrl+V 只读到 0x16：当场拒绝，不把坏 key 写进文件。"""
+    monkeypatch.setattr(key.getpass, "getpass", lambda prompt="": typed)
+    assert key.run() == 1
+    assert not env_file.exists()
+    out = capsys.readouterr().out
+    assert reason in out and "未写任何文件" in out
+
+
+def test_invalid_key_leaves_existing_file_unchanged(env_file, monkeypatch):
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text("TYPESAFE_API_KEY=sk-old\nJUDGE_PROVIDER=jev\n", encoding="utf-8")
+    monkeypatch.setattr(key.getpass, "getpass", lambda prompt="": "\x16")
+    assert key.run() == 1
+    assert env_file.read_text(encoding="utf-8") == "TYPESAFE_API_KEY=sk-old\nJUDGE_PROVIDER=jev\n"
+
+
+@pytest.mark.parametrize(("value", "reason"), [
+    ("sk-abc123", None), ("\x16", "0x16"), ("sk-ab\tcd", "含空白"), ("sk-ab\u3000cd", "含空白"),
+    ("sk-\x00", "不可打印"), ("sk-密钥", "非 ASCII"),
+])
+def test_key_problem(value, reason):
+    problem = judge.key_problem(value)
+    assert problem is None if reason is None else reason in problem

@@ -35,6 +35,8 @@ rulemason --version
 | Judge one plan by hand | `rulemason judge --change <change-name>` |
 | Inside your AI tool: fill in the project summary, red lines and command table, or enable judgment | `/rulemason` |
 
+Run `rulemason init` in the directory you want to set up, the same way OpenSpec's own init works; in a monorepo, run it at the repository root, or run `rulemason init <repo-root>`, to cover the whole repository.
+
 `rulemason check` exits non-zero when the setup is incomplete, so it can run in CI as is. When a lint setting cannot be fixed for you, the report names the file and line, quotes it, and says what to change.
 
 In a project with a lot of existing code, ruff often reports many problems that were there before rulemason. Run `/rulemason` in your AI tool once to set up a ruff baseline (with your confirmation); after that, the checkpoints fix only the problems each change introduces.
