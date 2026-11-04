@@ -22,9 +22,9 @@ NAME = "rulemason"                                          # 命令、skill、�
 MANIFEST = f".{NAME}.yaml"
 COPY_DIR = f".{NAME}"                                       # 项目内只读副本目录
 SCHEMA_VERSION = 1
-TOOL_IDS = ("opencode", "claude", "cursor", "codex")
-TOOL_LABELS = {"opencode": "OpenCode", "claude": "Claude Code", "cursor": "Cursor", "codex": "Codex"}
-AGENTS_SKILL_TOOLS = ("opencode", "cursor", "codex")         # 这三个工具都从 .agents/skills 发现 skill
+TOOL_IDS = ("opencode", "claude", "cursor", "codex", "omp")
+TOOL_LABELS = {"opencode": "OpenCode", "claude": "Claude Code", "cursor": "Cursor", "codex": "Codex", "omp": "omp"}
+AGENTS_SKILL_TOOLS = ("opencode", "cursor", "codex", "omp") # 这四个工具都从 .agents/skills 发现 skill
 COPIED_SHARED = (
     "rules/code-style.md",
     "rules/python.md",
@@ -110,7 +110,7 @@ def is_source_repo(root: Path) -> bool:
 
 
 def skill_dirs(tools: list[str]) -> list[str]:
-    """已选工具的 skill 发现路径；OpenCode、Cursor、Codex 共用一份 .agents/skills。"""
+    """已选工具的 skill 发现路径；OpenCode、Cursor、Codex、omp 共用一份 .agents/skills。"""
     dirs = []
     if "claude" in tools:
         dirs.append(f".claude/skills/{NAME}")

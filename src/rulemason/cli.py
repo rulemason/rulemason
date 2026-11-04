@@ -7,7 +7,7 @@ from pathlib import Path
 
 from rulemason import __version__, banner, check, init, key, remove, update
 from rulemason.judge import judge
-from rulemason.shared import find_root
+from rulemason.shared import TOOL_IDS, find_root
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -16,7 +16,7 @@ def main(argv: list[str] | None = None) -> None:
     sub = ap.add_subparsers(dest="command", required=True)
     p_init = sub.add_parser("init", help="在项目根接入 rulemason：选工具、生成 .rulemason/ 副本与入口")
     p_init.add_argument("path", nargs="?", help="项目根，默认当前目录")
-    p_init.add_argument("--tools", help="逗号分隔的工具 id：opencode、claude、cursor、codex；传了就不提问")
+    p_init.add_argument("--tools", help=f"逗号分隔的工具 id：{'、'.join(TOOL_IDS)}；传了就不提问")
     p_init.add_argument("--yes", action="store_true", help="不确认，直接按计划写入")
     p_init.add_argument("--plan", action="store_true", help="只列文件计划，不写入、不提问、不运行 openspec init")
     p_init.add_argument("--json", action="store_true", help="配合 --plan 输出 JSON")

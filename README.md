@@ -2,7 +2,7 @@
 
 中文 · [English](https://github.com/rulemason/rulemason/blob/main/README.en.md)
 
-给 AI 编码工具（Claude Code、OpenCode、Cursor、Codex）的共享规则与检查点。它只管三件事：
+给 AI 编码工具（Claude Code、OpenCode、Cursor、Codex、omp）的共享规则与检查点。它只管三件事：
 
 - **规则**：AI 写方案和代码时要守的写法规矩（九条、各语言落法（Python、React）、界面文案三档、方案写法），以及碰外部平台与密钥时的纪律（读直接做、写逐次授权、删除或作废交给人，密钥不经过对话）。规则只在本仓库维护，每个项目里是一份随项目提交的只读副本，克隆项目的人、云端 agent 与 CI 不装 rulemason 也能读到。
 - **检查点**：方案写完、写代码前、写完代码后，AI 按规矩自动检查——判断方案、精简代码、独立审查、lint 与测试。不走 OpenSpec 的小改动也先读主规格：动到已写的承诺才代起 change 并问你一次，其余直接改、改完跑 lint 与测试；归档时自动并入主规格，不再问。

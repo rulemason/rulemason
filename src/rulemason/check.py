@@ -14,6 +14,7 @@ from rulemason import __version__
 from rulemason import judge as engine
 from rulemason.judge.judge import api_key
 from rulemason.shared import (
+    AGENTS_SKILL_TOOLS,
     CHECKPOINTS_OFF,
     COPIED_SHARED,
     COPY_DIR,
@@ -424,7 +425,7 @@ def check_tool_entries(root: Path, files: list[str], tools: list[str]) -> list[s
         problems += _check_skill(root, "claude", SKILL_ENTRIES[0])
     if "opencode" in tools:
         problems += _check_opencode(root, refs)
-    agents_tool = next((tool for tool in ("opencode", "cursor", "codex") if tool in tools), None)
+    agents_tool = next((tool for tool in AGENTS_SKILL_TOOLS if tool in tools), None)
     if agents_tool:
         problems += _check_skill(root, agents_tool, SKILL_ENTRIES[1])
     return problems

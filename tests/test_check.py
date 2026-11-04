@@ -153,6 +153,14 @@ def test_selected_cursor_does_not_require_unselected_adapters(joined):
     assert check.check_tool_entries(joined, shared.list_files(joined), ["cursor"]) == []
 
 
+def test_selected_omp_checks_agents_skill(joined):
+    _install(joined, ["omp"])
+    assert check.check_tool_entries(joined, shared.list_files(joined), ["omp"]) == []
+
+    (joined / ".agents/skills/rulemason/SKILL.md").unlink()
+    assert check.check_tool_entries(joined, shared.list_files(joined), ["omp"]) == ["omp 缺少 skill：.agents/skills/rulemason/SKILL.md"]
+
+
 def test_selected_claude_missing_entries_are_reported_without_other_tools(joined):
     write(joined, ".rulemason.yaml", f"version: 1\nrulemason: {__version__}\ntools: [claude]\n")
 

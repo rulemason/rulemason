@@ -2,7 +2,7 @@
 
 [中文](https://github.com/rulemason/rulemason/blob/main/README.md) · English
 
-Shared rules and checkpoints for AI coding tools (Claude Code, OpenCode, Cursor, Codex).
+Shared rules and checkpoints for AI coding tools (Claude Code, OpenCode, Cursor, Codex, omp).
 
 > **Language note:** the command-line output, the generated rules, and the AI skill are written in Chinese. This page is a short English overview; the [Chinese README](https://github.com/rulemason/rulemason/blob/main/README.md) is the full documentation. rulemason works best for teams who read Chinese, or who are happy to read the rules through a translator.
 

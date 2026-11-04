@@ -183,6 +183,17 @@ def test_generated_copies_match_shared_source_and_manifest(project):
     assert manifest["files"] == {rel: shared.sha256_file(project / rel) for rel in shared.generated_files(["claude", "codex"], rules)}
 
 
+def test_omp_uses_agents_skill_dir(project):
+    """omp 与 OpenCode / Cursor / Codex 同读 .agents/skills，不另建入口目录。"""
+    assert _init(project, "omp") == 0
+
+    skill = project / ".agents/skills/rulemason/SKILL.md"
+    assert skill.is_file()
+    assert not (project / ".claude").exists() and not (project / "CLAUDE.md").exists()
+    assert shared.read_manifest(project)["tools"] == ["omp"]
+    assert shared.skill_dirs(["omp"]) == [".agents/skills/rulemason"]
+
+
 # ---------- 5. 标记块（4.4） ----------
 
 def test_existing_agents_content_is_kept_verbatim(project):
@@ -828,15 +839,22 @@ def test_first_run_checks_nothing_and_marks_detected(project, monkeypatch):
     (project / ".claude").mkdir()
     seen = _fake_select(monkeypatch, [1, 3])
     assert init.choose_tools(project, None, None) == ["claude", "codex"]
-    assert seen["checked"] == [False, False, False, False]
-    assert seen["notes"] == ["", "检测到", "", ""]
+    assert seen["checked"] == [False, False, False, False, False]
+    assert seen["notes"] == ["", "检测到", "", "", ""]
 
 
 def test_rerun_prechecks_recorded_tools(project, monkeypatch):
     (project / ".claude").mkdir()
     seen = _fake_select(monkeypatch, [1])
     assert init.choose_tools(project, {"tools": ["claude", "cursor"]}, None) == ["claude"]
-    assert seen["checked"] == [False, True, True, False] and seen["notes"] == ["", "", "", ""]
+    assert seen["checked"] == [False, True, True, False, False] and seen["notes"] == ["", "", "", "", ""]
+
+
+def test_omp_dir_is_detected(project, monkeypatch):
+    (project / ".omp").mkdir()
+    seen = _fake_select(monkeypatch, [4])
+    assert init.choose_tools(project, None, None) == ["omp"]
+    assert seen["notes"] == ["", "", "", "", "检测到"]
 
 
 def test_cancelling_selector_writes_nothing(project, tty, monkeypatch, capsys):

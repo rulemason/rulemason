@@ -50,7 +50,7 @@ from rulemason.shared import (
     write_text,
 )
 
-TOOL_DIRS = {".opencode": "opencode", ".claude": "claude", ".cursor": "cursor", ".agents": "codex"}   # 已有目录 → 标注「检测到」；--plan 时据此推断
+TOOL_DIRS = {".opencode": "opencode", ".claude": "claude", ".cursor": "cursor", ".agents": "codex", ".omp": "omp"}   # 已有目录 → 标注「检测到」；--plan 时据此推断
 README_NAMES = ("README.md", "README.rst", "README")
 OPENSPEC_HINT = f"检查点与方案写法需要 OpenSpec：安装后在项目根运行 openspec init，再运行 {NAME} update 补齐"
 OPENSPEC_INSTALL = "npm install -g @fission-ai/openspec@latest"
