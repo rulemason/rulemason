@@ -53,3 +53,16 @@ def run_cli(*argv: str) -> int | str:
     with pytest.raises(SystemExit) as e:
         cli.main(list(argv))
     return e.value.code
+
+
+@pytest.fixture
+def gbk_default(monkeypatch):
+    """复现 Windows 中文版：text=True 而没写 encoding 的子进程调用按 GBK 编解码。"""
+    real_run = subprocess.run
+
+    def run(*args, **kwargs):
+        if kwargs.get("text") and "encoding" not in kwargs:
+            kwargs["encoding"] = "gbk"
+        return real_run(*args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run)

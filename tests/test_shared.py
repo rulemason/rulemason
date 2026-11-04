@@ -256,3 +256,10 @@ def test_scan_skips_plan_drafts_silently(tmp_path, in_git):
     scanned = shared.scan(tmp_path)
     assert sorted(scanned.files) == ["app/main.py", "openspec/specs/a/spec.md"]
     assert scanned.skipped == []
+
+
+def test_ignored_files_handles_chinese_names_under_gbk(tmp_path, gbk_default):
+    """Windows 中文版默认 GBK：git check-ignore 的输入输出要按 UTF-8，中文文件名才判得对。"""
+    git_init(tmp_path)
+    write(tmp_path, ".gitignore", "草稿/\n")
+    assert shared.ignored_files(tmp_path, ["草稿/方案.md", "正文.md"]) == ["草稿/方案.md"]

@@ -17,6 +17,10 @@ def run() -> int:
     if not value:
         print("没有输入 key，未写任何文件")
         return 1
+    problem = judge.key_problem(value)
+    if problem:
+        print(f"✗ 输入的 key {problem}；未写任何文件，请重新运行 rulemason key{judge.paste_hint(value)}")
+        return 1
 
     # 2. 替换或追加 key 那一行，其他设置原样保留
     path = judge.USER_ENV

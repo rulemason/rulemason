@@ -267,11 +267,11 @@ def normalize_tools(tools: list[str]) -> list[str]:
 # ---------- 3. 列文件与 git ----------
 
 def git(root: Path, *args: str) -> str:
-    return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True).stdout
+    return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, encoding="utf-8").stdout
 
 
 def has_git(root: Path) -> bool:
-    out = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=root, capture_output=True, text=True)
+    out = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=root, capture_output=True, text=True, encoding="utf-8")
     return out.returncode == 0 and out.stdout.strip() == "true"
 
 
@@ -335,9 +335,10 @@ def list_files(root: Path) -> list[str]:
 
 def ignored_files(root: Path, rels: list[str]) -> list[str]:
     """rels 中被 .gitignore 等忽略规则匹配的路径;由 git 判断,含多级 .gitignore 与全局 excludes。
-    --no-index:已跟踪的文件也照规则判断,否则 update 新增的副本会被静默忽略。"""
+    --no-index:已跟踪的文件也照规则判断,否则 update 新增的副本会被静默忽略。git 的输入输出都按 UTF-8,Windows 中文版默认 GBK。"""
     out = subprocess.run(
-        ["git", "check-ignore", "--no-index", "--stdin", "-z"], cwd=root, input="\0".join(rels), capture_output=True, text=True
+        ["git", "check-ignore", "--no-index", "--stdin", "-z"],
+        cwd=root, input="\0".join(rels), capture_output=True, text=True, encoding="utf-8",
     )
     if out.returncode not in (0, 1):
         # 0 有被忽略的、1 一个都没有;其他是 git 出错,不能当成「没有被忽略」放行

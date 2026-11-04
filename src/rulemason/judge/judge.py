@@ -15,7 +15,6 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 from functools import cache
 from pathlib import Path
@@ -27,6 +26,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 from rulemason.shared import (
     ConfigError,
     find_root,
+    git,
     has_git,
     read_judgments,
     read_yaml,
@@ -90,19 +90,39 @@ def user_env() -> Path | None:
     return None
 
 
-def setting(name: str) -> str:
-    """先读环境变量，再读 key 文件（每行 KEY=VALUE）；都没有返回空串。"""
+def setting_with_source(name: str) -> tuple[str, str]:
+    """先读环境变量，再读 key 文件（每行 KEY=VALUE）。返回 (值, 来源)：来源是「环境变量 NAME」或 key 文件路径；都没有返回 ("", "")。"""
     value = os.getenv(name, "").strip()
     if value:
-        return value
+        return value, f"环境变量 {name}"
     env_file = user_env()
     if env_file is None:
-        return ""
+        return "", ""
     for line in env_file.read_text(encoding="utf-8").splitlines():
         key, sep, val = line.partition("=")
         if sep and key.strip() == name:
-            return val.strip().strip("\"'")
-    return ""
+            return val.strip().strip("\"'"), str(env_file)
+    return "", ""
+
+
+def setting(name: str) -> str:
+    return setting_with_source(name)[0]
+
+
+def key_problem(value: str) -> str | None:
+    """key 的字符是否合法（与 SDK 的校验一致：只许可打印 ASCII、不含空白）。不合法返回给人看的原因，合法返回 None。"""
+    if "\x16" in value:
+        return "含控制字符 0x16（按 Ctrl+V 没有粘贴进去）"
+    if any(ch.isspace() for ch in value):
+        return "含空白"
+    if not (value.isascii() and value.isprintable()):
+        return "含不可打印或非 ASCII 字符"
+    return None
+
+
+def paste_hint(value: str) -> str:
+    """key 里有 0x16 时补一句粘贴方式，接在「重新运行 rulemason key」之后；没有返回空串。"""
+    return "，用右键或 Ctrl+Shift+V 粘贴" if "\x16" in value else ""
 
 
 # ---------- 2. 规则 ----------
@@ -258,7 +278,15 @@ class Judge:
         if self._client is None:
             import httpx2
             from typesafe_sdk import TypeSafeClient
-            self._client = TypeSafeClient(api_key=api_key(), model=JEV_MODEL,
+            key, source = setting_with_source(KEY_NAME)
+            problem = key_problem(key)
+            if problem:
+                # 走到这里说明 key 写坏了（常见是 Windows 上按 Ctrl+V 只写进 0x16）：一句话说清来源与修法，不让 SDK 抛堆栈。
+                # 环境变量优先于 key 文件，来自环境变量时重写文件没用，要改环境变量
+                from_env = bool(os.getenv(KEY_NAME, "").strip())   # 与 setting_with_source 同一优先级：环境变量有值就用它
+                fix = f"请修正或删除环境变量 {KEY_NAME}" if from_env else f"运行 rulemason key 重新输入{paste_hint(key)}"
+                sys.exit(f"✗ {KEY_NAME}（来自{source}）{problem}：{fix}")
+            self._client = TypeSafeClient(api_key=key, model=JEV_MODEL,
                                           http_client=httpx2.Client(trust_env=False))
         return self._client
 
@@ -403,7 +431,7 @@ def change_files(name: str) -> list[tuple[str, Target, str]]:
             # 走到这里说明这份产物被省略了（小 change 常省 design）
             print(f"  跳过 {path.name}：不存在")
     for p in sorted(d.glob("specs/*/spec.md")):
-        out.append((str(p.relative_to(d)), "specs", p.read_text(encoding="utf-8")))
+        out.append((p.relative_to(d).as_posix(), "specs", p.read_text(encoding="utf-8")))   # Windows 上 str(Path) 是反斜杠
     return out
 
 
@@ -443,7 +471,7 @@ def parse_copy(text: str, fmt: str, lang: str | None) -> dict[str, str]:
 
 def changed_copy(file: str, fmt: str, lang: str | None) -> dict[str, str]:
     """文案相对 main 新增或修改的条目（参数取自 copy_config()）。main 上没有这个文件时，全部算新增。"""
-    base = subprocess.run(["git", "show", f"main:{file}"], cwd=root(), capture_output=True, text=True).stdout
+    base = git(root(), "show", f"main:{file}")                # shared.git 按 UTF-8 读：Windows 中文版默认 GBK，读不出 UTF-8 中文
     old = parse_copy(base, fmt, lang) if base else {}
     new = parse_copy((root() / file).read_text(encoding="utf-8"), fmt, lang)
     return {k: v for k, v in new.items() if old.get(k) != v}

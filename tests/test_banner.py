@@ -204,6 +204,24 @@ def test_windows_ansi_tries_only_once(monkeypatch):
     assert kernel32.handles == [-11]                                    # 第二次走缓存，没再调控制台接口
 
 
+@pytest.mark.parametrize(("env", "draws_logo"), [({}, False), ({"WT_SESSION": "1"}, True), ({"TERM_PROGRAM": "vscode"}, True)])
+def test_windows_draws_logo_only_in_modern_terminals(monkeypatch, env, draws_logo):
+    """Windows 旧控制台缺半格字形、按两格宽画：没有 WT_SESSION 或 TERM_PROGRAM 时只显示一行版本号。"""
+    out = _Tty(True)
+    monkeypatch.setattr(banner.sys, "stdout", out)
+    monkeypatch.setattr(banner.sys, "platform", "win32")
+    monkeypatch.delenv("WT_SESSION", raising=False)
+    monkeypatch.delenv("TERM_PROGRAM", raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setenv("COLUMNS", "120")
+    banner.show(banner.INIT_FOOTER)
+    text = out.getvalue()
+    assert bool(LOGO_CHARS & set(text)) is draws_logo
+    assert text.startswith("\nrulemason ") is not draws_logo
+
+
 # ---------- 3. init 与不带参数 ----------
 
 @pytest.fixture
