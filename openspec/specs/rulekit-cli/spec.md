@@ -586,30 +586,6 @@ ruff 或 ESLint 配置仍引用 `.rulemason/lint/` 下的副本时，`rulemason 
 - **WHEN** 脚本以非交互方式运行 `rulemason`
 - **THEN** 打印用法报错，退出码 2
 
-### Requirement: 启动画面按终端能力降级
-
-设置了 `NO_COLOR` 时启动画面 MUST NOT 输出颜色转义，图标 SHALL 以单一前景色画出。终端宽度小于 60 列、标准输出的编码无法写出块字符，或在 Windows 上既不在 Windows Terminal（没有 `WT_SESSION`）也不在 VS Code 一类终端（没有 `TERM_PROGRAM`）时，MUST 不画图标与字标，改为一行「rulemason 版本号」，其余文字照常显示。有颜色时，图标里的马 SHALL 用天空蓝系的 256 色，兔身 SHALL 用白色 256 色，使两只动物在暗底终端上能分辨。
-
-#### Scenario: NO_COLOR
-- **WHEN** 设置 `NO_COLOR=1` 后在终端运行 `rulemason init`
-- **THEN** 启动画面不含 ANSI 颜色转义，图标与字标仍以块字符画出
-
-#### Scenario: 终端太窄
-- **WHEN** 终端宽度为 50 列
-- **THEN** 不显示图标与字标，只显示「rulemason 版本号」与口号、三行说明
-
-#### Scenario: Windows 旧控制台
-- **WHEN** 在 Windows 的 cmd.exe 或 conhost 中的 PowerShell 运行 `rulemason`，没有 `WT_SESSION` 与 `TERM_PROGRAM`
-- **THEN** 不画图标与字标，只显示「rulemason 版本号」与口号、三行说明和常用命令
-
-#### Scenario: Windows Terminal
-- **WHEN** 在 Windows Terminal 运行 `rulemason`（有 `WT_SESSION`），宽度不小于 60 列
-- **THEN** 照常画图标与字标
-
-#### Scenario: 马蓝兔白
-- **WHEN** 未设置 `NO_COLOR`，在终端运行 `rulemason`
-- **THEN** 马的像素带天空蓝系的 256 色转义，兔身的像素带白色 256 色转义；同一字符位上下两种颜色时，上像素做前景、下像素做背景画出
-
 ### Requirement: 推送 tag 发布到 PyPI
 
 公开仓库推送 `v<版本>` tag 时，CI SHALL 依次运行 ruff 与测试、核对 tag 与包版本一致、构建并经 Trusted Publishing 发布到 PyPI；任一步失败 MUST 不发布。发布流程 MUST NOT 使用存放在仓库或 CI 密钥里的 PyPI token。
@@ -849,3 +825,27 @@ rulemason 调用 git 读取输出或传入路径时 SHALL 按 UTF-8 编码，MUS
 #### Scenario: 中文文件名
 - **WHEN** 项目里有被 `.gitignore` 忽略的中文文件名，在 Windows 上运行 `rulemason check`
 - **THEN** 判断被忽略的文件与 macOS 上结果相同
+
+### Requirement: 启动画面按终端能力降级与配色
+
+设置了 `NO_COLOR` 时启动画面 MUST NOT 输出颜色转义，图标 SHALL 以单一前景色画出。终端宽度小于 60 列、标准输出的编码无法写出块字符，或在 Windows 上既不在 Windows Terminal（没有 `WT_SESSION`）也不在 VS Code 一类终端（没有 `TERM_PROGRAM`）时，MUST 不画图标与字标，改为一行「rulemason 版本号」，其余文字照常显示。有颜色时，图标里的马 SHALL 用天空蓝系的 256 色，兔身 SHALL 用樱粉系的 256 色、兔的阴影深一档，使兔与马的色相分得开，兔身在暗底与浅底终端上都清楚。
+
+#### Scenario: NO_COLOR
+- **WHEN** 设置 `NO_COLOR=1` 后在终端运行 `rulemason init`
+- **THEN** 启动画面不含 ANSI 颜色转义，图标与字标仍以块字符画出
+
+#### Scenario: 终端太窄
+- **WHEN** 终端宽度为 50 列
+- **THEN** 不显示图标与字标，只显示「rulemason 版本号」与口号、三行说明
+
+#### Scenario: Windows 旧控制台
+- **WHEN** 在 Windows 的 cmd.exe 或 conhost 中的 PowerShell 运行 `rulemason`，没有 `WT_SESSION` 与 `TERM_PROGRAM`
+- **THEN** 不画图标与字标，只显示「rulemason 版本号」与口号、三行说明和常用命令
+
+#### Scenario: Windows Terminal
+- **WHEN** 在 Windows Terminal 运行 `rulemason`（有 `WT_SESSION`），宽度不小于 60 列
+- **THEN** 照常画图标与字标
+
+#### Scenario: 马蓝兔粉
+- **WHEN** 未设置 `NO_COLOR`，在终端运行 `rulemason`
+- **THEN** 马的像素带天空蓝系的 256 色转义，兔身的像素带樱粉系的 256 色转义；同一字符位上下两种颜色时，上像素做前景、下像素做背景画出
