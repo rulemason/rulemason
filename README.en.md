@@ -37,9 +37,13 @@ rulemason --version
 
 Run `rulemason init` in the directory you want to set up, the same way OpenSpec's own init works; in a monorepo, run it at the repository root, or run `rulemason init <repo-root>`, to cover the whole repository.
 
-`rulemason check` exits non-zero when the setup is incomplete, so it can run in CI as is. When a lint setting cannot be fixed for you, the report names the file and line, quotes it, and says what to change.
+`rulemason check` exits non-zero when the setup is incomplete, so it can run in CI as is. When a lint setting cannot be fixed for you, the report names the file and line, quotes it, and says what to change. It also reports, without failing: main specs whose wording OpenSpec cannot read cleanly (placeholder purposes, delta-style headings, overlong requirements), lint scripts that are only placeholders (an echo or an empty script), and archived changes since the project was set up that lack a verification record.
 
-In a project with a lot of existing code, ruff often reports many problems that were there before rulemason. Run `/rulemason` in your AI tool once to set up a ruff baseline (with your confirmation); after that, the checkpoints fix only the problems each change introduces.
+In a project with a lot of existing code, ruff and ESLint often report many problems that were there before rulemason. Run `/rulemason` in your AI tool once to set up a baseline (with your confirmation): ruff gets per-file exemptions, and ESLint gets one entry per file with only the rules that file breaks and its own complexity cap — the global cap stays at 15 and no rule is switched off. After that, the checkpoints fix only the problems each change introduces. When you later want to clear those problems in bulk, ask `/rulemason` for a legacy clean-up: it plans the work by module with shared helpers first, records the before numbers in a temporary worktree, hands each group the same instructions, and can resume after an interruption.
+
+## Several projects in one folder
+
+If one folder only holds several projects (say `products/` with `app/` and `api/`, each its own git repository), set up each project separately and leave the folder alone; `init` and `check` print a hint when run in such a folder. To change several projects in one session, open your AI tool in the main project and attach the others (for example `--add-dir`); the checkpoints then run once per project, each with its own command table. Claude Code does not read an attached directory's `CLAUDE.md` unless `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1` is set.
 
 ## Upgrade
 
