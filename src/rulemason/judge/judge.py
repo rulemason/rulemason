@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from rulemason.shared import (
     ConfigError,
+    fail,
     find_root,
     git,
     has_git,
@@ -55,11 +56,11 @@ def root() -> Path:
     """项目根：最近的 .rulemason.yaml（不越过 git 仓库根），没有清单时用 git 仓库根，且必须在 git 里、有 openspec/。不满足就退出。
     与 init 不同：没有清单时不用当前目录，因为未接入 rulemason 的仓库也要能在子目录里找到 openspec/。"""
     if not has_git(Path.cwd()):
-        sys.exit("✗ 当前目录不在 git 仓库里：请在接入项目内运行 rulemason judge")
+        sys.exit(fail("当前目录不在 git 仓库里：请在接入项目内运行 rulemason judge"))
     cwd = Path.cwd().resolve()
     path = find_root(cwd) or repo_root(cwd) or cwd             # 走到 or cwd 说明 git 认得仓库却找不到 .git（如 GIT_DIR 指向别处）
     if not (path / "openspec").is_dir():
-        sys.exit(f"✗ {path} 下没有 openspec/：请在接入项目内运行 rulemason judge")
+        sys.exit(fail(f"{path} 下没有 openspec/：请在接入项目内运行 rulemason judge"))
     return path
 
 
@@ -74,11 +75,11 @@ def copy_config() -> tuple[str, str, str | None]:
     copy = config().get("copy") or {}
     for key in ("file", "format"):
         if not copy.get(key):
-            sys.exit(f"✗ openspec/judge.yaml 缺少 copy.{key}：--copy 需要知道审哪个文件、什么格式")
+            sys.exit(fail(f"openspec/judge.yaml 缺少 copy.{key}：--copy 需要知道审哪个文件、什么格式"))
     if copy["format"] not in ("json", "js-i18n"):
-        sys.exit(f"✗ openspec/judge.yaml 的 copy.format={copy['format']!r} 无效，只支持 json 或 js-i18n")
+        sys.exit(fail(f"openspec/judge.yaml 的 copy.format={copy['format']!r} 无效，只支持 json 或 js-i18n"))
     if copy["format"] == "js-i18n" and not copy.get("lang"):
-        sys.exit("✗ openspec/judge.yaml 缺少 copy.lang：js-i18n 格式需要知道审哪种语言")
+        sys.exit(fail("openspec/judge.yaml 缺少 copy.lang：js-i18n 格式需要知道审哪种语言"))
     return copy["file"], copy["format"], copy.get("lang")
 
 
@@ -193,10 +194,10 @@ def load_rules(path: Path | None = None) -> list[Rule]:
         try:
             rule = Rule.model_validate(item)
         except ValidationError as e:
-            sys.exit(f"✗ 判断规则 {item.get('id')!r} 不合格：{e.errors()[0]['msg']}")
+            sys.exit(fail(f"判断规则 {item.get('id')!r} 不合格：{e.errors()[0]['msg']}"))
         # 找不到上层规则说明规矩还没定，不许在判断层立法
         if not enforces_exists(rule.enforces):
-            sys.exit(f"✗ 规则 {rule.id} 的 enforces 指向不存在的上层规则：{rule.enforces}")
+            sys.exit(fail(f"规则 {rule.id} 的 enforces 指向不存在的上层规则：{rule.enforces}"))
         rules.append(rule)
     return rules
 
@@ -242,9 +243,9 @@ def pick_provider() -> str:
     key = api_key()
     name = setting("JUDGE_PROVIDER") or ("jev" if key else "manual")
     if name not in ("jev", "manual"):
-        sys.exit(f"✗ JUDGE_PROVIDER={name!r} 无效，只支持 jev 或 manual")
+        sys.exit(fail(f"JUDGE_PROVIDER={name!r} 无效，只支持 jev 或 manual"))
     if name == "jev" and not key:
-        sys.exit(f"✗ JUDGE_PROVIDER=jev 但缺少 TYPESAFE_API_KEY：请设置环境变量，或写入 {USER_ENV}")
+        sys.exit(fail(f"JUDGE_PROVIDER=jev 但缺少 TYPESAFE_API_KEY：请设置环境变量，或写入 {USER_ENV}"))
     return name
 
 
@@ -285,7 +286,7 @@ class Judge:
                 # 环境变量优先于 key 文件，来自环境变量时重写文件没用，要改环境变量
                 from_env = bool(os.getenv(KEY_NAME, "").strip())   # 与 setting_with_source 同一优先级：环境变量有值就用它
                 fix = f"请修正或删除环境变量 {KEY_NAME}" if from_env else f"运行 rulemason key 重新输入{paste_hint(key)}"
-                sys.exit(f"✗ {KEY_NAME}（来自{source}）{problem}：{fix}")
+                sys.exit(fail(f"{KEY_NAME}（来自{source}）{problem}：{fix}"))
             self._client = TypeSafeClient(api_key=key, model=JEV_MODEL,
                                           http_client=httpx2.Client(trust_env=False))
         return self._client
@@ -412,9 +413,9 @@ def change_dir(name: str) -> Path:
     if len(dated) > 1:
         # 走到这里说明有多个同名归档，不替用户挑
         listed = "、".join(f"archive/{d.name}" for d in dated)
-        sys.exit(f"✗ 有多个归档的 change 匹配 {name}：{listed}，请写全目录名")
+        sys.exit(fail(f"有多个归档的 change 匹配 {name}：{listed}，请写全目录名"))
     if not dated:
-        sys.exit(f"✗ change 不存在：{changes / name}（也不在 archive/ 下）")
+        sys.exit(fail(f"change 不存在：{changes / name}（也不在 archive/ 下）"))
     return dated[0]
 
 
@@ -458,7 +459,7 @@ def extract_i18n(html: str, lang: str) -> dict[str, str]:
     try:
         i18n = json5.loads(html[start:end])
     except ValueError as e:
-        sys.exit(f"✗ 文案文件的 I18N 不是合法 JSON5，无法审查：{e}")
+        sys.exit(fail(f"文案文件的 I18N 不是合法 JSON5，无法审查：{e}"))
     return {k: v for k, v in i18n[lang].items() if isinstance(v, str)}
 
 
@@ -566,7 +567,7 @@ def judge_line(provider: str, dry_run: bool) -> str:
 def print_template(name: str) -> int:
     """打印一份判断层模板；名称不认识时列出可选名称，返回 1。不需要在项目里运行。"""
     if name not in TEMPLATE_NAMES:
-        print(f"✗ 没有模板 {name!r}，可选：{'、'.join(TEMPLATE_NAMES)}")
+        print(fail(f"没有模板 {name!r}，可选：{'、'.join(TEMPLATE_NAMES)}"))
         return 1
     print((TEMPLATES / f"{name}.yaml").read_text(encoding="utf-8"), end="")
     return 0
@@ -612,10 +613,10 @@ def cli(argv: list[str] | None = None) -> None:
         sys.exit(main(argv))
     except TypeSafeAuthenticationError:
         # 命令行最外层：key 被拒是配置问题，给一句能照做的说明，不打印堆栈
-        sys.exit(f"✗ Jev 拒绝了 key（已作废或填错）：请检查 {USER_ENV} 或环境变量 TYPESAFE_API_KEY")
+        sys.exit(fail(f"Jev 拒绝了 key（已作废或填错）：请检查 {USER_ENV} 或环境变量 TYPESAFE_API_KEY"))
     except ConfigError as exc:
         # 命令行最外层：项目配置写错，给出文件与位置，不打印堆栈
-        sys.exit(f"✗ {exc}")
+        sys.exit(fail(str(exc)))
     except OSError as exc:
         # 命令行最外层：文件读不了（权限、路径是目录等），网络或连接失败也可能走到这里；与 rulemason 其他命令一样给一句说明
-        sys.exit(f"✗ rulemason judge 失败：{exc}")
+        sys.exit(fail(f"rulemason judge 失败：{exc}"))

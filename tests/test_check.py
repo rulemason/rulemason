@@ -464,6 +464,22 @@ def test_action_code_and_first_line(inited, code):
     assert data["exit_code"] == exit_code == expected_exit
 
 
+@pytest.mark.parametrize(("tools", "hinted"), [("opencode,claude", True), ("claude", False)])
+def test_opencode_skill_hint_follows_first_line(tmp_path, tools, hinted):
+    """OpenCode 的 skill 不在 / 列表：接入了 OpenCode 时第一行后补一句叫法，第一行与 --json 的 next 不变。"""
+    root = tmp_path / "proj"
+    git_init(root)
+    write(root, "openspec/config.yaml", "schema: spec-driven\n")
+    assert init.run(root, tools, True) == 0
+    text, _ = check.run(root)
+    data = json.loads(check.run(root, as_json=True)[0])
+    lines = text.splitlines()
+    assert lines[0] == "补项目信息：在 AI 工具中运行 /rulemason"
+    assert data["next"] == {"stage": "补项目信息", "code": "fill_project_info", "action": "在 AI 工具中运行 /rulemason"}
+    assert (lines[1] == shared.OPENCODE_SKILL_HINT) is hinted
+    assert (shared.OPENCODE_SKILL_HINT in text) is hinted
+
+
 def test_check_json_matches_text_report(inited):
     text, code = check.run(inited)
     data = json.loads(check.run(inited, as_json=True)[0])
