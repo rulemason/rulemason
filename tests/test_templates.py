@@ -114,7 +114,7 @@ def test_skill_reads_check_json_and_lists_every_code():
 def test_skill_stage_order_and_guards():
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
 
-    order = [skill.index(title) for title in ("## 2. 补项目信息", "## 3. 日常巡检", "## 4. 启用判断（可选", "## 5. 建立 ruff 基线", "## 6. 建立 ESLint 基线", "## 7. 汇报")]
+    order = [skill.index(title) for title in ("## 2. 补项目信息", "## 3. 日常巡检", "## 4. 启用判断（可选", "## 5. 建立 ruff 基线", "## 6. 建立 ESLint 基线", "## 7. 存量清理（可选", "## 8. 汇报")]
     assert order == sorted(order)
     assert "不改 rulemason 标记块" in skill
     assert "项目没有 git 时，说明判断层需要 git" in skill
@@ -141,7 +141,7 @@ def test_skill_ruff_baseline_section():
 
 def test_skill_eslint_baseline_section():
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
-    section = skill[skill.index("## 6. 建立 ESLint 基线"):skill.index("## 7. 汇报")]
+    section = skill[skill.index("## 6. 建立 ESLint 基线"):skill.index("## 7. 存量清理")]
 
     assert "转到「6. 建立 ESLint 基线」" in skill
     for step in ("**统计**", "**列给用户确认**", "**确认后照做**"):            # 与 ruff 基线同样的步骤
@@ -149,6 +149,27 @@ def test_skill_eslint_baseline_section():
     for text in ("--format json", "// 接入前遗留，改到该文件时清掉", "不提高全局复杂度上限", "不整条关规则",
                  "`--rule` 会盖过配置里按文件写的豁免", "**旧口径的全局放宽**", "基础规则没有报错，无需建立 ESLint 基线", "参数前加 `--`"):
         assert text in section, text
+
+
+def test_skill_legacy_cleanup_section():
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    section = skill[skill.index("## 7. 存量清理（可选，用户提出时才做）"):skill.index("## 8. 汇报")]
+
+    assert len(section.strip().splitlines()) <= 30
+    for step in ("**规划**", "**先存证据**", "**代理指令**", "**恢复**", "**主会话复核**", "**收尾**"):
+        assert step in section, step
+    for text in ("共用模块", "不要为了缩小改动面要求「不新建文件」", "git worktree add --detach", "不要把改前代码经 stdin 交给 lint",
+                 "git diff --stat", "不重做已完成的部分", "「改既有测试时」", "「重构等价性」", "本 skill 不提交",
+                 "用户确认后再做", "临时目录放在仓库外", "git worktree remove --force", "先用本机缓存离线安装", "有未提交改动时先剔除"):
+        assert text in section, text
+    description = next(line for line in skill.splitlines() if line.startswith("description:"))
+    assert "存量清理" in description
+
+
+def test_gates_simplify_checks_new_functions_by_name():
+    gates = (ROOT / "rules/workflow-gates.md").read_text(encoding="utf-8")
+    simplify = next(line for line in gates.splitlines() if line.startswith("**自动精简**"))
+    assert "本次新增的函数先按名字在仓库里检索" in simplify and "改为复用" in simplify
 
 
 def test_skill_common_red_line_candidates():
