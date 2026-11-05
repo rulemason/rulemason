@@ -41,6 +41,15 @@ Run `rulemason init` in the directory you want to set up, the same way OpenSpec'
 
 In a project with a lot of existing code, ruff often reports many problems that were there before rulemason. Run `/rulemason` in your AI tool once to set up a ruff baseline (with your confirmation); after that, the checkpoints fix only the problems each change introduces.
 
+## Upgrade
+
+```bash
+uv tool upgrade rulemason   # upgrade the rulemason program on this machine: once per machine
+rulemason update            # refresh the copies committed in the project: once per project, commit the result
+```
+
+These are two steps because one machine may hold several projects, and the copies belong in each project's repository. One person runs `rulemason update` and commits; everyone else pulls and only upgrades their own machine. To do both at once: `uv tool upgrade rulemason && rulemason update`.
+
 ## License
 
 Apache-2.0
