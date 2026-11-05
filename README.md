@@ -44,6 +44,17 @@ rulemason init --tools claude,codex --yes   # 非交互：不提问
 
 写完只给三行：`check` 的结论、需要你处理的事、下一步。AGENTS.md 的项目简介从 README 第一段预填，红线先写「暂无」；然后在 AI 工具里运行 `/rulemason`，核对简介、确认红线（注明出处并逐条确认）与命令表。判断条件满足而本机没有 key 时，init 结尾会问一句要不要配置（key 在 https://typesafe.ai/ 申请）。
 
+## 多个项目放在同一个文件夹
+
+一个文件夹下放着几个项目（例如 `products/` 下的 `app/`、`api/`，各自是 git 仓库）时，到每个项目里分别运行 `rulemason init`，文件夹本身不接入：文件夹没有代码，命令表会写成「无，跳过」，AI 在文件夹里打开时可能照它跳过各项目的 lint 与测试。在这样的文件夹里运行 `init` 或 `check`，会多一行提示。
+
+一次要同时改几个项目时，在主要改的项目里打开 AI 工具，再把相关项目挂进来；检查点按被改文件所属的项目各跑一遍。Claude Code 挂上的目录默认不读它的 `CLAUDE.md`，要设环境变量：
+
+```bash
+cd products/app
+CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 claude --add-dir ../api
+```
+
 ## 日常
 
 日常开发走 OpenSpec，检查点由 AI 自动运行，不用记命令：
@@ -57,7 +68,7 @@ rulemason init --tools claude,codex --yes   # 非交互：不提问
 
 自动精简只处理本次改动里的重复、死代码、冗余抽象或过复杂逻辑，保持需求、外部行为与 API 不变；Claude Code 下这一步用内置的 `/simplify`。独立审查者拿不到文件与命令工具，只看提供给它的改动与方案；必须修的问题自动修复并重新审查，不要求你逐条审核代码。
 
-已有大量代码的项目接入后，ruff 往往报出很多改动前就有的问题；先在 AI 工具里运行 `/rulemason` 建立 ruff 基线（自动修复 import、声明框架写法、其余按文件记为「接入前遗留」，都等你确认），之后检查点只修每次改动新引入的问题。
+已有大量代码的项目接入后，ruff 与前端 ESLint 往往报出很多改动前就有的问题；先在 AI 工具里运行 `/rulemason` 建立基线（ruff 自动修复 import、声明框架写法，其余按文件记为「接入前遗留」；ESLint 按文件写各自放开的规则与复杂度上限，不整条关规则、不提高全局上限；都等你确认），之后检查点只修每次改动新引入的问题。
 
 ## 看现状
 
@@ -78,7 +89,7 @@ rulemason check     # 只读，在项目任意子目录运行都可以
 
 ```yaml
 - uses: astral-sh/setup-uv@v7
-- run: uv tool install rulemason==0.8.16
+- run: uv tool install rulemason==0.8.19
 - run: rulemason check
 ```
 

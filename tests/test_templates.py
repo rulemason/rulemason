@@ -114,7 +114,7 @@ def test_skill_reads_check_json_and_lists_every_code():
 def test_skill_stage_order_and_guards():
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
 
-    order = [skill.index(title) for title in ("## 2. 补项目信息", "## 3. 日常巡检", "## 4. 启用判断（可选", "## 5. 建立 ruff 基线", "## 6. 汇报")]
+    order = [skill.index(title) for title in ("## 2. 补项目信息", "## 3. 日常巡检", "## 4. 启用判断（可选", "## 5. 建立 ruff 基线", "## 6. 建立 ESLint 基线", "## 7. 汇报")]
     assert order == sorted(order)
     assert "不改 rulemason 标记块" in skill
     assert "项目没有 git 时，说明判断层需要 git" in skill
@@ -127,7 +127,7 @@ def test_skill_stage_order_and_guards():
 
 def test_skill_ruff_baseline_section():
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
-    section = skill[skill.index("## 5. 建立 ruff 基线"):skill.index("## 6. 汇报")]
+    section = skill[skill.index("## 5. 建立 ruff 基线"):skill.index("## 6. 建立 ESLint 基线")]
 
     assert "转到「5. 建立 ruff 基线」" in skill
     for text in ("--select I001,F401 --extend-exclude __init__.py --force-exclude --fix", "extend-immutable-calls", '"scripts/**" = ["T201"]',
@@ -137,6 +137,18 @@ def test_skill_ruff_baseline_section():
         assert f'"{name}"' in section, name
     assert "不加 `--unsafe-fixes`" in section and "不用 `# noqa`" in section and "`--diff`" in section
     assert "「判断用的红线规则」一行（旧写法「红线规则：…」一行同理）改为列出用户确认的规则 id" in skill
+
+
+def test_skill_eslint_baseline_section():
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    section = skill[skill.index("## 6. 建立 ESLint 基线"):skill.index("## 7. 汇报")]
+
+    assert "转到「6. 建立 ESLint 基线」" in skill
+    for step in ("**统计**", "**列给用户确认**", "**确认后照做**"):            # 与 ruff 基线同样的步骤
+        assert step in section, step
+    for text in ("--format json", "// 接入前遗留，改到该文件时清掉", "不提高全局复杂度上限", "不整条关规则",
+                 "`--rule` 会盖过配置里按文件写的豁免", "**旧口径的全局放宽**", "基础规则没有报错，无需建立 ESLint 基线", "参数前加 `--`"):
+        assert text in section, text
 
 
 def test_skill_common_red_line_candidates():
@@ -308,7 +320,15 @@ def test_rules_wording_key_sections():
     assert [line[:2] for line in code_style.splitlines() if line[:1].isdigit()] == [f"{n}." for n in range(1, 10)]
     gates = (ROOT / "rules/workflow-gates.md").read_text(encoding="utf-8")
     assert "只能读一份文件的子代理" in gates and "命令表没有这一行时跳过" in gates
-    assert "\n## 提交信息\n" in gates and "类型(范围): 中文说明（change 名）" in gates
+    assert "\n## 提交与推送\n" in gates and "类型(范围): 中文说明（change 名）" in gates
+    commit = _section(gates, "提交与推送")
+    assert "commitlint" in commit and "不用 amend" in commit and "推送前单独列出" in commit
+    assert "--only" not in commit and "--pathspec-from-file" not in commit       # 共享正文只写原则，不写具体选项
+    tests = _section(gates, "改既有测试时")
+    assert "不删除、不放宽" in tests and gates.count("按「改既有测试时」一节处理") == 2
+    assert "只带本次计划内的文件" in commit and "git worktree" in commit
+    front = next(line for line in gates.splitlines() if line.startswith("4. 改了前端时"))
+    assert "修掉本次改动引入的问题" in front and "建立 ESLint 基线" in front      # 与 ruff 一步对称，不要求修既有问题
     python = (ROOT / "rules/python.md").read_text(encoding="utf-8")
     assert "logging" in python and "encoding=\"utf-8\"" in python
     for path in ROOT.glob("rules/*.md"):
@@ -351,6 +371,18 @@ def test_artifact_base_limits():
     assert "Context 里的关键事实注明出处（文件与行，或可复现的命令），没有核实的标「未核实」" in base["design"]
 
 
+def test_eslint_wording_per_file_and_react_equivalence():
+    base = (ROOT / "lint/eslint-base.mjs").read_text(encoding="utf-8")
+    assert "最复杂函数" not in base and "按文件追加条目" in base and "不提高全局上限" in base   # 旧口径教人全局取最大值
+    react = (ROOT / "rules/react.md").read_text(encoding="utf-8")
+    start = react.index("重构等价性")
+    section = react[start:react.index("机械部分", start)]
+    assert section.count("\n- ") == 6 and "`Map`" in section and "`useState(() => …)`" in section
+    for name in ("antd", "Ant Design", "Space", "MUI", "Chakra"):          # 共享正文不写 UI 库名
+        assert name not in section, name
+
+
+
 # ---------- 不走 OpenSpec 的改动与归档（spec-guard） ----------
 
 def _section(text: str, heading: str) -> str:
@@ -368,6 +400,7 @@ def test_gates_cover_direct_edits_with_four_paths():
     assert "停下等用户确认" in direct and "不写 design" in direct and "不补写规格" in direct
     assert "用户要的就是改变主规格" in direct and "选改规格就按「改契约」走" in direct
     assert "openspec list --specs" in direct and "--no-scenarios" in direct
+    assert "在 `openspec/specs/` 里检索" in direct and "命中主规格点名的测试按「冲突」处理" in direct
     assert "不跑自动精简与独立审查" in direct and "只做第 4 步" in direct
 
 

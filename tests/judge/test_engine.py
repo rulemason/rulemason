@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from rulemason import cli
+from rulemason import cli, shared
 from rulemason.judge import judge
 from rulemason.judge.judge import verdict
 
@@ -104,6 +104,16 @@ def test_outside_git_exits(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as e:
         judge.root()
     assert "git" in str(e.value)
+
+
+def test_legacy_console_error_starts_with_cross(tmp_path, monkeypatch):
+    """Windows 旧控制台的字库里没有 ✗，报错改以 × 开头，其余文字不变。"""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(shared, "legacy_console", lambda: True)    # 哪些终端算旧控制台由 test_shared 测
+    judge.root.cache_clear()
+    with pytest.raises(SystemExit) as e:
+        judge.root()
+    assert str(e.value) == "× 当前目录不在 git 仓库里：请在接入项目内运行 rulemason judge"
 
 
 def test_git_repo_without_openspec_exits(tmp_path, monkeypatch):

@@ -9,7 +9,16 @@ import stat
 
 import pytest
 import yaml
-from conftest import REACT_PACKAGE, commit, git, git_init, run_cli, snapshot, write
+from conftest import (
+    REACT_PACKAGE,
+    commit,
+    git,
+    git_init,
+    project_folder,
+    run_cli,
+    snapshot,
+    write,
+)
 
 from rulemason import check, init, shared, update
 
@@ -299,6 +308,55 @@ def test_commands_uv_with_tests(project):
     assert rows == {"判断": "可选，未启用", "ruff": "`uv run ruff check .`", "测试": "`uv run pytest`", "前端 lint": "无，跳过", "文案检查": "可选，未启用"}
 
 
+@pytest.mark.parametrize(("rel", "prefix"), [("pyproject.toml", ""), ("api/pyproject.toml", "cd api && ")])
+def test_commands_python_without_uv_lock(tmp_path, rel, prefix):
+    """没有 uv.lock：ruff 用 uvx 跑，测试命令猜不到，写待确认而不是「无，跳过」。"""
+    root = tmp_path / "p"
+    write(root, rel, '[project]\nname = "x"\n')
+    write(root, "tests/test_x.py", "def test_x():\n    assert True\n")
+    rows = init.detect_commands(root, shared.list_files(root))
+    assert rows["ruff"] == f"`{prefix}uvx ruff check .`"
+    assert rows["测试"] == "待确认：填项目跑测试的命令"
+
+
+def test_commands_skip_workspace_members(project):
+    """uv workspace 成员没有自己的 uv.lock：根目录那条 ruff 已覆盖，不另加 uvx 那条，也不写待确认。"""
+    write(project, "packages/a/pyproject.toml", '[project]\nname = "a"\n')
+    rows = init.detect_commands(project, shared.list_files(project))
+    assert rows["ruff"] == "`uv run ruff check .`"
+    assert rows["测试"] == "`uv run pytest`"
+
+
+def test_commands_nested_pyproject_under_unlocked_root(tmp_path):
+    """根目录没有锁文件、下面有示例项目：只认最上层那个目录。"""
+    root = tmp_path / "p"
+    write(root, "pyproject.toml", '[project]\nname = "x"\n')
+    write(root, "examples/demo/pyproject.toml", '[project]\nname = "demo"\n')
+    rows = init.detect_commands(root, shared.list_files(root))
+    assert rows["ruff"] == "`uvx ruff check .`"
+    assert rows["测试"] == init.TESTS_UNKNOWN
+
+
+def test_commands_sibling_unlocked_dirs_pending_once(tmp_path):
+    """平级的两个无锁目录各一条 ruff，「待确认」只写一次。"""
+    root = tmp_path / "p"
+    write(root, "a/pyproject.toml", '[project]\nname = "a"\n')
+    write(root, "b/pyproject.toml", '[project]\nname = "b"\n')
+    rows = init.detect_commands(root, shared.list_files(root))
+    assert rows["ruff"] == "`cd a && uvx ruff check .`；`cd b && uvx ruff check .`"
+    assert rows["测试"] == init.TESTS_UNKNOWN
+
+
+def test_commands_unlocked_python_beside_frontend_tests(tmp_path):
+    """混合仓库：前端识别出了测试，没有锁文件的 Python 也要留一条待确认，免得检查点只跑前端测试。"""
+    root = tmp_path / "p"
+    write(root, "web/package.json", '{"scripts": {"test": "vitest"}}')
+    write(root, "api/pyproject.toml", '[project]\nname = "api"\n')
+    rows = init.detect_commands(root, shared.list_files(root))
+    assert rows["测试"] == "`cd web && npm run test`；待确认：填项目跑测试的命令"
+    assert rows["ruff"] == "`cd api && uvx ruff check .`"
+
+
 def test_commands_pnpm_scripts(tmp_path):
     root = tmp_path / "p"
     write(root, "web/package.json", '{"scripts": {"lint": "eslint .", "test": "vitest"}}')
@@ -329,6 +387,30 @@ def test_rejecting_plan_writes_nothing(project, tty, monkeypatch):
     before = snapshot(project)
     assert init.run(project, "claude", False) == 0
     assert snapshot(project) == before
+
+
+@pytest.mark.parametrize(("tools", "hinted"), [("opencode,claude", True), ("claude", False)])
+def test_opencode_skill_hint_after_next_step(project, capsys, tools, hinted):
+    """接入了 OpenCode 时，收尾的下一步之后补一句 OpenCode 里的叫法。"""
+    assert init.run(project, tools, True) == 0
+    out = capsys.readouterr().out
+    assert (f"{init.NEXT_STEP}\n{shared.OPENCODE_SKILL_HINT}\n" in out) is hinted
+    assert out.count(shared.OPENCODE_SKILL_HINT) == (1 if hinted else 0)
+
+
+def test_clean_worktree_plan_has_no_untouched_line(project, capsys):
+    """计划以外没有未提交改动时，不写「其余 0 个未提交改动不变」这句废话。"""
+    assert init.run(project, "claude", False, plan_only=True) == 0
+    out = capsys.readouterr().out
+    assert "## 文件计划" in out and "未提交改动" not in out
+
+
+def test_untouched_lines_only_when_something_is_dirty(project):
+    """摘要与完整清单共用这一行：计划外没有改动时不写，有时写数量。"""
+    plan = init.Plan()
+    assert init.untouched_lines(project, plan) == []
+    write(project, "notes.md", "草稿\n")
+    assert init.untouched_lines(project, plan) == ["不会碰：其余 1 个未提交改动不变"]
 
 
 def test_unrelated_uncommitted_changes_untouched(project, capsys):
@@ -1330,3 +1412,21 @@ def test_unreadable_chain_file_is_reported_by_init(project, capsys):
     assert _init(project) == 0
     assert "ruff.toml 继承的 bad.toml 读不出" in capsys.readouterr().out
     assert (project / "ruff.toml").read_text(encoding="utf-8") == 'extend = "bad.toml"\n'
+
+
+# ---------- 放项目的文件夹（multi-project-folder） ----------
+
+def test_plan_in_project_folder_hints_without_changing_writes(tmp_path, capsys):
+    folder, alone = tmp_path / "A", tmp_path / "A-alone"
+    project_folder(folder)
+    write(alone, "README.md", "# 产品目录\n")
+
+    assert init.run(folder, "claude", False, plan_only=True) == 0
+    out = capsys.readouterr().out
+    assert "这里有独立项目 b、c；" in out and "分别运行 rulemason init" in out
+
+    writes = []
+    for root in (folder, alone):
+        assert init.run(root, "claude", False, plan_only=True, as_json=True) == 0
+        writes.append(json.loads(capsys.readouterr().out)["writes"])
+    assert writes[0] == writes[1]                                   # 提示不改变计划

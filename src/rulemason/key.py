@@ -6,12 +6,13 @@ import os
 import sys
 
 from rulemason.judge import judge
+from rulemason.shared import fail
 
 
 def run() -> int:
     # 1. 只在终端里运行：key 不经命令行参数或管道传入，也就不会进历史、进程列表或 AI 会话
     if not sys.stdin.isatty():
-        print("✗ 请在终端里运行 rulemason key，交互输入 key；未写任何文件")
+        print(fail("请在终端里运行 rulemason key，交互输入 key；未写任何文件"))
         return 1
     value = getpass.getpass(f"{judge.KEY_NAME}（输入不显示）: ").strip()
     if not value:
@@ -19,7 +20,7 @@ def run() -> int:
         return 1
     problem = judge.key_problem(value)
     if problem:
-        print(f"✗ 输入的 key {problem}；未写任何文件，请重新运行 rulemason key{judge.paste_hint(value)}")
+        print(fail(f"输入的 key {problem}；未写任何文件，请重新运行 rulemason key{judge.paste_hint(value)}"))
         return 1
 
     # 2. 替换或追加 key 那一行，其他设置原样保留

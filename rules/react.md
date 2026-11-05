@@ -24,4 +24,13 @@ React 额外的几条：
 - 用 React Server Components 的项目默认写服务端组件，`"use client"` 只加在持有状态或副作用的叶子组件上。
 - 同一串 class 用了两次就抽成常量或组件 prop；样式类名不加注释，除非是在说明不明显的对齐。
 
-机械部分由 ESLint 以 error 级别检查：项目配置引入共享基础规则（`no-console`、`no-nested-ternary`、`no-empty`、`complexity` 上限 15；项目代码超出时按 eslint-base 的说明写递减计划），并开启 `react-hooks/exhaustive-deps`。豁免写在 ESLint 配置里并注明原因，不在代码里逐行写 `eslint-disable`。
+重构等价性（把旧写法改成上面的写法时，这几处看起来等价、其实容易改坏）：
+
+- 抽出的组件放在模块顶层；定义在组件内部会在每次渲染时重新挂载整棵子树。
+- 状态留在原组件；hook 的调用顺序和次数不变。
+- 三元改成映射表时，键必须是封闭的联合类型；键来自接口返回的任意字符串时用 `Map` 或 `if`，否则 `constructor`、`toString` 这类键会取到原型上的函数。
+- 会给每个子元素包一层的布局容器里，不要把「不渲染」改成「渲染一个返回 `null` 的组件」，否则会多出空的包裹层。
+- 原来是惰性初始化 `useState(() => …)` 的，不改成每次渲染都求值。
+- 把条件表达式搬进函数时，短路顺序不变。
+
+机械部分由 ESLint 以 error 级别检查：项目配置引入共享基础规则（`no-console`、`no-nested-ternary`、`no-empty`、`complexity` 上限 15；项目代码超出时按 eslint-base 的说明按文件写遗留上限，不提高全局上限），并开启 `react-hooks/exhaustive-deps`。豁免写在 ESLint 配置里并注明原因，不在代码里逐行写 `eslint-disable`。

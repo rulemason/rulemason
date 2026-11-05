@@ -1,12 +1,20 @@
 """启动画面：交互运行 init 或不带参数运行 rulemason 时，显示像素图标、字标、版本、口号与三件事。"""
 from __future__ import annotations
 
-import os
 import shutil
 import sys
 
 from rulemason import __version__
-from rulemason.shared import BOLD, DIM, SKY, SKY_BOLD, SKY_NUM, color_enabled, paint
+from rulemason.shared import (
+    BOLD,
+    DIM,
+    SKY,
+    SKY_BOLD,
+    SKY_NUM,
+    color_enabled,
+    legacy_console,
+    paint,
+)
 
 MIN_WIDTH = 60      # 窄于这个宽度不画图标与字标，避免折行
 # 配色仿 openspec：一个强调色（天空蓝）点字标、标签、命令与最后的提示；正文与命令说明默认白，版本号与 init 说明用暗色。颜色常量在 shared
@@ -124,9 +132,8 @@ def interactive() -> bool:
 
 
 def _can_draw_blocks() -> bool:
-    """能画块字符：Windows 旧控制台（cmd.exe 与其中的 PowerShell）字体缺半格字形、又按两格宽画，只在 Windows Terminal
-    （WT_SESSION）或 VS Code 一类终端（TERM_PROGRAM）里画；其他平台只看标准输出编码能否写出块字符。"""
-    if sys.platform == "win32" and not (os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM")):
+    """能画块字符：Windows 旧控制台缺半格字形、又按两格宽画，不画；其余只看标准输出编码能否写出块字符。"""
+    if legacy_console():
         return False
     try:
         "█▀▄".encode(sys.stdout.encoding or "ascii")

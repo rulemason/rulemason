@@ -25,7 +25,8 @@ COPY_DIR = f".{NAME}"                                       # 项目内只读副
 SCHEMA_VERSION = 1
 TOOL_IDS = ("opencode", "claude", "cursor", "codex", "omp")
 TOOL_LABELS = {"opencode": "OpenCode", "claude": "Claude Code", "cursor": "Cursor", "codex": "Codex", "omp": "omp"}
-AGENTS_SKILL_TOOLS = ("opencode", "cursor", "codex", "omp") # 这四个工具都从 .agents/skills 发现 skill
+AGENTS_SKILL_TOOLS = ("opencode", "cursor", "codex", "omp")  # 这四个工具都从 .agents/skills 发现 skill
+OPENCODE_SKILL_HINT = f"OpenCode 里 skill 不在 / 列表：对它说「用 {NAME} skill」"   # 跟在「运行 /rulemason」之后，init 与 check 共用
 COPIED_SHARED = (
     "rules/code-style.md",
     "rules/python.md",
@@ -40,6 +41,10 @@ TEMPLATES = Path(__file__).parent / "templates"
 VENDOR_DIRS = ("bower_components", "uni_modules", "third_party", "jspm_packages", "Pods")   # 第三方代码，不属于本项目
 VENDOR_MARKERS = ("autoload.php", "modules.txt")            # vendor/ 有 Composer 或 Go 的标记才算第三方；项目也会用它放自己的资源
 SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", COPY_DIR, ".pytest_cache", ".ruff_cache", "dist", "build"}
+THIRD_PARTY = "第三方目录"                                  # 子目录不属于本项目的三种原因；后两种是放项目的文件夹提示的依据
+OTHER_REPO = "另一个仓库"
+OTHER_PROJECT = f"另一个 {NAME} 项目"
+SHOWN_DIRS = 10                                             # 一行里最多列出的目录数（识别表「跳过」、放项目的文件夹提示）
 PLAN_DIR = "openspec/changes"                              # 方案草稿与原型：不是项目代码，扫描时静默跳过
 CHECKPOINTS_OFF = f"方案检查点未启用：安装 OpenSpec 并 openspec init 后再运行 {NAME} update"
 KEY_URL = "https://typesafe.ai/"                            # 判断用的 Jev key 在这里申请
@@ -126,6 +131,23 @@ def windows_ansi() -> bool:
     if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
         return False
     return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+
+
+def legacy_console() -> bool:
+    """Windows 旧控制台（cmd.exe 与其中的 PowerShell）：既没有 WT_SESSION（Windows Terminal）也没有 TERM_PROGRAM（VS Code 一类终端）。
+    它的字体按 GBK 取字形，缺半格块字符与 ✗，半格字符还按两格宽画。"""
+    return sys.platform == "win32" and not (os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM"))
+
+
+def fail(message: str) -> str:
+    """报错整句：开头加错误标记。旧控制台的字库里没有 ✗，改用 GBK 里有的 ×。"""
+    mark = "×" if legacy_console() else "✗"
+    return f"{mark} {message}"
+
+
+def skill_hint_lines(tools: list[str]) -> list[str]:
+    """跟在「运行 /rulemason」之后的补充：只有接入了 OpenCode 才说它那边的叫法。"""
+    return [OPENCODE_SKILL_HINT] if "opencode" in tools else []
 
 
 def paint(text: str, code: str | None, color: bool | None = None) -> str:
@@ -283,13 +305,13 @@ class Scan(NamedTuple):
 def boundary_reason(path: Path) -> str | None:
     """子目录不属于本项目的原因；属于本项目返回 None。"""
     if path.name in VENDOR_DIRS:
-        return "第三方目录"
+        return THIRD_PARTY
     if path.name == "vendor" and any((path / marker).is_file() for marker in VENDOR_MARKERS):
-        return "第三方目录"
+        return THIRD_PARTY
     if (path / ".git").exists():
-        return "另一个仓库"
+        return OTHER_REPO
     if has_manifest(path):
-        return "另一个 rulemason 项目"
+        return OTHER_PROJECT
     return None
 
 
@@ -331,6 +353,34 @@ def ignored_dirs(root: Path) -> set[str]:
 def list_files(root: Path) -> list[str]:
     """属于本项目的文件（相对路径）。"""
     return scan(root).files
+
+
+def shown_list(items: list[str]) -> str:
+    """用「、」连起来；多于 SHOWN_DIRS 个只列前面的并写总数；没有返回空串。"""
+    shown = "、".join(items[:SHOWN_DIRS])
+    if len(items) > SHOWN_DIRS:
+        return f"{shown} 等共 {len(items)} 个"
+    return shown
+
+
+def has_python(files: list[str]) -> bool:
+    return any(f.endswith(".py") for f in files)
+
+
+def languages(files: list[str]) -> list[str]:
+    """识别出的语言：Python 看 .py 文件，JS/TS 看 package.json；都没有返回空列表。"""
+    names = {Path(f).name for f in files}
+    return [lang for lang, ok in (("Python", has_python(files)), ("JS/TS", "package.json" in names)) if ok]
+
+
+def folder_hint(scanned: Scan) -> str | None:
+    """项目根像放项目的文件夹时给 init 与 check 的提示；不像时返回 None。
+    判断只看两条：识别不出语言，且有子目录是另一个仓库或另一个 rulemason 项目。"""
+    projects = [d for d, reason in scanned.skipped if reason in (OTHER_REPO, OTHER_PROJECT)]
+    if languages(scanned.files) or not projects:
+        return None
+    return (f"这里有独立项目 {shown_list(projects)}；如果这里只是放项目的文件夹，建议到各项目里分别运行 {NAME} init；"
+            "同时改几个项目时，在主要改的项目里打开 AI 工具，再挂上相关项目（如 --add-dir）")
 
 
 def ignored_files(root: Path, rels: list[str]) -> list[str]:
