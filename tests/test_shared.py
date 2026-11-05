@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import commit, git_init, write
+from conftest import commit, git_init, project_folder, write
 
 from rulemason import __version__, shared
 
@@ -285,3 +285,31 @@ def test_legacy_console_and_fail_prefix(monkeypatch, platform, env, legacy):
 def test_skill_hint_only_for_opencode():
     assert shared.skill_hint_lines(["opencode", "claude"]) == [shared.OPENCODE_SKILL_HINT]
     assert shared.skill_hint_lines(["claude", "cursor"]) == []
+
+
+# ---------- 放项目的文件夹（multi-project-folder） ----------
+
+def test_folder_hint_names_sub_repos_and_sub_projects(tmp_path):
+    project_folder(tmp_path)                                         # 文件夹里的说明文件不影响判断
+    hint = shared.folder_hint(shared.scan(tmp_path))
+    assert hint is not None
+    assert hint.startswith("这里有独立项目 b、c；")
+    assert "rulemason init" in hint
+
+
+@pytest.mark.parametrize(("own_file", "sub_file"), [
+    ("main.py", "libs/x/.git/HEAD"),           # 有 Python 代码的项目带子仓库
+    ("package.json", "libs/x/.git/HEAD"),      # 有 JS/TS 的项目带子仓库
+    ("README.md", "third_party/lib/a.c"),      # 没有语言，但子目录只是第三方代码
+])
+def test_folder_hint_absent_for_projects_and_vendor_only(tmp_path, own_file, sub_file):
+    write(tmp_path, own_file, "x\n")
+    write(tmp_path, sub_file, "x\n")
+    assert shared.folder_hint(shared.scan(tmp_path)) is None
+
+
+def test_folder_hint_truncates_long_project_lists(tmp_path):
+    for i in range(12):
+        write(tmp_path, f"repo-{i:02d}/.git/HEAD", "ref\n")
+    hint = shared.folder_hint(shared.scan(tmp_path))
+    assert hint.startswith("这里有独立项目 repo-00、") and "repo-09 等共 12 个；" in hint and "repo-10" not in hint

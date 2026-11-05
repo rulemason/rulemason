@@ -44,6 +44,17 @@ rulemason init --tools claude,codex --yes   # 非交互：不提问
 
 写完只给三行：`check` 的结论、需要你处理的事、下一步。AGENTS.md 的项目简介从 README 第一段预填，红线先写「暂无」；然后在 AI 工具里运行 `/rulemason`，核对简介、确认红线（注明出处并逐条确认）与命令表。判断条件满足而本机没有 key 时，init 结尾会问一句要不要配置（key 在 https://typesafe.ai/ 申请）。
 
+## 多个项目放在同一个文件夹
+
+一个文件夹下放着几个项目（例如 `products/` 下的 `app/`、`api/`，各自是 git 仓库）时，到每个项目里分别运行 `rulemason init`，文件夹本身不接入：文件夹没有代码，命令表会写成「无，跳过」，AI 在文件夹里打开时可能照它跳过各项目的 lint 与测试。在这样的文件夹里运行 `init` 或 `check`，会多一行提示。
+
+一次要同时改几个项目时，在主要改的项目里打开 AI 工具，再把相关项目挂进来；检查点按被改文件所属的项目各跑一遍。Claude Code 挂上的目录默认不读它的 `CLAUDE.md`，要设环境变量：
+
+```bash
+cd products/app
+CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 claude --add-dir ../api
+```
+
 ## 日常
 
 日常开发走 OpenSpec，检查点由 AI 自动运行，不用记命令：

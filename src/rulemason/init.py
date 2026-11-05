@@ -34,17 +34,18 @@ from rulemason.shared import (
     copy_record,
     dirty_files,
     dump_json,
+    folder_hint,
     generated_files,
     has_git,
     has_openspec,
     ignored_files,
     is_source_repo,
-    list_files,
     manifest_text,
     normalize_tools,
     paint,
     read_manifest,
     repo_root_hint,
+    scan,
     sha256_file,
     skill_dirs,
     skill_hint_lines,
@@ -711,7 +712,8 @@ def plan_fill(root: Path, files: list[str], tools: list[str], copies: list[str],
 
 
 def build_plan(root: Path, manifest: dict | None, tools: list[str]) -> Plan:
-    files = list_files(root)
+    scanned = scan(root)
+    files = scanned.files
     plan = Plan()
     record = (manifest or {}).get("files") or {}
     new_record = plan_copies(root, tools, check.copied_rules(root, files), record, plan)
@@ -720,6 +722,9 @@ def build_plan(root: Path, manifest: dict | None, tools: list[str]) -> Plan:
     plan_fill(root, files, tools, list(new_record), plan)
     plan_command_table(root, files, plan)
     plan_manifest(root, manifest, tools, new_record, plan)
+    hint = folder_hint(scanned)
+    if hint:
+        plan.tips.append(hint)
     return plan
 
 

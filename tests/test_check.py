@@ -11,6 +11,7 @@ from conftest import (
     drop_operations,
     git,
     git_init,
+    project_folder,
     run_cli,
     write,
     write_manifest,
@@ -374,7 +375,24 @@ def test_workspace_sub_repos_and_vendor_code_are_skipped(tmp_path):
     assert after.layers["接入 lint 继承"] == [] and check.exit_code(after) == check.exit_code(before)
     assert dict(after.facts)["跳过"] == "app-a（另一个仓库）、app-b（另一个仓库）、app-c（另一个仓库）、static/bower_components（第三方目录）"
     assert dict(after.facts)["项目根"] == str(ws)
+    assert "提示" not in dict(after.facts)                   # 根目录有代码：不是放项目的文件夹
     assert stage.stage != "接入"
+
+
+def test_project_folder_gets_hint_without_changing_result(tmp_path):
+    folder, alone = tmp_path / "A", tmp_path / "A-alone"
+    project_folder(folder)
+    write(alone, "README.md", "# 产品目录\n")
+    for root in (folder, alone):
+        assert init.run(root, "claude", True) == 0
+    assert init.run(folder / "b", "claude", True) == 0             # b 也接入：仍按另一个仓库提示
+
+    text, code = check.run(folder)
+    alone_text, alone_code = check.run(alone)
+    assert "- 提示：这里有独立项目 b、c；" in text and "提示：" not in alone_text.replace("- 提示：没有 git", "")
+    assert code == alone_code and text.splitlines()[0] == alone_text.splitlines()[0]
+    facts = json.loads(check.run(folder, as_json=True)[0])["facts"]
+    assert facts["提示"].startswith("这里有独立项目 b、c；")
 
 
 def test_skipped_label_truncates_after_ten():
