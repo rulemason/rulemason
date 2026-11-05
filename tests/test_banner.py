@@ -45,11 +45,14 @@ def test_icon_is_ten_rows_within_26_cols():
     assert not set("".join(icon)) - (LOGO_CHARS | {" "})
 
 
-def test_icon_colors_horse_sky_and_rabbit_white():
+def test_icon_colors_horse_sky_and_rabbit_pink():
     lines = _render().splitlines()[:ICON_ROWS]
     icon = "\n".join(lines)
     assert f"\033[{banner.SKY}m█" in icon                                   # 马身与字标同色
-    assert "\033[38;5;231m█" in icon                                       # 兔身白
+    colors = set(re.findall(r"[34]8;5;(\d+)", icon))
+    assert "\033[38;5;211m█" in icon                                       # 兔身樱粉
+    assert "168" in colors                                                 # 兔的阴影深一档
+    assert "231" not in colors                                             # 白色在浅底终端上看不见
     assert f"48;5;{banner.SKY_NUM}" in icon                                 # 兔的阴影压在马身上：马做背景
     for line in lines:
         assert not set(re.sub(r"\033\[[\d;]+m.\033\[0m", "", line)) - {" "}     # 每个有像素的格子都带颜色
@@ -58,8 +61,8 @@ def test_icon_colors_horse_sky_and_rabbit_white():
 @pytest.mark.parametrize(("top", "bottom", "color", "expected"), [
     (None, None, True, " "),
     ("117", None, True, "\033[38;5;117m▀\033[0m"),
-    (None, "231", True, "\033[38;5;231m▄\033[0m"),
-    ("231", "231", True, "\033[38;5;231m█\033[0m"),
+    (None, "211", True, "\033[38;5;211m▄\033[0m"),
+    ("211", "211", True, "\033[38;5;211m█\033[0m"),
     ("74", "117", True, "\033[38;5;74;48;5;117m▀\033[0m"),                 # 两种颜色：上做前景、下做背景
     ("74", "117", False, "█"),                                             # 无颜色时两种颜色也不丢像素
     ("117", None, False, "▀"),
