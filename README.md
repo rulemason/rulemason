@@ -95,9 +95,11 @@ rulemason update --dry-run [--json]   # 只列升级与补齐计划，不写文�
 ## 升级
 
 ```bash
-uv tool upgrade rulemason
-rulemason update
+uv tool upgrade rulemason   # 升级本机安装的 rulemason：每台机器一次
+rulemason update            # 刷新项目里提交的副本与入口：每个项目一次，改动随项目提交
 ```
+
+分两步，是因为一台机器上可能有好几个项目，而项目里的副本要进版本库：只需一个人运行 `rulemason update` 并提交，其他人拉取后只升级本机即可，不用再运行 `update`。两步也可以写成一行：`uv tool upgrade rulemason && rulemason update`。
 
 `update` 直接刷新 rulemason 自己管的规则副本与入口；副本只保留本项目用得上的文件，升级到 0.8.4 之后第一次 `update` 会删掉用不到的（例如没有 React 的项目里的 `react.md`），项目后来加了语言也由它补上。你自己的文件（ruff、ESLint、`openspec/config.yaml` 等）缺了配置时，它先列出补齐计划，确认后才写，非交互环境里要加 `--yes`。之后在项目里跑一遍 lint 与测试再提交。
 
