@@ -28,6 +28,14 @@ def git_init(root: Path) -> None:
     git(root, "init", "-q", "-b", "main")
 
 
+def project_folder(root: Path) -> None:
+    """放项目的文件夹：自己只有说明文件，下面 b 是有 Python 代码的 git 仓库，c 是另一个 rulemason 项目。"""
+    write(root, "README.md", "# 产品目录\n")
+    git_init(root / "b")
+    write(root / "b", "main.py", "x = 1\n")
+    write(root, "c/.rulemason.yaml", "version: 1\ntools: []\n")
+
+
 def snapshot(root: Path) -> dict[str, str]:
     """项目里全部文件（不含 .git/）的内容，用来断言「没有任何改动」。"""
     return {p.relative_to(root).as_posix(): p.read_text(encoding="utf-8") for p in root.rglob("*") if p.is_file() and ".git" not in p.relative_to(root).parts}

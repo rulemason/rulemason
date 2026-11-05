@@ -27,11 +27,14 @@ from rulemason.shared import (
     copy_record,
     dirty_files,
     dump_json,
+    folder_hint,
     generated_files,
     has_git,
     has_openspec,
+    has_python,
     ignored_files,
     is_source_repo,
+    languages,
     outer_repo,
     parse_version,
     read_judgments,
@@ -40,6 +43,7 @@ from rulemason.shared import (
     scan,
     sha256_file,
     shared_root,
+    shown_list,
     skill_dirs,
     skill_hint_lines,
     template,
@@ -55,7 +59,6 @@ ESLINT_BASE = "lint/eslint-base.mjs"
 CHAIN_LIMIT = 10                                            # ruff 继承链最多走这么多层，再深按「过深」报告
 RERUN = f"改完运行：{NAME} update"
 ENGINE_BASE = Path(engine.__file__).parent / "base"      # 引擎自带的通用规则与通用词表
-SHOWN_SKIPPED = 10                                          # 识别表「跳过」一行最多列出的目录数
 MIN_ARCHIVED = 3                                            # 判断层至少要这么多已归档 change 作测试用例
 ARCHIVE_NAME = re.compile(r"^(\d{4}-\d{2}-\d{2})-")       # openspec archive 生成的归档目录名：日期前缀
 GATE_RECORDS = (                                           # 完成汇报里要写到的两项：(名称, 匹配)
@@ -203,10 +206,6 @@ def stale_blocks(root: Path, files: list[str], manifest: dict) -> list[tuple[str
     return out
 
 
-def has_python(files: list[str]) -> bool:
-    return any(f.endswith(".py") for f in files)
-
-
 def react_dirs(root: Path, files: list[str]) -> list[str]:
     return package_dirs(root, files, ("react",))
 
@@ -252,11 +251,8 @@ def tool_selection(root: Path) -> Selection:
 
 
 def skipped_label(skipped: list[tuple[str, str]]) -> str:
-    """「目录（原因）」，多于 SHOWN_SKIPPED 个只列前面的并写总数；没有写「—」。"""
-    shown = "、".join(f"{d}（{reason}）" for d, reason in skipped[:SHOWN_SKIPPED])
-    if len(skipped) > SHOWN_SKIPPED:
-        return f"{shown} 等共 {len(skipped)} 个"
-    return shown or "—"
+    """「目录（原因）」，多了只列前面的并写总数（见 shown_list）；没有写「—」。"""
+    return shown_list([f"{d}（{reason}）" for d, reason in skipped]) or "—"
 
 
 def archive_dirs(root: Path) -> list[Path]:
@@ -323,8 +319,7 @@ def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, entry_i
     # 1. 语言与包管理
     names = {Path(f).name for f in files}
     managers = [m for m, lock in LOCKFILES if lock in names]
-    langs = [lang for lang, ok in (("Python", has_python(files)), ("JS/TS", "package.json" in names)) if ok]
-    report.facts.append(("语言", "、".join(langs) or "未识别"))
+    report.facts.append(("语言", "、".join(languages(files)) or "未识别"))
     report.facts.append(("包管理", "、".join(managers) or "无锁文件"))
 
     # 2. 目录
@@ -333,6 +328,9 @@ def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, entry_i
     front = [f"{d}（React）" if d in react else d for d in frontend_dirs(root, files)]
     report.facts.append(("前端目录", "、".join(front) or "—"))
     report.facts.append(("跳过", skipped_label(scanned.skipped)))
+    hint = folder_hint(scanned)
+    if hint:
+        report.facts.append(("提示", hint))
 
     # 3. openspec、CI、工作区
     report.facts.append(("openspec", "有" if has_openspec(root) else f"无（{CHECKPOINTS_OFF}）"))

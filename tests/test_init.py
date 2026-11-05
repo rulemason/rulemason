@@ -9,7 +9,16 @@ import stat
 
 import pytest
 import yaml
-from conftest import REACT_PACKAGE, commit, git, git_init, run_cli, snapshot, write
+from conftest import (
+    REACT_PACKAGE,
+    commit,
+    git,
+    git_init,
+    project_folder,
+    run_cli,
+    snapshot,
+    write,
+)
 
 from rulemason import check, init, shared, update
 
@@ -1385,3 +1394,21 @@ def test_unreadable_chain_file_is_reported_by_init(project, capsys):
     assert _init(project) == 0
     assert "ruff.toml 继承的 bad.toml 读不出" in capsys.readouterr().out
     assert (project / "ruff.toml").read_text(encoding="utf-8") == 'extend = "bad.toml"\n'
+
+
+# ---------- 放项目的文件夹（multi-project-folder） ----------
+
+def test_plan_in_project_folder_hints_without_changing_writes(tmp_path, capsys):
+    folder, alone = tmp_path / "A", tmp_path / "A-alone"
+    project_folder(folder)
+    write(alone, "README.md", "# 产品目录\n")
+
+    assert init.run(folder, "claude", False, plan_only=True) == 0
+    out = capsys.readouterr().out
+    assert "这里有独立项目 b、c；" in out and "分别运行 rulemason init" in out
+
+    writes = []
+    for root in (folder, alone):
+        assert init.run(root, "claude", False, plan_only=True, as_json=True) == 0
+        writes.append(json.loads(capsys.readouterr().out)["writes"])
+    assert writes[0] == writes[1]                                   # 提示不改变计划
