@@ -8,6 +8,7 @@ import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import date
 from functools import partial
 from pathlib import Path
 from string import Template
@@ -40,6 +41,7 @@ from rulemason.shared import (
     has_openspec,
     ignored_files,
     is_source_repo,
+    joined_date,
     manifest_text,
     normalize_tools,
     paint,
@@ -210,7 +212,10 @@ def plan_copies(root: Path, tools: list[str], rules: list[str], record: dict[str
 
 
 def plan_manifest(root: Path, current: dict | None, tools: list[str], files: dict[str, str], plan: Plan) -> None:
-    text = manifest_text(current, tools, files)
+    """清单写入计划；init 与 update 共用。接入日期已有就保留，老清单补 git 里第一次加入的日期，新接入取当天。"""
+    joined = joined_date(root, current) if current is not None else None    # 新接入不看 git：以前删掉过的清单不算
+    joined = joined or date.today().isoformat()
+    text = manifest_text(current, tools, files, joined)
     path = root / MANIFEST
     if not path.is_file() or path.read_text(encoding="utf-8") != text:
         plan.writes[MANIFEST] = text

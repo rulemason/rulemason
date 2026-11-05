@@ -45,6 +45,15 @@ def write_manifest(root: Path, manifest: dict) -> None:
     write(root, ".rulemason.yaml", yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False))
 
 
+def set_joined(root: Path, joined: str | None) -> None:
+    """改清单里的接入日期；None 表示去掉这个键，伪造成加 joined 之前接入的老清单。"""
+    manifest = yaml.safe_load((root / ".rulemason.yaml").read_text(encoding="utf-8"))
+    manifest.pop("joined", None)
+    if joined:
+        manifest["joined"] = joined
+    write_manifest(root, manifest)
+
+
 def commit(root: Path, subject: str = "x") -> None:
     git(root, "add", "-A")
     git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", subject)

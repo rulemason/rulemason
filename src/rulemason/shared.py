@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from datetime import date
 from functools import cache
 from pathlib import Path
 from string import Template
@@ -23,6 +24,7 @@ NAME = "rulemason"                                          # 命令、skill、�
 MANIFEST = f".{NAME}.yaml"
 COPY_DIR = f".{NAME}"                                       # 项目内只读副本目录
 SCHEMA_VERSION = 1
+JOINED = "joined"                                           # 清单里的接入日期键：巡检只看这天之后归档的 change
 TOOL_IDS = ("opencode", "claude", "cursor", "codex")
 TOOL_LABELS = {"opencode": "OpenCode", "claude": "Claude Code", "cursor": "Cursor", "codex": "Codex"}
 AGENTS_SKILL_TOOLS = ("opencode", "cursor", "codex")         # 这三个工具都从 .agents/skills 发现 skill
@@ -246,10 +248,16 @@ def read_manifest(root: Path) -> dict | None:
         return None
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+    except (OSError, ValueError, yaml.YAMLError) as exc:     # ValueError 含编码错误，以及不加引号的日期月日不存在
         raise ManifestError(f"无法读取 {MANIFEST}：{exc}") from exc
     if not isinstance(data, dict):
         raise ManifestError(f"{MANIFEST} 必须是 YAML 对象")
+    check_manifest_fields(data)
+    return data
+
+
+def check_manifest_fields(data: dict) -> None:
+    """清单各键的外形；不对抛 ManifestError。接入日期就地统一成字符串。"""
     if data.get("version") != SCHEMA_VERSION:
         raise ManifestError(f"不支持的 {MANIFEST} version：{data.get('version')}")
     tools = data.get("tools")
@@ -262,14 +270,35 @@ def read_manifest(root: Path) -> dict | None:
         raise ManifestError(f"{MANIFEST} 的 {NAME} 版本格式无效：{data[NAME]}")
     if not isinstance(data.get("files", {}), dict):
         raise ManifestError(f"{MANIFEST} 的 files 必须是对象")
-    return data
+    if JOINED in data:
+        data[JOINED] = joined_text(data[JOINED])
 
 
-def manifest_text(current: dict | None, tools: list[str], files: dict[str, str]) -> str:
-    """新的 .rulemason.yaml 内容：只更新 rulemason 拥有的键，保留用户自加的键与顺序。"""
-    data = dict(current or {})
-    data["version"] = SCHEMA_VERSION
-    data[NAME] = __version__
+def joined_text(value: object) -> str:
+    """接入日期统一成 YYYY-MM-DD 字符串：用户手改去掉引号时 YAML 会读成 date。格式不对抛 ManifestError。"""
+    text = str(value)
+    error = ManifestError(f"{MANIFEST} 的 {JOINED} 格式无效（应为 YYYY-MM-DD）：{value}")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        raise error
+    try:
+        date.fromisoformat(text)
+    except ValueError as exc:                                # 形如日期、但月日不存在（如 2026-13-40）
+        raise error from exc
+    return text
+
+
+def joined_date(root: Path, manifest: dict | None) -> str | None:
+    """接入日期：清单有就用；没有就取 git 里第一次加入清单的提交日期；都没有返回 None。"""
+    if manifest and JOINED in manifest:
+        return manifest[JOINED]
+    added = git(root, "log", "--diff-filter=A", "--format=%cs", "--", MANIFEST).split()
+    return added[-1] if added else None                      # git log 新的在前，最后一行是第一次加入
+
+
+def manifest_text(current: dict | None, tools: list[str], files: dict[str, str], joined: str) -> str:
+    """新的 .rulemason.yaml 内容：只更新 rulemason 拥有的键，保留用户自加的键与顺序；接入日期新加时排在版本号之后。"""
+    data = {"version": SCHEMA_VERSION, NAME: __version__, JOINED: joined}
+    data |= {key: value for key, value in (current or {}).items() if key not in data}
     data["tools"] = normalize_tools(tools)
     data["files"] = dict(sorted(files.items()))
     return yaml.safe_dump(data, allow_unicode=True, sort_keys=False)

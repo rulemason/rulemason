@@ -52,19 +52,22 @@ def test_manifest_round_trip_keeps_user_fields(tmp_path):
     write(tmp_path, ".rulemason.yaml", "version: 1\ntools: [codex]\nowner-note: keep\n")
     current = shared.read_manifest(tmp_path)
 
-    text = shared.manifest_text(current, ["codex", "claude", "codex"], {"b": "2", "a": "1"})
+    text = shared.manifest_text(current, ["codex", "claude", "codex"], {"b": "2", "a": "1"}, "2026-11-05")
     shared.write_text(tmp_path / ".rulemason.yaml", text)
     data = shared.read_manifest(tmp_path)
 
-    assert data == {"version": 1, "tools": ["claude", "codex"], "owner-note": "keep", "rulemason": __version__, "files": {"a": "1", "b": "2"}}
-    assert shared.manifest_text(data, ["claude", "codex"], {"a": "1", "b": "2"}) == text
+    assert data == {"version": 1, "tools": ["claude", "codex"], "owner-note": "keep", "rulemason": __version__, "joined": "2026-11-05", "files": {"a": "1", "b": "2"}}
+    assert list(data)[:3] == ["version", "rulemason", "joined"]         # 接入日期紧跟版本号
+    assert shared.manifest_text(data, ["claude", "codex"], {"a": "1", "b": "2"}, "2026-11-05") == text
 
 
 def test_manifest_missing_returns_none(tmp_path):
     assert shared.read_manifest(tmp_path) is None
 
 
-@pytest.mark.parametrize("text", ["tools: [codex]\n", "version: 2\ntools: []\n", "version: 1\ntools: [vim]\n", "- a\n"])
+@pytest.mark.parametrize("text", ["tools: [codex]\n", "version: 2\ntools: []\n", "version: 1\ntools: [vim]\n", "- a\n",
+                                  "version: 1\ntools: []\njoined: 上周\n", "version: 1\ntools: []\njoined: '2026-13-40'\n",
+                                  "version: 1\ntools: []\njoined: '20261105'\n", "version: 1\ntools: []\njoined: 2026-13-40\n"])
 def test_invalid_manifest_raises(tmp_path, text):
     write(tmp_path, ".rulemason.yaml", text)
 
@@ -313,3 +316,27 @@ def test_folder_hint_truncates_long_project_lists(tmp_path):
         write(tmp_path, f"repo-{i:02d}/.git/HEAD", "ref\n")
     hint = shared.folder_hint(shared.scan(tmp_path))
     assert hint.startswith("这里有独立项目 repo-00、") and "repo-09 等共 12 个；" in hint and "repo-10" not in hint
+
+
+# ---------- 接入日期（joined-date-spec-lint-audits） ----------
+
+def test_joined_accepts_unquoted_yaml_date(tmp_path):
+    write(tmp_path, ".rulemason.yaml", "version: 1\ntools: []\njoined: 2026-11-02\n")       # 不加引号时 YAML 读成 date
+    assert shared.read_manifest(tmp_path)["joined"] == "2026-11-02"
+
+
+def test_joined_date_prefers_manifest_then_git(tmp_path, monkeypatch):
+    git_init(tmp_path)
+    write(tmp_path, ".rulemason.yaml", "version: 1\ntools: []\n")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-11-02T10:00:00")
+    commit(tmp_path, "join")
+    write(tmp_path, ".rulemason.yaml", "version: 1\ntools: [claude]\n")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-11-04T10:00:00")
+    commit(tmp_path, "later")
+    assert shared.joined_date(tmp_path, {"joined": "2026-10-30"}) == "2026-10-30"
+    assert shared.joined_date(tmp_path, {}) == "2026-11-02"                   # 第一次加入那条提交，不是后来的修改
+
+
+def test_joined_date_without_git_is_none(tmp_path):
+    write(tmp_path, ".rulemason.yaml", "version: 1\ntools: []\n")
+    assert shared.joined_date(tmp_path, {}) is None

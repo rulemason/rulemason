@@ -13,6 +13,7 @@ from conftest import (
     git_init,
     project_folder,
     run_cli,
+    set_joined,
     write,
     write_manifest,
 )
@@ -48,7 +49,8 @@ def _install(root, tools: list[str], version: str = __version__) -> None:
     files = shared.generated_files(tools, check.copied_rules(root, shared.list_files(root)))
     for rel, text in files.items():
         write(root, rel, text)
-    manifest = yaml.safe_load(shared.manifest_text(None, tools, {rel: shared.sha256_text(t) for rel, t in files.items()}))
+    files_record = {rel: shared.sha256_text(t) for rel, t in files.items()}
+    manifest = yaml.safe_load(shared.manifest_text(None, tools, files_record, "2026-01-01"))    # 早于测试里所有归档
     manifest["rulemason"] = version
     write_manifest(root, manifest)
 
@@ -806,12 +808,136 @@ def test_same_day_archives_are_all_checked(joined):
     _archived_change(joined, "2026-11-03-a", "审查 pass；测试 pass\n")
     _archived_change(joined, "2026-11-03-b", None)
     _archived_change(joined, "misplaced", None)                        # 不是 openspec 生成的目录名，忽略
-    assert check.gate_records(joined) == ["2026-11-03-b：没有 verification.md"]
+    assert check.gate_records(check.dated_archives(joined, None)) == ["2026-11-03-b：没有 verification.md"]
 
 
 def test_no_archive_means_no_gate_findings(tmp_path):
-    assert check.gate_records(tmp_path) == []
+    assert check.gate_records(check.dated_archives(tmp_path, None)) == []
 
+
+def test_no_archive_after_joined_says_so(joined):
+    set_joined(joined, "2026-11-04")
+    _archived_change(joined, "2026-11-03-before", None)                    # 接入前的归档，没有汇报
+    report, nxt = check.collect(joined)
+    text = check.render(joined, report, nxt)
+    assert _finding(report, "最近归档的检查点记录") == []
+    assert "- 最近归档的检查点记录：接入后尚未归档，无记录可查" in text
+    assert check.exit_code(report) == 0 and nxt.line == "日常巡检：一切一致"
+    data = json.loads(check.run(joined, as_json=True)[0])
+    assert data["findings"]["最近归档的检查点记录"] == [] and data["facts"]["接入日期"] == "2026-11-04"
+
+
+def test_archive_on_joined_day_counts_as_before(joined):
+    set_joined(joined, "2026-11-04")
+    _archived_change(joined, "2026-11-04-x", None)
+    _archived_change(joined, "2026-11-06-y", "独立审查两轮；测试 12 项通过\n")
+    report, nxt = check.collect(joined)
+    assert _finding(report, "最近归档的检查点记录") == []
+    assert "接入后尚未归档" not in check.render(joined, report, nxt)
+
+
+def test_joined_fact_inferred_from_git(bare, monkeypatch):
+    _install(bare, [])
+    set_joined(bare, None)                                                    # 加 joined 之前接入的老清单
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-11-02T10:00:00")
+    commit(bare, "接入")
+    report, _ = check.collect(bare)
+    assert dict(report.facts)["接入日期"] == "2026-11-02（推算）"
+
+
+def test_broken_joined_is_reported_as_invalid_manifest(joined):
+    set_joined(joined, "上周")
+    report, nxt = check.collect(joined)
+    assert nxt.code == "fix_manifest"
+    assert "joined 格式无效" in check.render(joined, report, nxt)
+
+
+def test_without_joined_or_git_archives_are_not_filtered(tmp_path):
+    root = tmp_path / "proj"
+    _install(root, [])                                                       # 没有 git，推算不出接入日期
+    set_joined(root, None)
+    _archived_change(root, "2026-10-01-old", None)
+    report, nxt = check.collect(root)
+    assert dict(report.facts)["接入日期"] == "—"
+    assert _finding(report, "最近归档的检查点记录") == ["2026-10-01-old：没有 verification.md"]
+
+
+def test_undated_archive_dirs_do_not_trigger_note(joined):
+    set_joined(joined, "2026-11-04")
+    _archived_change(joined, "misplaced", None)                               # 不是 openspec 生成的目录名
+    report, nxt = check.collect(joined)
+    assert "- 最近归档的检查点记录：一致" in check.render(joined, report, nxt)
+
+
+def test_joined_fact_without_manifest(bare):
+    report, _ = check.collect(bare)
+    assert dict(report.facts)["接入日期"] == "—"
+
+
+GOOD_PURPOSE = "规定订单退款的流程与约束：谁能发起、什么时候到账、失败了怎么告诉用户，这些对外可见的行为都以本规格为准。"
+GOOD_REQ = "### Requirement: 退款\n\n用户 SHALL 能对已付款订单发起退款。\n\n#### Scenario: 发起\n- **WHEN** 用户点退款\n- **THEN** 订单进入退款中\n"
+
+
+def _spec(purpose: str = GOOD_PURPOSE, heading: str = "## Requirements", reqs: str = GOOD_REQ) -> str:
+    return f"# order Specification\n\n## Purpose\n{purpose}\n\n{heading}\n\n{reqs}"
+
+
+@pytest.mark.parametrize(("text", "problem"), [
+    ("# order Specification\n\n## Requirements\n\n" + GOOD_REQ, "缺 Purpose"),
+    (_spec(purpose="TBD - created by archiving change add-refund. Update Purpose after archive."), "Purpose 是占位"),
+    (_spec(purpose="订单退款。"), "Purpose 不足 50 字"),
+    (_spec(heading="## ADDED Requirements"), "用了增量格式标题"),          # 同时也没有 ## Requirements，见下一条断言
+    (_spec(reqs="### Requirement: 长\n\n" + "长" * 501 + "\n\n#### Scenario: s\n- **WHEN** a\n- **THEN** b\n"), "requirement 正文超过 500 字"),
+    (_spec(reqs="### Requirement: 没场景\n\n用户 SHALL 能退款。\n"), "requirement 没有场景"),
+])
+def test_spec_writing_reports_each_problem(joined, text, problem):
+    write(joined, "openspec/specs/order-refund/spec.md", text)
+    write(joined, "openspec/specs/billing/invoice/spec.md", _spec())
+    report, nxt = check.collect(joined)
+    assert f"{problem}：order-refund" in _finding(report, "主规格写法")
+    if problem == "用了增量格式标题":
+        assert "没有 ## Requirements 一节：order-refund" in _finding(report, "主规格写法")
+    assert check.exit_code(report) == 0 and nxt.line == "日常巡检：一切一致"
+
+
+def test_spec_writing_groups_capabilities_by_problem(joined):
+    for name in ("a", "b/c"):
+        write(joined, f"openspec/specs/{name}/spec.md", _spec(purpose="TBD"))
+    assert check.spec_writing(joined, shared.list_files(joined)) == ["Purpose 是占位：a、b/c"]
+
+
+def test_spec_writing_consistent_when_good_or_absent(joined, tmp_path):
+    write(joined, "openspec/specs/order-refund/spec.md", _spec())
+    assert check.spec_writing(joined, shared.list_files(joined)) == []
+    assert check.spec_writing(tmp_path, shared.list_files(tmp_path)) == []    # 没有 openspec/specs/
+
+
+
+def test_spec_writing_non_utf8_spec_is_config_error(joined):
+    (joined / "openspec/specs/order-refund").mkdir(parents=True)
+    (joined / "openspec/specs/order-refund/spec.md").write_bytes("## Purpose\n退款".encode("gbk"))
+    with pytest.raises(shared.ConfigError, match="order-refund/spec.md 不是 UTF-8 编码"):
+        check.collect(joined)
+
+@pytest.mark.parametrize(("script", "placeholder"), [
+    ('echo "lint placeholder"', True),
+    ("", True),
+    ("true", True),
+    ("exit 0", True),
+    (":", True),
+    ("eslint .", False),
+    ("turbo run lint", False),
+    ("echo a && eslint .", False),
+    ("echo a\neslint .", False),                                    # 换行后还有真的命令
+    ("echo $(eslint .)", False),
+])
+def test_lint_placeholder(joined, script, placeholder):
+    write(joined, "packages/ui/package.json", json.dumps({"name": "ui", "scripts": {"lint": script}}))
+    write(joined, "packages/other/package.json", json.dumps({"name": "other", "scripts": {"build": "tsc"}}))   # 没有 lint 脚本不报
+    report, nxt = check.collect(joined)
+    expected = [f"packages/ui/package.json：{script!r}"] if placeholder else []
+    assert _finding(report, "lint 脚本为占位") == expected
+    assert check.exit_code(report) == 0 and nxt.line == "日常巡检：一切一致"
 
 # ---------- lint 继承链与旧位置副本（lint-fix-guidance） ----------
 

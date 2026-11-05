@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import builtins
+import datetime
 import json
 import os
 import shutil
@@ -1412,3 +1413,33 @@ def test_plan_in_project_folder_hints_without_changing_writes(tmp_path, capsys):
         assert init.run(root, "claude", False, plan_only=True, as_json=True) == 0
         writes.append(json.loads(capsys.readouterr().out)["writes"])
     assert writes[0] == writes[1]                                   # 提示不改变计划
+
+
+# ---------- 接入日期（joined-date-spec-lint-audits） ----------
+
+def test_init_records_today_and_keeps_it_on_rerun(project, monkeypatch):
+    class Day(datetime.date):
+        now = (2026, 11, 5)
+
+        @classmethod
+        def today(cls):
+            return cls(*cls.now)
+    monkeypatch.setattr(init, "date", Day)
+    assert init.run(project, "claude", True) == 0
+    assert shared.read_manifest(project)["joined"] == "2026-11-05"
+    assert (project / ".rulemason.yaml").read_text(encoding="utf-8").splitlines()[2] == "joined: '2026-11-05'"
+
+    Day.now = (2026, 11, 9)                                                    # 几天后再运行
+    assert init.run(project, "claude,codex", True) == 0
+    assert shared.read_manifest(project)["joined"] == "2026-11-05"
+
+
+def test_init_ignores_old_deleted_manifest_in_git(project, monkeypatch):
+    write(project, ".rulemason.yaml", "version: 1\ntools: []\n")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-10-01T10:00:00")
+    commit(project, "很久以前接入过")
+    (project / ".rulemason.yaml").unlink()
+    commit(project, "卸载")
+    monkeypatch.delenv("GIT_COMMITTER_DATE")
+    assert init.run(project, "claude", True) == 0
+    assert shared.read_manifest(project)["joined"] == datetime.date.today().isoformat()   # 重新接入记当天，不取旧日期
