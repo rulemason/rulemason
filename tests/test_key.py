@@ -5,7 +5,7 @@ import stat
 
 import pytest
 
-from rulemason import key
+from rulemason import key, shared
 from rulemason.judge import judge
 
 
@@ -39,7 +39,15 @@ def test_non_interactive_refuses(env_file, monkeypatch, capsys):
     monkeypatch.setattr(key.sys.stdin, "isatty", lambda: False)
     assert key.run() == 1
     assert not env_file.exists()
-    assert "终端" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert out.startswith("✗ ") and "终端" in out
+
+
+def test_legacy_console_uses_cross_mark(env_file, monkeypatch, capsys):
+    monkeypatch.setattr(key.sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr(shared, "legacy_console", lambda: True)    # 哪些终端算旧控制台由 test_shared 测
+    assert key.run() == 1
+    assert capsys.readouterr().out.startswith("× 请在终端里运行")
 
 
 def test_empty_input_writes_nothing(env_file, monkeypatch):

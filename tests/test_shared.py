@@ -263,3 +263,25 @@ def test_ignored_files_handles_chinese_names_under_gbk(tmp_path, gbk_default):
     git_init(tmp_path)
     write(tmp_path, ".gitignore", "草稿/\n")
     assert shared.ignored_files(tmp_path, ["草稿/方案.md", "正文.md"]) == ["草稿/方案.md"]
+
+
+@pytest.mark.parametrize(("platform", "env", "legacy"), [
+    ("win32", {}, True),
+    ("win32", {"WT_SESSION": "1"}, False),
+    ("win32", {"TERM_PROGRAM": "vscode"}, False),
+    ("darwin", {}, False),
+])
+def test_legacy_console_and_fail_prefix(monkeypatch, platform, env, legacy):
+    """旧控制台字库里没有 ✗：只有 Windows 上既无 WT_SESSION 又无 TERM_PROGRAM 时改用 ×。"""
+    monkeypatch.setattr(shared.sys, "platform", platform)
+    monkeypatch.delenv("WT_SESSION", raising=False)
+    monkeypatch.delenv("TERM_PROGRAM", raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    assert shared.legacy_console() is legacy
+    assert shared.fail("出错了") == ("× 出错了" if legacy else "✗ 出错了")
+
+
+def test_skill_hint_only_for_opencode():
+    assert shared.skill_hint_lines(["opencode", "claude"]) == [shared.OPENCODE_SKILL_HINT]
+    assert shared.skill_hint_lines(["claude", "cursor"]) == []

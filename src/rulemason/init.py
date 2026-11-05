@@ -47,6 +47,7 @@ from rulemason.shared import (
     repo_root_hint,
     sha256_file,
     skill_dirs,
+    skill_hint_lines,
     template,
     write_text,
 )
@@ -57,6 +58,7 @@ OPENSPEC_HINT = f"检查点与方案写法需要 OpenSpec：安装后在项目�
 OPENSPEC_INSTALL = "npm install -g @fission-ai/openspec@latest"
 ROW_NAMES = ("判断", "ruff", "测试", "前端 lint", "文案检查")
 NEXT_STEP = f"下一步：在 AI 工具中运行 /{NAME}，补项目简介、红线并确认命令表。"
+TESTS_UNKNOWN = "待确认：填项目跑测试的命令"                  # 没有 uv.lock 的 Python 项目：测试环境猜不到，不写「跳过」以免检查点不跑测试
 TIPS_TITLE = "提示："
 
 
@@ -345,8 +347,11 @@ def plan_stale_copies(root: Path, record: dict[str, str], current: dict[str, str
 
 
 def detect_commands(root: Path, files: list[str]) -> dict[str, str]:
-    """按 design 决策 6 识别命令：uv 项目的 ruff 与 pytest，package.json scripts 的 lint 与 test。"""
+    """按 design 决策 6 识别命令：uv 项目的 ruff 与 pytest，没有 uv.lock 的 Python 项目用 uvx 跑 ruff、测试待确认，
+    package.json scripts 的 lint 与 test。"""
     ruff, tests, front = [], [], []
+    tests_unknown = False
+    py_dirs = {Path(f).parent for f in files if Path(f).name == "pyproject.toml"}
     for f in sorted(files):
         directory = Path(f).parent
         prefix = "" if str(directory) == "." else f"cd {directory} && "
@@ -354,6 +359,12 @@ def detect_commands(root: Path, files: list[str]) -> dict[str, str]:
             ruff.append(f"`{prefix}uv run ruff check .`")
             if (root / directory / "tests").is_dir():
                 tests.append(f"`{prefix}uv run pytest`")
+        elif Path(f).name == "pyproject.toml":
+            # 走到这里说明是没有 uv.lock 的 Python 项目：ruff 用 uvx 跑，不依赖项目环境；测试要在项目自己的环境里跑，猜不到，留给人确认
+            if py_dirs.intersection(directory.parents):
+                continue                                     # 上层已有 Python 项目（如 uv workspace 成员）：上层那条 ruff 已覆盖
+            ruff.append(f"`{prefix}uvx ruff check .`")
+            tests_unknown = True
         elif Path(f).name == "package.json":
             try:
                 scripts = json.loads((root / f).read_text(encoding="utf-8")).get("scripts") or {}
@@ -364,6 +375,7 @@ def detect_commands(root: Path, files: list[str]) -> dict[str, str]:
             tests += [f"`{prefix}{runner} run test`"] if "test" in scripts else []
     skip = "无，跳过"
     optional = "可选，未启用"
+    tests += [TESTS_UNKNOWN] if tests_unknown else []        # 与识别出的测试命令并列，混合仓库里 Python 测试也不被略过
     values = (optional, "；".join(ruff) or skip, "；".join(tests) or skip, "；".join(front) or skip, optional)
     return dict(zip(ROW_NAMES, values, strict=True))
 
@@ -735,11 +747,14 @@ def split_writes(root: Path, plan: Plan) -> tuple[list[str], list[str]]:
     return added, [rel for rel in plan.writes if rel not in added]
 
 
-def untouched_line(root: Path, plan: Plan) -> str:
+def untouched_lines(root: Path, plan: Plan) -> list[str]:
+    """计划里「不会碰」那一行；计划以外没有未提交改动时不写，免得出现「其余 0 个」。"""
     untouched = untouched_dirty(root, plan)
     if untouched is None:
-        return "不会碰：没有 git，无法统计未提交改动；计划以外的文件都不改"
-    return f"不会碰：其余 {untouched} 个未提交改动不变"
+        return ["不会碰：没有 git，无法统计未提交改动；计划以外的文件都不改"]
+    if not untouched:
+        return []
+    return [f"不会碰：其余 {untouched} 个未提交改动不变"]
 
 
 def render_plan(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE) -> str:
@@ -749,7 +764,7 @@ def render_plan(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE) -
         if items:
             lines.append(f"{title}：")
             lines += [f"  - {rel}" for rel in items]
-    lines.append(untouched_line(root, plan))
+    lines += untouched_lines(root, plan)
     lines += list_block("已跳过，需要你处理：", plan.notes)
     lines += list_block(TIPS_TITLE, plan.tips)
     return "\n".join(lines)
@@ -768,7 +783,7 @@ def _category(rel: str) -> str:
 
 
 def render_summary(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE) -> str:
-    """交互确认时看的摘要：新增按类别计数，修改与删除逐个列出，再写不会碰的改动数与需要处理的事。"""
+    """交互确认时看的摘要：新增按类别计数，修改与删除逐个列出，再写不会碰的改动数（有才写）与需要处理的事。"""
     added, changed = split_writes(root, plan)
     lines = [paint("## 文件计划", SKY_BOLD)]
     if added:
@@ -777,7 +792,7 @@ def render_summary(root: Path, plan: Plan, delete_title: str = INIT_DELETE_TITLE
     for title, items in (("修改", changed), (delete_title, plan.deletes), ("覆盖手改过的副本", plan.overwritten)):
         if items:
             lines.append(f"{title} {len(items)} 个：" + "、".join(paint(rel, DIM) for rel in items))
-    lines.append(untouched_line(root, plan))
+    lines += untouched_lines(root, plan)
     lines += list_block(paint(f"需要你处理 {len(plan.notes)} 项：", YELLOW), plan.notes)
     lines += list_block(TIPS_TITLE, plan.tips)
     return "\n".join(lines)
@@ -843,7 +858,7 @@ def show_plan(root: Path, plan: Plan, tools: list[str], as_json: bool) -> None:
     print(f"只列计划，未写任何文件。确认后运行 {NAME} init --tools {','.join(tools) or '<id,...>'} --yes")
 
 
-def report(root: Path, plan: Plan, with_openspec: bool) -> None:
+def report(root: Path, plan: Plan, with_openspec: bool, tools: list[str]) -> None:
     """写入之后的汇报：check 的结论一行、需要你处理的事、下一步；完整报告留给 rulemason check。"""
     try:
         text, _ = check.run(root)
@@ -858,6 +873,8 @@ def report(root: Path, plan: Plan, with_openspec: bool) -> None:
     if not with_openspec:
         print(OPENSPEC_HINT)
     print(NEXT_STEP)
+    for line in skill_hint_lines(tools):
+        print(line)
 
 
 MD_LINK = re.compile(r"\[[^\]]*\]\([^)]*\)")                  # Markdown 链接 [文字](网址)
@@ -955,7 +972,7 @@ def run(root: Path, tools_arg: str | None, yes: bool, plan_only: bool = False, a
         print_plan(root, plan)                                # 没有要改的文件：只打印提示与跳过项
 
     # 5. 汇报：结论、待办、下一步；交互时再引导配置 key
-    report(root, plan, with_openspec)
+    report(root, plan, with_openspec, tools)
     if not yes and interactive():
         guide_key(root)
     return 0

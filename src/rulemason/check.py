@@ -41,6 +41,7 @@ from rulemason.shared import (
     sha256_file,
     shared_root,
     skill_dirs,
+    skill_hint_lines,
     template,
 )
 
@@ -74,6 +75,7 @@ class Report:
     facts: list[tuple[str, str]] = field(default_factory=list)       # 识别表
     layers: dict[str, list[str]] = field(default_factory=dict)       # 层名 → 缺失项；空表示已装好
     findings: list[tuple[str, list[str]]] = field(default_factory=list)   # 巡检项 → 偏离；空表示一致
+    next_notes: list[str] = field(default_factory=list)              # 跟在第一行后的补充说明，不改变下一步
 
 
 @dataclass
@@ -1102,11 +1104,14 @@ def collect(root: Path) -> tuple[Report, Next]:
     identify(root, scanned, n, sel, entry_issues + sel.problems, report)
     layers(root, files, sel, entry_issues, behind, report)
     audit(root, files, sel, behind, report)
-    return report, next_stage(root, files, report, sel, behind)
+    nxt = next_stage(root, files, report, sel, behind)
+    if nxt.code == "fill_project_info":
+        report.next_notes += skill_hint_lines(sel.tools)
+    return report, nxt
 
 
 def render(root: Path, report: Report, nxt: Next) -> str:
-    lines = [nxt.line, "", f"# {NAME} 识别：{root.name}", "", "## 识别表"]
+    lines = [nxt.line, *report.next_notes, "", f"# {NAME} 识别：{root.name}", "", "## 识别表"]
     lines += [f"- {k}：{v}" for k, v in report.facts]
     if not has_git(root):
         lines.append("- 提示：没有 git，无法用 diff 查看改动，副本也无法通过仓库共享")

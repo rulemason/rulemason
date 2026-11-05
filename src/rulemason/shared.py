@@ -26,6 +26,7 @@ SCHEMA_VERSION = 1
 TOOL_IDS = ("opencode", "claude", "cursor", "codex")
 TOOL_LABELS = {"opencode": "OpenCode", "claude": "Claude Code", "cursor": "Cursor", "codex": "Codex"}
 AGENTS_SKILL_TOOLS = ("opencode", "cursor", "codex")         # 这三个工具都从 .agents/skills 发现 skill
+OPENCODE_SKILL_HINT = f"OpenCode 里 skill 不在 / 列表：对它说「用 {NAME} skill」"   # 跟在「运行 /rulemason」之后，init 与 check 共用
 COPIED_SHARED = (
     "rules/code-style.md",
     "rules/python.md",
@@ -126,6 +127,23 @@ def windows_ansi() -> bool:
     if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
         return False
     return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+
+
+def legacy_console() -> bool:
+    """Windows 旧控制台（cmd.exe 与其中的 PowerShell）：既没有 WT_SESSION（Windows Terminal）也没有 TERM_PROGRAM（VS Code 一类终端）。
+    它的字体按 GBK 取字形，缺半格块字符与 ✗，半格字符还按两格宽画。"""
+    return sys.platform == "win32" and not (os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM"))
+
+
+def fail(message: str) -> str:
+    """报错整句：开头加错误标记。旧控制台的字库里没有 ✗，改用 GBK 里有的 ×。"""
+    mark = "×" if legacy_console() else "✗"
+    return f"{mark} {message}"
+
+
+def skill_hint_lines(tools: list[str]) -> list[str]:
+    """跟在「运行 /rulemason」之后的补充：只有接入了 OpenCode 才说它那边的叫法。"""
+    return [OPENCODE_SKILL_HINT] if "opencode" in tools else []
 
 
 def paint(text: str, code: str | None, color: bool | None = None) -> str:
