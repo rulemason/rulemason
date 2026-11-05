@@ -11,6 +11,7 @@ from conftest import (
     git,
     git_init,
     run_cli,
+    set_joined,
     snapshot,
     write,
     write_manifest,
@@ -349,3 +350,28 @@ def test_update_in_subdirectory_of_unjoined_repo_names_repo_root(tmp_path, monke
     out = capsys.readouterr().out
     assert f"先运行 rulemason init（判断的项目根：{(repo / 'web').resolve()}）" in out
     assert f"当前目录在 git 仓库 {repo.resolve()} 里；要接入整个仓库，到仓库根运行，或运行 rulemason init {repo.resolve()}" in out
+
+
+# ---------- 接入日期（joined-date-spec-lint-audits） ----------
+
+def test_update_fills_joined_from_first_manifest_commit(tmp_path, monkeypatch):
+    root = tmp_path / "proj"
+    git_init(root)
+    write(root, "app/main.py", "x = 1\n")
+    assert init.run(root, "claude", True) == 0
+    set_joined(root, None)
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-11-02T10:00:00")
+    commit(root, "接入")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-11-04T10:00:00")
+    write(root, "app/other.py", "y = 1\n")
+    commit(root, "后来的提交")
+
+    assert update.run(root, yes=True) == 0
+    assert shared.read_manifest(root)["joined"] == "2026-11-02"
+
+
+def test_update_keeps_existing_joined(tmp_path):
+    root = _old_version_project(tmp_path)
+    set_joined(root, "2026-10-30")
+    update.run(root, yes=True)
+    assert shared.read_manifest(root)["joined"] == "2026-10-30"

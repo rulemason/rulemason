@@ -17,6 +17,7 @@ from rulemason.shared import (
     CHECKPOINTS_OFF,
     COPIED_SHARED,
     COPY_DIR,
+    JOINED,
     KEY_URL,
     MANIFEST,
     NAME,
@@ -34,6 +35,7 @@ from rulemason.shared import (
     has_python,
     ignored_files,
     is_source_repo,
+    joined_date,
     languages,
     outer_repo,
     parse_version,
@@ -59,6 +61,19 @@ ESLINT_BASE = "lint/eslint-base.mjs"
 CHAIN_LIMIT = 10                                            # ruff 继承链最多走这么多层，再深按「过深」报告
 RERUN = f"改完运行：{NAME} update"
 ENGINE_BASE = Path(engine.__file__).parent / "base"      # 引擎自带的通用规则与通用词表
+# 主规格写法的文本规则：数字取自 OpenSpec 严格校验（MIN_PURPOSE_LENGTH、MAX_REQUIREMENT_TEXT_LENGTH），不调 openspec
+SPEC_PURPOSE_MIN = 50
+SPEC_REQUIREMENT_MAX = 500
+NO_PURPOSE = "缺 Purpose"
+PLACEHOLDER_PURPOSE = "Purpose 是占位"
+SHORT_PURPOSE = f"Purpose 不足 {SPEC_PURPOSE_MIN} 字"
+DELTA_HEADINGS = "用了增量格式标题"
+NO_REQUIREMENTS = "没有 ## Requirements 一节"
+LONG_REQUIREMENT = f"requirement 正文超过 {SPEC_REQUIREMENT_MAX} 字"
+NO_SCENARIO = "requirement 没有场景"
+SPEC_PROBLEMS = (NO_PURPOSE, PLACEHOLDER_PURPOSE, SHORT_PURPOSE, DELTA_HEADINGS, NO_REQUIREMENTS, LONG_REQUIREMENT, NO_SCENARIO)   # 也是报告顺序
+LINT_PLACEHOLDER = re.compile(r"\s*(|true|:|exit\s+0|echo([ \t][^&;|\n`$]*)?)\s*")   # 只有一条什么都不查的命令
+DELTA_HEADING = re.compile(r"^## (ADDED|MODIFIED|REMOVED|RENAMED) Requirements\s*$", re.M)
 MIN_ARCHIVED = 3                                            # 判断层至少要这么多已归档 change 作测试用例
 ARCHIVE_NAME = re.compile(r"^(\d{4}-\d{2}-\d{2})-")       # openspec archive 生成的归档目录名：日期前缀
 GATE_RECORDS = (                                           # 完成汇报里要写到的两项：(名称, 匹配)
@@ -78,6 +93,7 @@ class Report:
     facts: list[tuple[str, str]] = field(default_factory=list)       # 识别表
     layers: dict[str, list[str]] = field(default_factory=dict)       # 层名 → 缺失项；空表示已装好
     findings: list[tuple[str, list[str]]] = field(default_factory=list)   # 巡检项 → 偏离；空表示一致
+    notes: dict[str, str] = field(default_factory=dict)              # 巡检项 → 没有偏离时代替「一致」的说明（只进文字版）
     next_notes: list[str] = field(default_factory=list)              # 跟在第一行后的补充说明，不改变下一步
 
 
@@ -210,16 +226,23 @@ def react_dirs(root: Path, files: list[str]) -> list[str]:
     return package_dirs(root, files, ("react",))
 
 
-def package_dirs(root: Path, files: list[str], names: tuple[str, ...]) -> list[str]:
-    """依赖里有 names 任一项的 package.json 所在目录（项目根记为「.」）；package.json 读不出来时抛 ConfigError。"""
-    dirs = []
+def package_jsons(root: Path, files: list[str]) -> list[tuple[str, object]]:
+    """项目里每个 package.json：(相对路径, 解析结果)；读不出来时抛 ConfigError。"""
+    found = []
     for f in files:
         if Path(f).name != "package.json":
             continue
         try:
-            data = json.loads(_read(root, f))
+            found.append((f, json.loads(_read(root, f))))
         except ValueError as exc:                                 # 含 JSONDecodeError 与 UnicodeDecodeError
             raise ConfigError(f"{f} 不是合法的 JSON（{exc}）") from exc
+    return found
+
+
+def package_dirs(root: Path, files: list[str], names: tuple[str, ...]) -> list[str]:
+    """依赖里有 names 任一项的 package.json 所在目录（项目根记为「.」）；package.json 读不出来时抛 ConfigError。"""
+    dirs = []
+    for f, data in package_jsons(root, files):
         sections = [data.get(key) for key in DEPENDENCY_KEYS] if isinstance(data, dict) else []
         if any(isinstance(d, dict) and any(name in d for name in names) for d in sections):
             dirs.append(str(Path(f).parent))
@@ -265,13 +288,18 @@ def archived(root: Path) -> int:
     return len(archive_dirs(root))
 
 
-def gate_records(root: Path) -> list[str]:
-    """日期最新的那一天归档的每个 change：没有 verification.md，或没写到审查、测试时各给一条。更早的归档不看。"""
+def dated_archives(root: Path, since: str | None) -> list[tuple[str, Path]]:
+    """(日期, 目录)：openspec 生成的归档里日期晚于 since 的；since 为 None 时不筛。接入当天的按接入前算，分不清先后。"""
     dated = []
     for p in archive_dirs(root):
         m = ARCHIVE_NAME.match(p.name)
-        if m:
+        if m and (since is None or m.group(1) > since):
             dated.append((m.group(1), p))
+    return dated
+
+
+def gate_records(dated: list[tuple[str, Path]]) -> list[str]:
+    """dated（见 dated_archives）里日期最新的那一天归档的每个 change：没有 verification.md，或没写到审查、测试时各给一条。"""
     if not dated:
         return []
     latest = max(day for day, _ in dated)
@@ -309,8 +337,8 @@ def ci_refs(root: Path, files: list[str]) -> list[tuple[str, str]]:
     return out
 
 
-def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, entry_issues: list[str], report: Report) -> None:
-    """识别表：项目根、语言与包管理、目录与跳过的目录、openspec、归档数、CI、未提交改动、工具与版本。"""
+def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, since: str | None, entry_issues: list[str], report: Report) -> None:
+    """识别表：项目根、语言与包管理、目录与跳过的目录、openspec、归档数与接入日期、CI、未提交改动、工具与版本。"""
     files = scanned.files
     report.facts.append(("项目根", str(root)))
     repo = outer_repo(root)
@@ -335,6 +363,13 @@ def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, entry_i
     # 3. openspec、CI、工作区
     report.facts.append(("openspec", "有" if has_openspec(root) else f"无（{CHECKPOINTS_OFF}）"))
     report.facts.append(("已归档 change", str(n_archived)))
+    if since is None:
+        joined = "—"
+    elif JOINED not in sel.manifest:                      # 走到这里说明有清单（since 只在有清单时算）
+        joined = f"{since}（推算）"                            # 清单还没记，按 git 推算
+    else:
+        joined = since
+    report.facts.append(("接入日期", joined))
     report.facts.append(("判断", judge_label(root, n_archived)))
     refs = ci_refs(root, files)
     if refs:
@@ -1021,7 +1056,56 @@ def lexicon_overlap(root: Path) -> list[str]:
     return [w for w in project if w in base]
 
 
-def audit(root: Path, files: list[str], sel: Selection, behind: list[str], report: Report) -> None:
+def spec_problems(text: str) -> list[str]:
+    """一份主规格读主规格判路时会「看不见」或不合严格校验的地方，取值见 SPEC_PROBLEMS。"""
+    found = []
+    purpose = (_section(text, "Purpose") or "").strip()
+    if not purpose:
+        found.append(NO_PURPOSE)
+    elif purpose.upper().startswith(("TBD", "TODO")):         # openspec archive 给新能力写的占位以 TBD 开头
+        found.append(PLACEHOLDER_PURPOSE)
+    elif len(purpose) < SPEC_PURPOSE_MIN:
+        found.append(SHORT_PURPOSE)
+    if DELTA_HEADING.search(text):
+        found.append(DELTA_HEADINGS)
+    if _section(text, "Requirements") is None:
+        found.append(NO_REQUIREMENTS)
+    for block in re.split(r"^### Requirement:.*$", text, flags=re.M)[1:]:
+        requirement = re.split(r"^##\s", block, flags=re.M)[0]          # 到下一个二级标题为止
+        body, *scenarios = re.split(r"^#### Scenario:", requirement, flags=re.M)
+        if len(body.strip()) > SPEC_REQUIREMENT_MAX:
+            found.append(LONG_REQUIREMENT)
+        if not scenarios:
+            found.append(NO_SCENARIO)
+    return found
+
+
+def spec_writing(root: Path, files: list[str]) -> list[str]:
+    """按问题类型分组：「问题：能力路径、…」；项目文件里没有主规格时为空。"""
+    by_problem: dict[str, list[str]] = {}
+    for f in sorted(f for f in files if f.startswith("openspec/specs/") and f.endswith("/spec.md")):
+        capability = f.removeprefix("openspec/specs/").removesuffix("/spec.md")
+        try:
+            text = _read(root, f)
+        except UnicodeDecodeError as exc:
+            raise ConfigError(f"{f} 不是 UTF-8 编码（{exc}）") from exc
+        for problem in dict.fromkeys(spec_problems(text)):
+            by_problem.setdefault(problem, []).append(capability)
+    return [f"{problem}：{shown_list(by_problem[problem])}" for problem in SPEC_PROBLEMS if problem in by_problem]
+
+
+def lint_placeholders(root: Path, files: list[str]) -> list[str]:
+    """scripts.lint 只是占位（空、true、:、exit 0、单条 echo）的 package.json：「路径：原文」。"""
+    found = []
+    for f, data in package_jsons(root, files):
+        scripts = data.get("scripts") if isinstance(data, dict) else None
+        script = scripts.get("lint") if isinstance(scripts, dict) else None
+        if isinstance(script, str) and LINT_PLACEHOLDER.fullmatch(script):
+            found.append(f"{f}：{script!r}")
+    return found
+
+
+def audit(root: Path, files: list[str], sel: Selection, behind: list[str], since: str | None, report: Report) -> None:
     report.findings.append((f"{NAME} 版本", version_findings(sel, behind)))
     report.findings.append(("产物写法与基础版的差异", artifact_rules_diff(root)))
     report.findings.append(("检查点提示与基础版的差异", operations_diff(root)))
@@ -1029,7 +1113,13 @@ def audit(root: Path, files: list[str], sel: Selection, behind: list[str], repor
     report.findings.append(("判断引擎副本", engine_copies(root, files)))
     report.findings.append(("与通用规则重复的项目规则", duplicate_rules(root)))
     report.findings.append(("项目词表中已在通用词表的词", lexicon_overlap(root)))
-    report.findings.append(("最近归档的检查点记录", gate_records(root)))
+    gates = "最近归档的检查点记录"
+    dated = dated_archives(root, since)
+    report.findings.append((gates, gate_records(dated)))
+    if since and not dated and dated_archives(root, None):
+        report.notes[gates] = "接入后尚未归档，无记录可查"            # 走到这里说明有归档，但都在接入当天或之前
+    report.findings.append(("主规格写法", spec_writing(root, files)))
+    report.findings.append(("lint 脚本为占位", lint_placeholders(root, files)))
 
 
 # ---------- 4. 下一步与退出码 ----------
@@ -1098,10 +1188,11 @@ def collect(root: Path) -> tuple[Report, Next]:
     sel = tool_selection(root)
     entry_issues = check_tool_entries(root, files, sel.tools)
     behind = copies_behind(root, files, sel)
+    since = joined_date(root, sel.manifest) if sel.manifest is not None else None
     report = Report()
-    identify(root, scanned, n, sel, entry_issues + sel.problems, report)
+    identify(root, scanned, n, sel, since, entry_issues + sel.problems, report)
     layers(root, files, sel, entry_issues, behind, report)
-    audit(root, files, sel, behind, report)
+    audit(root, files, sel, behind, since, report)
     nxt = next_stage(root, files, report, sel, behind)
     if nxt.code == "fill_project_info":
         report.next_notes += skill_hint_lines(sel.tools)
@@ -1119,7 +1210,7 @@ def render(root: Path, report: Report, nxt: Next) -> str:
         lines += [f"  - {m}" for m in missing]
     lines += ["", "## 巡检"]
     for name, items in report.findings:
-        lines.append(f"- {name}：{'一致' if not items else ''}")
+        lines.append(f"- {name}：{'' if items else report.notes.get(name, '一致')}")
         lines += [f"  - {i}" for i in items]
     return "\n".join(lines)
 
