@@ -1,6 +1,7 @@
 """启动画面：交互运行 init 或不带参数运行 rulemason 时，显示像素图标、字标、版本、口号与三件事。"""
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 
@@ -46,8 +47,8 @@ ICON = (
     "........tt.d.........t....",
     "..........t........tt.....",
 )
-# 像素字母到 256 色号：马身与字标同色，鬃尾深一档，蹄与眼暗灰，兔身白，兔的阴影浅灰；不在表里的字母不画
-ICON_COLORS = {"t": SKY_NUM, "b": "74", "d": "245", "w": "231", "g": "250"}
+# 像素字母到 256 色号：马身与字标同色，鬃尾深一档，蹄与眼暗灰，兔身樱粉（白色在浅底终端上看不见），兔的阴影深一档；不在表里的字母不画
+ICON_COLORS = {"t": SKY_NUM, "b": "74", "d": "245", "w": "211", "g": "168"}
 SLOGAN = "AI 写代码，也讲章法"
 THREE_THINGS = (
     ("读", "写之前，先读项目的规则"),
@@ -122,7 +123,11 @@ def interactive() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
-def _unicode_ok() -> bool:
+def _can_draw_blocks() -> bool:
+    """能画块字符：Windows 旧控制台（cmd.exe 与其中的 PowerShell）字体缺半格字形、又按两格宽画，只在 Windows Terminal
+    （WT_SESSION）或 VS Code 一类终端（TERM_PROGRAM）里画；其他平台只看标准输出编码能否写出块字符。"""
+    if sys.platform == "win32" and not (os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM")):
+        return False
     try:
         "█▀▄".encode(sys.stdout.encoding or "ascii")
     except UnicodeEncodeError:
@@ -134,4 +139,4 @@ def show(footer: tuple) -> None:
     """按当前终端的颜色、宽度与编码打印启动画面。"""
     color = color_enabled()
     width = shutil.get_terminal_size().columns
-    print("\n" + render(__version__, footer, width, color, _unicode_ok()) + "\n")     # 上下各留一行，和提示符隔开
+    print("\n" + render(__version__, footer, width, color, _can_draw_blocks()) + "\n")     # 上下各留一行，和提示符隔开

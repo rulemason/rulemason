@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import io
 import re
+from types import SimpleNamespace
 
 import pytest
 from conftest import run_cli
 
-from rulemason import banner, init
+from rulemason import banner, init, shared
 
 LOGO_CHARS = set("█▀▄")
 ICON_ROWS = 10                       # 20 行像素合成 10 行字符
@@ -44,11 +45,14 @@ def test_icon_is_ten_rows_within_26_cols():
     assert not set("".join(icon)) - (LOGO_CHARS | {" "})
 
 
-def test_icon_colors_horse_sky_and_rabbit_white():
+def test_icon_colors_horse_sky_and_rabbit_pink():
     lines = _render().splitlines()[:ICON_ROWS]
     icon = "\n".join(lines)
     assert f"\033[{banner.SKY}m█" in icon                                   # 马身与字标同色
-    assert "\033[38;5;231m█" in icon                                       # 兔身白
+    colors = set(re.findall(r"[34]8;5;(\d+)", icon))
+    assert "\033[38;5;211m█" in icon                                       # 兔身樱粉
+    assert "168" in colors                                                 # 兔的阴影深一档
+    assert "231" not in colors                                             # 白色在浅底终端上看不见
     assert f"48;5;{banner.SKY_NUM}" in icon                                 # 兔的阴影压在马身上：马做背景
     for line in lines:
         assert not set(re.sub(r"\033\[[\d;]+m.\033\[0m", "", line)) - {" "}     # 每个有像素的格子都带颜色
@@ -57,8 +61,8 @@ def test_icon_colors_horse_sky_and_rabbit_white():
 @pytest.mark.parametrize(("top", "bottom", "color", "expected"), [
     (None, None, True, " "),
     ("117", None, True, "\033[38;5;117m▀\033[0m"),
-    (None, "231", True, "\033[38;5;231m▄\033[0m"),
-    ("231", "231", True, "\033[38;5;231m█\033[0m"),
+    (None, "211", True, "\033[38;5;211m▄\033[0m"),
+    ("211", "211", True, "\033[38;5;211m█\033[0m"),
     ("74", "117", True, "\033[38;5;74;48;5;117m▀\033[0m"),                 # 两种颜色：上做前景、下做背景
     ("74", "117", False, "█"),                                             # 无颜色时两种颜色也不丢像素
     ("117", None, False, "▀"),
@@ -135,6 +139,90 @@ def test_show_draws_logo_in_wide_utf8_terminal(monkeypatch):
     monkeypatch.setenv("COLUMNS", "120")
     banner.show(banner.INIT_FOOTER)
     assert out.getvalue().startswith("\n" + banner._icon_lines(True)[0])     # 图标上方留一行空行
+
+
+@pytest.mark.parametrize("ansi_ok", [True, False])
+def test_windows_colors_only_when_console_parses_ansi(monkeypatch, ansi_ok):
+    out = _Tty(True)
+    monkeypatch.setattr(banner.sys, "stdout", out)
+    monkeypatch.setattr(shared.sys, "platform", "win32")
+    monkeypatch.setattr(shared, "windows_ansi", lambda: ansi_ok)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("COLUMNS", "120")
+    banner.show(banner.INIT_FOOTER)
+    assert ("\033[" in out.getvalue()) is ansi_ok                          # 旧版控制台打不开 ANSI：不出现 [38;5;…m
+    assert ("\033[" in shared.paint("x", "1")) is ansi_ok
+
+
+def test_windows_skips_console_api_when_not_a_terminal(monkeypatch):
+    monkeypatch.setattr(shared.sys, "stdout", _Tty(False))
+    monkeypatch.setattr(shared.sys, "platform", "win32")
+    monkeypatch.setattr(shared, "windows_ansi", lambda: pytest.fail("输出不是终端时不应调 Windows 控制台接口"))
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    assert shared.color_enabled() is False
+
+
+class _Kernel32:
+    """替身 Windows 控制台接口：console=False 表示标准输出不是控制台（GetConsoleMode 失败）。"""
+
+    def __init__(self, console: bool, settable: bool):
+        self.console, self.settable, self.modes, self.handles = console, settable, [], []
+
+        def get_std_handle(which):
+            self.handles.append(which)
+            return 7
+
+        self.GetStdHandle = get_std_handle                    # 普通函数而非方法：被测代码要给它设 restype
+
+    def GetConsoleMode(self, handle, ref):
+        ref._obj.value = 3
+        return self.console
+
+    def SetConsoleMode(self, handle, mode):
+        self.modes.append(mode)
+        return self.settable
+
+
+def _windll(monkeypatch, kernel32: _Kernel32) -> None:
+    import ctypes
+    monkeypatch.setattr(ctypes, "windll", SimpleNamespace(kernel32=kernel32), raising=False)
+
+
+@pytest.mark.parametrize(("console", "settable", "expected"), [(True, True, True), (True, False, False), (False, True, False)])
+def test_windows_ansi_turns_on_virtual_terminal(monkeypatch, console, settable, expected):
+    kernel32 = _Kernel32(console, settable)
+    _windll(monkeypatch, kernel32)
+    assert shared.windows_ansi.__wrapped__() is expected                 # 绕过缓存，每个参数各试一次
+    assert kernel32.modes == ([3 | 0x0004] if console else [])           # 在原有模式上加 ENABLE_VIRTUAL_TERMINAL_PROCESSING
+
+
+def test_windows_ansi_tries_only_once(monkeypatch):
+    kernel32 = _Kernel32(True, True)
+    _windll(monkeypatch, kernel32)
+    shared.windows_ansi.cache_clear()
+    try:
+        assert shared.windows_ansi() and shared.windows_ansi()
+    finally:
+        shared.windows_ansi.cache_clear()                                # 不把替身的结果留给其他用例
+    assert kernel32.handles == [-11]                                    # 第二次走缓存，没再调控制台接口
+
+
+@pytest.mark.parametrize(("env", "draws_logo"), [({}, False), ({"WT_SESSION": "1"}, True), ({"TERM_PROGRAM": "vscode"}, True)])
+def test_windows_draws_logo_only_in_modern_terminals(monkeypatch, env, draws_logo):
+    """Windows 旧控制台缺半格字形、按两格宽画：没有 WT_SESSION 或 TERM_PROGRAM 时只显示一行版本号。"""
+    out = _Tty(True)
+    monkeypatch.setattr(banner.sys, "stdout", out)
+    monkeypatch.setattr(banner.sys, "platform", "win32")
+    monkeypatch.delenv("WT_SESSION", raising=False)
+    monkeypatch.delenv("TERM_PROGRAM", raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setenv("COLUMNS", "120")
+    banner.show(banner.INIT_FOOTER)
+    text = out.getvalue()
+    assert bool(LOGO_CHARS & set(text)) is draws_logo
+    assert text.startswith("\nrulemason ") is not draws_logo
 
 
 # ---------- 3. init 与不带参数 ----------

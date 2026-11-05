@@ -879,3 +879,17 @@ def test_check_json_fields_unchanged_with_manual_lint(joined):
     data = json.loads(check.run(joined, as_json=True)[0])
     assert set(data) == {"schema", "root", "next", "facts", "layers", "findings", "exit_code", "text"}
     assert set(data["next"]) == {"stage", "code", "action"} and "\n" not in data["next"]["action"]
+
+
+# ---------- 项目根：未接入仓库的子目录（init-at-cwd） ----------
+
+def test_check_in_subdirectory_of_unjoined_repo_names_repo_root(tmp_path, monkeypatch, capsys):
+    repo = tmp_path / "repo"
+    git_init(repo)
+    write(repo, "web/main.py", "x = 1\n")
+    monkeypatch.chdir(repo / "web")
+    run_cli("check")
+    out = capsys.readouterr().out
+    assert f"项目根：{(repo / 'web').resolve()}\n" in out                 # 「项目根」的值保持纯路径
+    assert f"所在 git 仓库根：{repo.resolve()}\n" in out
+    assert out.startswith("接入：运行 rulemason init")

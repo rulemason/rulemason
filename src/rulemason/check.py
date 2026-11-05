@@ -33,6 +33,7 @@ from rulemason.shared import (
     has_openspec,
     ignored_files,
     is_source_repo,
+    outer_repo,
     parse_version,
     read_judgments,
     read_manifest,
@@ -315,6 +316,9 @@ def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, entry_i
     """识别表：项目根、语言与包管理、目录与跳过的目录、openspec、归档数、CI、未提交改动、工具与版本。"""
     files = scanned.files
     report.facts.append(("项目根", str(root)))
+    repo = outer_repo(root)
+    if repo:
+        report.facts.append(("所在 git 仓库根", str(repo)))   # 只在未接入、又在仓库子目录里时出现，「项目根」的值保持纯路径
     # 1. 语言与包管理
     names = {Path(f).name for f in files}
     managers = [m for m, lock in LOCKFILES if lock in names]

@@ -10,6 +10,7 @@ from conftest import (
     drop_operations,
     git,
     git_init,
+    run_cli,
     snapshot,
     write,
     write_manifest,
@@ -73,7 +74,9 @@ def test_update_lists_missing_blocks_as_pending_without_yes(tmp_path, monkeypatc
 
     assert (root / "AGENTS.md").read_text(encoding="utf-8") == "# 自写\n"
     out = capsys.readouterr().out
-    assert "补齐计划（你自己的文件）：AGENTS.md" in out and "待补齐：未写入" in out
+    assert "补齐计划（写进项目文件的 rulemason 基础配置，升级时与副本一起提交）：AGENTS.md" in out
+    assert "待补齐：未写入；终端里重新运行 rulemason update 并答 y，非交互环境加 --yes" in out
+    assert "你自己的文件" not in out
 
 
 def _joined_before_python(tmp_path):
@@ -167,7 +170,7 @@ def test_update_removes_old_template_copies(tmp_path, capsys):
 
 
 @pytest.mark.parametrize("answer", ["y", "n"])
-def test_update_asks_before_filling_when_interactive(tmp_path, monkeypatch, answer):
+def test_update_asks_before_filling_when_interactive(tmp_path, monkeypatch, answer, capsys):
     root = _old_version_project(tmp_path)
     write(root, "AGENTS.md", "# 自写\n")
     monkeypatch.setattr(update, "interactive", lambda: True)
@@ -175,6 +178,8 @@ def test_update_asks_before_filling_when_interactive(tmp_path, monkeypatch, answ
     assert update.run(root) == 0
     filled = "<!-- rulemason:code-style -->" in (root / "AGENTS.md").read_text(encoding="utf-8")
     assert filled == (answer == "y")
+    reminded = "已补齐。这些文件属于这次升级，请与副本、.rulemason.yaml 一起提交。" in capsys.readouterr().out
+    assert reminded == (answer == "y")
 
 
 def test_update_fill_skips_symlink_and_writes_the_rest(tmp_path, capsys):
@@ -225,8 +230,16 @@ def test_dry_run_lists_both_plans_without_writing(tmp_path, monkeypatch, capsys)
     monkeypatch.setattr("builtins.input", lambda *_: pytest.fail("--dry-run 不应提问"))
     assert update.run(root, dry_run=True) == 0
     out = capsys.readouterr().out
-    assert "补齐计划（你自己的文件）：" in out and "ruff.toml" in out and "未写任何文件" in out
+    assert "补齐计划（写进项目文件的 rulemason 基础配置，升级时与副本一起提交）：" in out and "ruff.toml" in out
+    assert "未写任何文件。终端里运行 rulemason update 会询问是否补齐；非交互环境加 --yes" in out
     assert snapshot(root) == before
+
+
+def test_dry_run_without_fill_does_not_mention_asking(tmp_path, capsys):
+    root = _old_version_project(tmp_path)
+    assert update.run(root, dry_run=True) == 0
+    out = capsys.readouterr().out
+    assert "补齐计划" not in out and out.rstrip().endswith("只列计划，未写任何文件。确认后运行 rulemason update")
 
 
 def test_dry_run_without_manifest_fails(tmp_path, capsys):
@@ -325,3 +338,14 @@ def test_update_repoints_old_copy(tmp_path, capsys):
     assert (root / "ruff.toml").read_text(encoding="utf-8") == 'extend = ".rulemason/lint/ruff-base.toml"\n'
     assert "提示：" in out and "lint/ruff-base.toml 是基础配置的旧位置副本" in out
     assert check.collect(root)[0].layers["接入 lint 继承"] == []
+
+
+def test_update_in_subdirectory_of_unjoined_repo_names_repo_root(tmp_path, monkeypatch, capsys):
+    repo = tmp_path / "repo"
+    git_init(repo)
+    write(repo, "web/main.py", "x = 1\n")
+    monkeypatch.chdir(repo / "web")
+    assert run_cli("update") == 1
+    out = capsys.readouterr().out
+    assert f"先运行 rulemason init（判断的项目根：{(repo / 'web').resolve()}）" in out
+    assert f"当前目录在 git 仓库 {repo.resolve()} 里；要接入整个仓库，到仓库根运行，或运行 rulemason init {repo.resolve()}" in out

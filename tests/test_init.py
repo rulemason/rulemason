@@ -82,9 +82,18 @@ def test_new_dir_agrees_to_openspec_init(tmp_path, tty, fake_openspec, monkeypat
     root = tmp_path / "fresh"
     write(root, "main.py", "x = 1\n")
     _answers(monkeypatch, "y", "y")
+    launched, real_run = [], init.subprocess.run
+
+    def spy(cmd, **kwargs):
+        launched.append(cmd)
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(init.subprocess, "run", spy)
 
     assert init.run(root, "claude,codex", False) == 0
 
+    openspec_cmd = next(cmd for cmd in launched if cmd[1:3] == ["init", "--tools"])
+    assert openspec_cmd[0] == init.shutil.which("openspec")    # 以 which 找到的完整路径启动：Windows 上是 openspec.cmd
     args = fake_openspec.read_text(encoding="utf-8").split()
     assert args[:3] == ["init", "--tools", "claude,codex"] and args[3:] == ["--language", "zh-CN"]
     assert (root / "AGENTS.md").is_file() and (root / ".rulemason.yaml").is_file()
@@ -499,11 +508,56 @@ def test_check_in_subdirectory_matches_root(project, monkeypatch, capsys):
     assert capsys.readouterr().out == at_root
 
 
-def test_init_in_subdirectory_uses_repo_root(project, monkeypatch):
+def test_init_in_subdirectory_uses_that_directory(project, monkeypatch, capsys):
+    """与 openspec init 一致：找不到清单就在当前目录接入，并写明仓库根与接入整个仓库的做法。"""
     monkeypatch.chdir(project / "app")
     assert run_cli("init", "--tools", "claude", "--yes") == 0
-    assert (project / ".rulemason.yaml").is_file()
-    assert not (project / "app/.rulemason.yaml").exists() and not (project / "app/.rulemason").exists()
+    assert (project / "app/.rulemason.yaml").is_file()
+    assert not (project / ".rulemason.yaml").exists() and not (project / ".rulemason").exists()
+    hint = f"当前目录在 git 仓库 {project.resolve()} 里；要接入整个仓库，到仓库根运行，或运行 rulemason init {project.resolve()}"
+    assert hint in capsys.readouterr().out
+
+
+def test_plan_shows_repo_root_hint_but_json_fields_stay(project, monkeypatch, capsys):
+    monkeypatch.chdir(project / "app")
+    assert run_cli("init", "--tools", "claude", "--plan") == 0
+    assert f"当前目录在 git 仓库 {project.resolve()} 里" in capsys.readouterr().out
+    assert run_cli("init", "--tools", "claude", "--plan", "--json") == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["root"] == str((project / "app").resolve()) and "tips" not in data
+
+
+def test_new_directory_under_workspace_repo_stays_local(tmp_path, tty, fake_openspec, monkeypatch, capsys):
+    """工作区目录是装着多个项目的 git 仓库，在其下自己还不是仓库的新目录里接入：rulemason 与 openspec 都写在新目录。"""
+    workspace = tmp_path / "ws"
+    git_init(workspace)
+    write(workspace, "other/README.md", "# 别的项目\n")
+    write(workspace, "rm-test/main.py", "x = 1\n")
+    before = sorted(p.name for p in workspace.iterdir())
+    monkeypatch.chdir(workspace / "rm-test")
+    _answers(monkeypatch, "y", "y")
+
+    assert run_cli("init", "--tools", "claude") == 0
+
+    assert (workspace / "rm-test/.rulemason.yaml").is_file() and (workspace / "rm-test/openspec/config.yaml").is_file()
+    assert f"当前目录在 git 仓库 {workspace.resolve()} 里" in capsys.readouterr().out
+    assert sorted(p.name for p in workspace.iterdir()) == before                # 工作区目录里没有新文件
+
+
+def test_explicit_path_gets_no_repo_root_hint(project, monkeypatch, capsys):
+    """在仓库根运行 rulemason init app：当前目录就是仓库根，「当前目录在 git 仓库……」说不通，不提示。"""
+    monkeypatch.chdir(project)
+    assert run_cli("init", "app", "--tools", "claude", "--yes") == 0
+    assert (project / "app/.rulemason.yaml").is_file()
+    assert "当前目录在 git 仓库" not in capsys.readouterr().out
+
+
+def test_existing_project_in_subdirectory_gets_no_repo_root_hint(project, monkeypatch, capsys):
+    monkeypatch.chdir(project / "app")
+    assert run_cli("init", "--tools", "claude", "--yes") == 0
+    capsys.readouterr()
+    assert run_cli("init", "--tools", "claude", "--yes") == 0                   # 第二次：找到 app/ 的清单
+    assert "当前目录在 git 仓库" not in capsys.readouterr().out
 
 
 def test_init_with_explicit_path_uses_that_path(project, monkeypatch):

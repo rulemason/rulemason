@@ -55,10 +55,12 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def _dispatch(args: argparse.Namespace) -> int:
-    # 项目根：往上找最近的清单；init 显式给出路径时以该路径为根，不再往上找
-    root = find_root(Path.cwd().resolve())
+    # 项目根：往上找最近的清单，找不到就用当前目录（与 openspec init 一致）；init 显式给出路径时以该路径为根
+    cwd = Path.cwd().resolve()
+    root = find_root(cwd) or cwd
     if args.command == "init":
-        return init.run(Path(args.path).resolve() if args.path else root, args.tools, args.yes, args.plan, args.json)
+        target = Path(args.path).resolve() if args.path else root
+        return init.run(target, args.tools, args.yes, args.plan, args.json, at_cwd=target == cwd)
     if args.command == "remove":
         return remove.run(root, args.yes, args.plan)
     if args.command == "key":

@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from functools import cache
 from pathlib import Path
 from string import Template
 from typing import Any, NamedTuple
@@ -71,16 +72,35 @@ def has_manifest(path: Path) -> bool:
     return (path / MANIFEST).is_file()
 
 
-def find_root(start: Path) -> Path:
-    """项目根：从 start 往上找最近的有清单的目录，不越过所在 git 仓库的根。
-    找不到清单时返回 git 仓库根，不在 git 里则返回 start。"""
+def find_root(start: Path) -> Path | None:
+    """已接入的项目根：从 start 往上找最近的有清单的目录，不越过所在 git 仓库的根。找不到返回 None，
+    由调用方决定用什么（init、check、update、remove 用当前目录，judge 用 git 仓库根）。"""
+    repo = repo_root(start)
     for current in (start, *start.parents):
         if has_manifest(current):
             return current
-        if (current / ".git").exists():
-            # 走到这里说明到了仓库根还没有清单：不再往上，上层目录属于别的项目或工作区
-            return current
-    return start
+        if current == repo:
+            break                                            # 到了仓库根还没有清单：上层目录属于别的项目或工作区
+    return None
+
+
+def repo_root(start: Path) -> Path | None:
+    """start 所在 git 仓库的根（.git 是目录或文件都算，worktree 与子模块的 .git 是文件）；不在 git 里返回 None。"""
+    return next((current for current in (start, *start.parents) if (current / ".git").exists()), None)
+
+
+def outer_repo(root: Path) -> Path | None:
+    """root 还没接入、又是某个 git 仓库的子目录时，返回那个仓库根；已接入（子目录项目是有意建的）、就是仓库根或不在 git 里返回 None。"""
+    repo = repo_root(root)
+    if has_manifest(root) or repo in (None, root):
+        return None
+    return repo
+
+
+def repo_root_hint(root: Path) -> str | None:
+    """写明仓库根与接入整个仓库的做法；不需要时（见 outer_repo）返回 None。"""
+    repo = outer_repo(root)
+    return f"当前目录在 git 仓库 {repo} 里；要接入整个仓库，到仓库根运行，或运行 {NAME} init {repo}" if repo else None
 
 
 def template(name: str) -> str:
@@ -88,8 +108,24 @@ def template(name: str) -> str:
 
 
 def color_enabled() -> bool:
-    """没设 NO_COLOR 且标准输出是终端才上色；被管道接走时不让转义进日志。"""
-    return not os.environ.get("NO_COLOR") and sys.stdout.isatty()
+    """没设 NO_COLOR 且标准输出是终端才上色；被管道接走时不让转义进日志。Windows 上还要控制台能解析 ANSI。"""
+    if os.environ.get("NO_COLOR") or not sys.stdout.isatty():
+        return False
+    return sys.platform != "win32" or windows_ansi()
+
+
+@cache
+def windows_ansi() -> bool:
+    """为 Windows 控制台的标准输出打开 ANSI 解析（ENABLE_VIRTUAL_TERMINAL_PROCESSING）；旧版控制台打不开时返回 False。只试一次。
+    ctypes 在这里才导入：缺 libffi 的 Python 导入它会失败，不能让其他平台跟着用不了；ctypes.windll 也只在 Windows 上存在。"""
+    import ctypes
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GetStdHandle.restype = ctypes.c_void_p          # 句柄是指针宽度，按默认 int 取会在 64 位上截断
+    handle = ctypes.c_void_p(kernel32.GetStdHandle(-11))     # STD_OUTPUT_HANDLE；传回时也按指针宽度传
+    mode = ctypes.c_uint32()
+    if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+        return False
+    return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
 
 
 def paint(text: str, code: str | None, color: bool | None = None) -> str:
@@ -231,11 +267,11 @@ def normalize_tools(tools: list[str]) -> list[str]:
 # ---------- 3. 列文件与 git ----------
 
 def git(root: Path, *args: str) -> str:
-    return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True).stdout
+    return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, encoding="utf-8").stdout
 
 
 def has_git(root: Path) -> bool:
-    out = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=root, capture_output=True, text=True)
+    out = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=root, capture_output=True, text=True, encoding="utf-8")
     return out.returncode == 0 and out.stdout.strip() == "true"
 
 
@@ -299,9 +335,10 @@ def list_files(root: Path) -> list[str]:
 
 def ignored_files(root: Path, rels: list[str]) -> list[str]:
     """rels 中被 .gitignore 等忽略规则匹配的路径;由 git 判断,含多级 .gitignore 与全局 excludes。
-    --no-index:已跟踪的文件也照规则判断,否则 update 新增的副本会被静默忽略。"""
+    --no-index:已跟踪的文件也照规则判断,否则 update 新增的副本会被静默忽略。git 的输入输出都按 UTF-8,Windows 中文版默认 GBK。"""
     out = subprocess.run(
-        ["git", "check-ignore", "--no-index", "--stdin", "-z"], cwd=root, input="\0".join(rels), capture_output=True, text=True
+        ["git", "check-ignore", "--no-index", "--stdin", "-z"],
+        cwd=root, input="\0".join(rels), capture_output=True, text=True, encoding="utf-8",
     )
     if out.returncode not in (0, 1):
         # 0 有被忽略的、1 一个都没有;其他是 git 出错,不能当成「没有被忽略」放行

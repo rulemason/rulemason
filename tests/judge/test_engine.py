@@ -464,7 +464,13 @@ def test_other_commands_reject_unknown_arguments(capsys):
     assert "无法识别的参数" in capsys.readouterr().err
 
 
-# ---------- 项目根：与 init / check 同一规则 ----------
+# ---------- 项目根：往上找清单；没有清单时用 git 仓库根（与 init 不同） ----------
+
+
+def test_root_without_manifest_is_repo_root(project):
+    """未接入 rulemason 的仓库，在子目录 api/ 运行：没有清单就用 git 仓库根，才能找到 openspec/。"""
+    assert Path.cwd() == (project / "api").resolve() and not (project / ".rulemason.yaml").exists()   # 夹具已切到 api/、没有清单
+    assert judge.root() == project.resolve()
 
 
 def test_root_is_nearest_subproject(project, monkeypatch):
@@ -601,3 +607,45 @@ def test_run_change_blocks_without_calling_model(project, capsys):
     results = judge.run_change("x", judge.load_rules(), NoModel())
     assert results == ["block"]
     assert "决策缺否决理由：1. 用 A" in capsys.readouterr().out
+
+
+# ---------- Windows 中文版：git 按 UTF-8 读、key 含无效字符、路径分隔符（windows-followups） ----------
+
+def test_changed_copy_reads_main_as_utf8_under_gbk(project, gbk_default):
+    """git show main:<文件> 按 GBK 解码会失败，旧版本读不到就把整份文案当新增；按 UTF-8 只剩改过的一条。"""
+    _write(project, "web/messages/zh.json", '{"a": "加载中", "b": "保存"}\n')
+    _commit_all(project)
+    _write(project, "web/messages/zh.json", '{"a": "加载中", "b": "保存草稿"}\n')
+    assert judge.changed_copy("web/messages/zh.json", "json", None) == {"b": "保存草稿"}
+
+
+def test_invalid_key_in_file_exits_with_one_line(project, tmp_path, monkeypatch, capsys):
+    _user_env(tmp_path, monkeypatch, "TYPESAFE_API_KEY=\x16\n")
+    _write(project, "openspec/changes/x/proposal.md", "## Why\n\n要做。\n")
+    with pytest.raises(SystemExit) as exc:
+        judge.main(["--change", "x"])
+    message = str(exc.value.code)
+    assert message == (f"✗ TYPESAFE_API_KEY（来自{judge.USER_ENV}）含控制字符 0x16（按 Ctrl+V 没有粘贴进去）："
+                       "运行 rulemason key 重新输入，用右键或 Ctrl+Shift+V 粘贴")
+    assert "Traceback" not in capsys.readouterr().err
+
+
+def test_invalid_key_in_env_var_names_the_variable(project, monkeypatch):
+    monkeypatch.setenv("TYPESAFE_API_KEY", "sk-ab cd")
+    with pytest.raises(SystemExit) as exc:
+        judge.Judge("jev")._jev()
+    assert str(exc.value.code) == "✗ TYPESAFE_API_KEY（来自环境变量 TYPESAFE_API_KEY）含空白：请修正或删除环境变量 TYPESAFE_API_KEY"
+
+
+def test_lint_only_ignores_invalid_key(project, tmp_path, monkeypatch, capsys):
+    _user_env(tmp_path, monkeypatch, "TYPESAFE_API_KEY=\x16\n")
+    _write(project, "openspec/changes/x/proposal.md", "## Why\n\n要做。\n")
+    assert judge.main(["--change", "x", "--lint-only"]) == 0
+    assert "## proposal.md" in capsys.readouterr().out                       # 照常输出正则检查结果
+
+
+def test_spec_labels_use_forward_slashes(project):
+    """specs 小标题各平台都用 /（Windows 上 str(Path) 会是反斜杠）。"""
+    _write(project, "openspec/changes/x/specs/a/spec.md", "## ADDED Requirements\n")
+    labels = [label for label, target, _ in judge.change_files("x") if target == "specs"]
+    assert labels == ["specs/a/spec.md"]

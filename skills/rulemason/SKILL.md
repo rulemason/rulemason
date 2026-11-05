@@ -26,7 +26,7 @@ rulemason 管三件事：**规则**（写法规矩）、**检查点**（方案�
 | `init` | 提示用户在项目根运行 `rulemason init`（没有 `openspec/` 时它会先询问）。停下，项目已归档再多 change 也一样。用户要你代为接入时，先运行 `rulemason init --plan` 把计划给用户看（不写任何文件），用户同意并选定工具后再运行 `rulemason init --tools <所选> --yes` |
 | `fix_manifest` | 说明清单读不出来的原因（见 `layers` 的「接入 工具入口」），请用户修正，或删掉后重新 `rulemason init`。停下 |
 | `fix_gitignore` | 列出要改的 `.gitignore` 规则（只放行 `skills/rulemason/`，说明单独写一行），用户确认后修改，再运行 `rulemason check --json` |
-| `update` | 提示用户运行 `rulemason update`；可先用 `rulemason update --dry-run` 给用户看计划。它列出「补齐计划」时，由用户决定是否 `rulemason update --yes`。停下 |
+| `update` | 提示用户运行 `rulemason update`；可先用 `rulemason update --dry-run` 给用户看计划。它列出「补齐计划」时，在终端里运行会询问是否补齐，由用户答 y；非交互环境（包括你代为运行）才加 `--yes`。补齐写进项目文件的内容属于这次升级，提交时与副本一起带上。停下 |
 | `manual_lint` | 接入只剩 `rulemason update` 改不了的 lint 项：`next.action` 写了要改的文件与摘要，把 `layers` 的「接入 lint 继承」里各项的行号、原文与做法列给用户；有几种做法时由用户选，用户同意后照改，再运行 `rulemason check --json`。不要让用户重跑 update |
 | `fill_project_info` | 第 2 步 |
 | `upgrade_machine` | 本机 rulemason 比项目记录的旧：按上面第 1 条给出安装命令。停下 |
@@ -54,6 +54,7 @@ rulemason 管三件事：**规则**（写法规矩）、**检查点**（方案�
 只读，不改文件（例外见「不可违反」）。按 `rulemason check` 的结果逐项解读：一致的写「一致」；有偏离的写出文件、内容和建议怎么改（由用户决定改不改）。
 
 - 生成副本或标记块被手改：建议把改动搬到 rulemason 仓库，再运行 `rulemason update` 恢复。
+- 升级产出要一起提交：`rulemason update` 刷新的副本、`.rulemason.yaml`，以及补齐计划写进项目文件的内容（如 `openspec/config.yaml` 的 rules、operations 里新增的条目、新建的 ruff 配置）都属于这次升级。怎么认出：`rulemason update` 输出里「补齐计划」列出的文件就是；事后再看时，把 `openspec/config.yaml` 里未提交的新增条目与安装包里的基础版逐字比对：用 `uv tool` 安装的，基础版在 `find "$(uv tool dir)/rulemason" -path "*_shared/openspec-base/*.yaml"` 找到的文件里（macOS、Linux 与 Windows 的目录层级不同，用 find 不必猜路径），能找到原文就是基础版，不是项目自己加的规则。用其他方式安装、找不到这个目录时，以 `rulemason update --dry-run` 列出的补齐计划为准。巡检的「与基础版的差异」只查基础条目有没有缺，不能用来认定新增条目是基础版。汇报把认出的升级产出列为「升级产出，提交时与副本一起带上」，本 skill 不提交。
 - 版本号落后、副本内容相同：可以运行 `rulemason update` 更新记录，不急。副本内容落后时 check 会在「接入 生成副本」报出并给出 `update`，不会走到这里。
 - 要增减工具：建议运行 `rulemason init --tools <id,...>`，它会先列出受影响文件并等确认；取消的工具会连同入口一起删除。
 - 最近归档的检查点记录有缺：说明哪个 change 缺什么，提醒下次归档前按检查点把审查与测试跑完并写进 `verification.md`；不要补写过去的汇报。

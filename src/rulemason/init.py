@@ -44,6 +44,7 @@ from rulemason.shared import (
     normalize_tools,
     paint,
     read_manifest,
+    repo_root_hint,
     sha256_file,
     skill_dirs,
     template,
@@ -309,14 +310,16 @@ def ensure_openspec(root: Path, tools: list[str], yes: bool) -> bool:
     只接入「读」层（规则副本、入口、lint）。代跑失败抛 Stop。"""
     if has_openspec(root):
         return True
-    if shutil.which("openspec") is None:
+    found = shutil.which("openspec")
+    if found is None:
         print(f"项目没有 openspec/，本机也没有 openspec 命令（安装：{OPENSPEC_INSTALL}）；先只接入规则与 lint。")
         return False
     command = ["openspec", "init", "--tools", ",".join(tools), "--language", "zh-CN"]
     if yes or not ask_yes(f"项目没有 openspec/，现在运行 `{' '.join(command)}`？（否则先只接入规则与 lint）"):
         return False
     sys.stdout.flush()                                      # 先输出前面的提示，再让 openspec 直接写终端
-    if subprocess.run(command, cwd=root).returncode != 0:
+    # 用 which 找到的完整路径启动：Windows 上 npm 装的是 openspec.cmd，只给名字时不会补扩展名
+    if subprocess.run([found, *command[1:]], cwd=root).returncode != 0:
         raise Stop(f"openspec init 失败（输出见上），{NAME} 未写任何文件")
     return True
 
@@ -915,7 +918,8 @@ def guide_key(root: Path) -> None:
         print(f"以后运行 {NAME} key 即可配置。")
 
 
-def run(root: Path, tools_arg: str | None, yes: bool, plan_only: bool = False, as_json: bool = False) -> int:
+def run(root: Path, tools_arg: str | None, yes: bool, plan_only: bool = False, as_json: bool = False, at_cwd: bool = False) -> int:
+    """at_cwd：项目根就是运行命令的目录（没给路径，或给的就是当前目录）；只有这时才提示所在 git 仓库根。"""
     try:
         # 1. 非交互环境写入时必须给全参数，不等待输入；只看计划不受限。交互运行先显示启动画面
         if not plan_only and not interactive() and (tools_arg is None or not yes):
@@ -925,8 +929,11 @@ def run(root: Path, tools_arg: str | None, yes: bool, plan_only: bool = False, a
         # 2. 预检、选工具；只看计划时不运行 openspec init
         manifest, tools = prepare(root, tools_arg, plan_only)
         with_openspec = ensure_openspec(root, tools, yes) if not plan_only else has_openspec(root)
-        # 3. 计划
+        # 3. 计划；在仓库子目录里运行时写明仓库根（显式给出别的路径时当前目录不是项目根，不提示）
         plan = build_plan(root, manifest, tools)
+        hint = repo_root_hint(root) if at_cwd else None
+        if hint:
+            plan.tips.append(hint)
     except Stop as exc:
         print(str(exc))
         return exc.code

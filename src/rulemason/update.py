@@ -28,7 +28,10 @@ from rulemason.shared import (
     dump_json,
     has_openspec,
     list_files,
+    repo_root_hint,
 )
+
+FILL_TITLE = "补齐计划（写进项目文件的 rulemason 基础配置，升级时与副本一起提交）："
 
 
 def plan_update(root: Path, manifest: dict) -> tuple[Plan, Plan, dict[str, str]]:
@@ -74,10 +77,11 @@ def show_dry_run(root: Path, managed: Plan, fill_writes: dict[str, str], notes: 
         print("以下副本或标记块与共享版本不一致，将按共享版本刷新：")
         print(bullets(managed.overwritten), end="")
     if fill_writes:
-        print("补齐计划（你自己的文件）：" + "、".join(fill_writes))
+        print(FILL_TITLE + "、".join(fill_writes))
     print_notes(notes, "已跳过，需要你处理：")
     print_notes(tips, TIPS_TITLE, color=None)
-    print(f"只列计划，未写任何文件。确认后运行 {NAME} update（补齐计划加 --yes）")
+    ask = f"终端里运行 {NAME} update 会询问是否补齐；非交互环境加 --yes" if fill_writes else f"确认后运行 {NAME} update"
+    print(f"只列计划，未写任何文件。{ask}")
 
 
 def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = False) -> int:
@@ -89,6 +93,8 @@ def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = Fa
         return exc.code
     if manifest is None:
         print(f"没有 {MANIFEST}：先运行 {NAME} init（判断的项目根：{root}）")
+        if hint := repo_root_hint(root):
+            print(hint)
         return 1
     # 2. 两份计划；--dry-run 只打印，到此为止
     managed, fill, fill_writes = plan_update(root, manifest)
@@ -110,12 +116,12 @@ def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = Fa
 
     # 4. 补齐：交互确认或 --yes 才写，否则只列为待补齐
     if fill_writes:
-        print("补齐计划（你自己的文件）：" + "、".join(fill_writes))
+        print(FILL_TITLE + "、".join(fill_writes))
         if yes or (interactive() and ask_yes("按补齐计划写入？")):
             apply(root, Plan(writes=fill_writes))             # 不安全的目标已在 plan_update 里挑出去
-            print("已补齐。")
+            print("已补齐。这些文件属于这次升级，请与副本、.rulemason.yaml 一起提交。")
         else:
-            print(f"待补齐：未写入，确认后运行 {NAME} update --yes")
+            print(f"待补齐：未写入；终端里重新运行 {NAME} update 并答 y，非交互环境加 --yes")
     print_notes(notes, "已跳过，需要你处理：")
     print_notes(tips, TIPS_TITLE, color=None)
     if not has_openspec(root):

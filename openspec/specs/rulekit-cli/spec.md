@@ -276,7 +276,7 @@
 
 ### Requirement: 项目根按最近的 .rulemason.yaml 确定
 
-`rulemason init`、`update`、`check` SHALL 从当前目录往上找最近的 `.rulemason.yaml`，以它所在目录为项目根；向上查找 MUST NOT 越过当前目录所在 git 仓库的根目录。找不到时，`init` SHALL 以所在 git 仓库的根为项目根，不在 git 里则以当前目录为项目根；`check` 与 `update` SHALL 报告「先运行 rulemason init」并写明判断出的项目根。`rulemason init <path>` 显式给出路径时 SHALL 以该路径为项目根，不再向上查找。
+`rulemason init`、`update`、`check`、`remove` SHALL 从当前目录往上找最近的 `.rulemason.yaml`，以它所在目录为项目根；向上查找 MUST NOT 越过当前目录所在 git 仓库的根目录。找不到时 SHALL 以当前目录为项目根，MUST NOT 退到 git 仓库根；`check` 与 `update` SHALL 报告「先运行 rulemason init」并写明判断出的项目根。找不到清单、项目根就是当前目录（没有显式给出别的路径）、且当前目录在 git 仓库里而不是仓库根时，`init` 的计划与 `update` 的提示 SHALL 写明仓库根以及接入整个仓库的做法（到仓库根运行，或 `rulemason init <仓库根>`），`check` 的识别表 SHALL 写明仓库根。`rulemason init <path>` 显式给出路径时 SHALL 以该路径为项目根，不再向上查找。
 
 #### Scenario: 在已接入项目的子目录运行
 - **WHEN** 在已接入项目的 `app/` 子目录运行 `rulemason check`
@@ -284,15 +284,23 @@
 
 #### Scenario: 在子目录运行 init
 - **WHEN** 在一个尚未接入的 git 仓库的 `web/src/` 目录运行 `rulemason init --tools claude --yes`
-- **THEN** 在仓库根目录接入，`web/src/` 下不出现 `.rulemason.yaml` 或 `.rulemason/`
+- **THEN** 在 `web/src/` 接入，仓库根不出现 `.rulemason.yaml` 或 `.rulemason/`；输出写明「当前目录在 git 仓库 <仓库根> 里；要接入整个仓库，到仓库根运行，或运行 rulemason init <仓库根>」
+
+#### Scenario: 工作区仓库下的新目录
+- **WHEN** 工作区目录是一个装着多个项目的 git 仓库，在其下新建的、自己还不是 git 仓库的 `rm-test/` 里运行 `rulemason init`，同意代跑 `openspec init`
+- **THEN** rulemason 与 `openspec init` 都写在 `rm-test/`，工作区目录里不出现任何新文件；计划写明工作区的仓库根
 
 #### Scenario: 工作区里的独立仓库
 - **WHEN** 工作区根目录已接入（有 `.rulemason.yaml`），在其中一个独立 git 仓库 `app-a/` 里运行 `rulemason check`
 - **THEN** 不向上找到工作区的 `.rulemason.yaml`，报告 `app-a/` 尚未接入，提示「先运行 rulemason init」
 
+#### Scenario: 在未接入仓库的子目录运行 check
+- **WHEN** 在一个尚未接入的 git 仓库的 `web/` 目录运行 `rulemason check`
+- **THEN** 识别表的项目根写 `web/`，另起一行写所在 git 仓库根；第一行为「接入：运行 rulemason init」
+
 #### Scenario: 显式给出路径
 - **WHEN** 运行 `rulemason init packages/web --tools claude --yes`
-- **THEN** 以 `packages/web/` 为项目根接入，不向上查找
+- **THEN** 以 `packages/web/` 为项目根接入，不向上查找；当前目录不是项目根，不提示所在 git 仓库根
 
 ### Requirement: 子仓库、子项目与第三方目录不属于本项目
 
@@ -376,7 +384,7 @@
 
 ### Requirement: rulemason key 配置 Jev 的 key
 
-`rulemason key` SHALL 交互提示输入 key，输入不回显；写入 `~/.config/rulemason/env` 的 `TYPESAFE_API_KEY` 一行，保留文件里的其他设置；目录权限 SHALL 为 700、文件为 600。命令 MUST NOT 接受从命令行参数或标准输入管道传入 key；非交互环境 SHALL 报错退出并说明需在终端里运行。写入后 SHALL 写明文件位置，MUST NOT 打印 key。
+`rulemason key` SHALL 交互提示输入 key，输入不回显；写入 `~/.config/rulemason/env` 的 `TYPESAFE_API_KEY` 一行，保留文件里的其他设置；支持 POSIX 权限的平台上目录权限 SHALL 为 700、文件为 600，且写文件不跟随符号链接；没有这些能力的平台（Windows）SHALL 照常写入，汇报 MUST NOT 声称权限为 600，改为说明文件在当前用户目录下。输入的 key 去掉首尾空白后 SHALL 只含可打印 ASCII 且不含空白，否则 MUST NOT 写入，以非 0 退出并说明原因；含控制字符 `0x16`（按 Ctrl+V 未粘贴）时 SHALL 提示改用右键或 Ctrl+Shift+V 粘贴。命令 MUST NOT 接受从命令行参数或标准输入管道传入 key；非交互环境 SHALL 报错退出并说明需在终端里运行。写入后 SHALL 写明文件位置，MUST NOT 打印 key。
 
 #### Scenario: 第一次配置
 - **WHEN** 本机没有 `~/.config/rulemason/env`，在终端运行 `rulemason key` 并输入 key
@@ -389,6 +397,18 @@
 #### Scenario: 非交互运行
 - **WHEN** 在没有终端的环境（如 AI 工具或 CI）运行 `rulemason key`
 - **THEN** 不写任何文件，提示在终端里运行，退出码非 0
+
+#### Scenario: Windows 上配置
+- **WHEN** 在 Windows 终端运行 `rulemason key` 并输入 key
+- **THEN** 写入 `%USERPROFILE%\.config\rulemason\env`，不报 `O_NOFOLLOW` 错误；汇报写明文件位置与「在当前用户目录下」，不写「权限 600」
+
+#### Scenario: 按 Ctrl+V 没有粘贴
+- **WHEN** 在 Windows 旧控制台的输入提示处按 Ctrl+V，读到的只有控制字符 `0x16`
+- **THEN** 不写 key 文件，以非 0 退出，提示 key 含不可打印字符、请用右键或 Ctrl+Shift+V 粘贴后重新运行 `rulemason key`
+
+#### Scenario: key 中间有空格
+- **WHEN** 输入的 key 中间夹着一个空格
+- **THEN** 不写 key 文件，以非 0 退出，说明 key 不能含空白
 
 ### Requirement: check --json 输出结构化结果
 
@@ -565,22 +585,6 @@ ruff 或 ESLint 配置仍引用 `.rulemason/lint/` 下的副本时，`rulemason 
 #### Scenario: 脚本里不带参数
 - **WHEN** 脚本以非交互方式运行 `rulemason`
 - **THEN** 打印用法报错，退出码 2
-
-### Requirement: 启动画面按终端能力降级
-
-设置了 `NO_COLOR` 时启动画面 MUST NOT 输出颜色转义，图标 SHALL 以单一前景色画出。终端宽度小于 60 列，或标准输出的编码无法写出块字符时，MUST 不画图标与字标，改为一行「rulemason 版本号」，其余文字照常显示。有颜色时，图标里的马 SHALL 用天空蓝系的 256 色，兔身 SHALL 用白色 256 色，使两只动物在暗底终端上能分辨。
-
-#### Scenario: NO_COLOR
-- **WHEN** 设置 `NO_COLOR=1` 后在终端运行 `rulemason init`
-- **THEN** 启动画面不含 ANSI 颜色转义，图标与字标仍以块字符画出
-
-#### Scenario: 终端太窄
-- **WHEN** 终端宽度为 50 列
-- **THEN** 不显示图标与字标，只显示「rulemason 版本号」与口号、三行说明
-
-#### Scenario: 马蓝兔白
-- **WHEN** 未设置 `NO_COLOR`，在终端运行 `rulemason`
-- **THEN** 马的像素带天空蓝系的 256 色转义，兔身的像素带白色 256 色转义；同一字符位上下两种颜色时，上像素做前景、下像素做背景画出
 
 ### Requirement: 推送 tag 发布到 PyPI
 
@@ -769,3 +773,79 @@ ruff 配置已用 `extend` 继承了别的配置、但没有接上 `.rulemason/l
 #### Scenario: 老格式 .eslintrc
 - **WHEN** 项目只有 `web/.eslintrc.json`
 - **THEN** 说明写明 rulemason 只接扁平配置，先运行 `npx @eslint/migrate-config web/.eslintrc.json` 生成 `eslint.config.mjs`，再运行 `rulemason update`
+
+### Requirement: 代跑 openspec init 在 Windows 上可用
+
+`init` 代跑 `openspec init` 时 SHALL 用 `shutil.which("openspec")` 找到的完整路径启动命令，使 Windows 上 npm 安装的 `openspec.cmd` 也能运行；找不到命令时照旧只接入「读」层。提示里展示的命令 SHALL 仍写 `openspec init --tools <所选> --language zh-CN`。
+
+#### Scenario: Windows 上的 openspec.cmd
+- **WHEN** Windows 上 npm 装的命令是 `C:\Users\<用户>\AppData\Roaming\npm\openspec.cmd`，在没有 `openspec/` 的项目运行 `rulemason init`，用户同意代跑
+- **THEN** 以 `openspec.cmd` 的完整路径启动 `openspec init`，不报 `[WinError 2]`，之后继续完成接入
+
+#### Scenario: macOS 与 Linux
+- **WHEN** `openspec` 在 PATH 上是普通可执行文件，用户同意代跑
+- **THEN** 行为与改动前相同：运行 `openspec init --tools <所选> --language zh-CN`
+
+### Requirement: 控制台不支持颜色时不输出颜色
+
+rulemason 的彩色输出（启动画面、计划摘要、汇报标题与待办）SHALL 只在标准输出是终端、没有设置 `NO_COLOR`、且控制台能显示 ANSI 颜色时出现。Windows 上 SHALL 先尝试为当前控制台开启 ANSI 支持，开启失败时 MUST NOT 输出颜色转义，文字照常输出。其他平台的判断与改动前相同。
+
+#### Scenario: Windows 旧版控制台
+- **WHEN** 在不支持 ANSI 的 Windows 控制台运行 `rulemason init`，开启 ANSI 支持失败
+- **THEN** 输出里没有 `[38;5;…m` 这类转义，启动画面与计划摘要以无色文字显示
+
+#### Scenario: Windows Terminal
+- **WHEN** 在 Windows Terminal 运行 `rulemason init`，开启 ANSI 支持成功
+- **THEN** 照常输出颜色
+
+#### Scenario: 设置了 NO_COLOR
+- **WHEN** 任意平台设置了 `NO_COLOR` 后运行 `rulemason check`
+- **THEN** 不输出颜色，与改动前相同
+
+### Requirement: update 写明补齐计划属于升级
+
+`rulemason update` 与其试运行列出补齐计划时 SHALL 写明这些是写进项目文件的 rulemason 基础配置、升级时与副本一起提交，MUST NOT 只写「你自己的文件」；试运行结尾 SHALL 写明终端里运行 `rulemason update` 会询问是否补齐、非交互环境加 `--yes`，MUST NOT 写成要另加 `--yes` 再运行一遍。
+
+#### Scenario: 补齐计划的说法
+- **WHEN** 升级后 `openspec/config.yaml` 缺一条 design 基础条目，运行 `rulemason update --dry-run`
+- **THEN** 补齐计划一行写明 `openspec/config.yaml` 将写入 rulemason 基础配置、升级时与副本一起提交；结尾写明终端里运行 `rulemason update` 会询问是否补齐，非交互环境加 `--yes`
+
+#### Scenario: 交互确认后写入
+- **WHEN** 在终端运行 `rulemason update`，补齐计划处答 y
+- **THEN** 写入后汇报「已补齐」，并提醒补齐改动的文件与副本一起提交
+
+### Requirement: 调用 git 按 UTF-8 读写
+
+rulemason 调用 git 读取输出或传入路径时 SHALL 按 UTF-8 编码，MUST NOT 依赖系统默认编码；在 Windows 中文版（默认 GBK）上，含中文的文件内容与路径 SHALL 与其他平台得到相同结果。
+
+#### Scenario: Windows 上比对文案
+- **WHEN** 在 Windows 中文版上，`web/messages/zh.json` 相对 main 只改了 3 条文案，运行 `rulemason judge --copy`
+- **THEN** 只检查这 3 条，不出现 `UnicodeDecodeError`，不把整个文件当成新增
+
+#### Scenario: 中文文件名
+- **WHEN** 项目里有被 `.gitignore` 忽略的中文文件名，在 Windows 上运行 `rulemason check`
+- **THEN** 判断被忽略的文件与 macOS 上结果相同
+
+### Requirement: 启动画面按终端能力降级与配色
+
+设置了 `NO_COLOR` 时启动画面 MUST NOT 输出颜色转义，图标 SHALL 以单一前景色画出。终端宽度小于 60 列、标准输出的编码无法写出块字符，或在 Windows 上既不在 Windows Terminal（没有 `WT_SESSION`）也不在 VS Code 一类终端（没有 `TERM_PROGRAM`）时，MUST 不画图标与字标，改为一行「rulemason 版本号」，其余文字照常显示。有颜色时，图标里的马 SHALL 用天空蓝系的 256 色，兔身 SHALL 用樱粉系的 256 色、兔的阴影深一档，使兔与马的色相分得开，兔身在暗底与浅底终端上都清楚。
+
+#### Scenario: NO_COLOR
+- **WHEN** 设置 `NO_COLOR=1` 后在终端运行 `rulemason init`
+- **THEN** 启动画面不含 ANSI 颜色转义，图标与字标仍以块字符画出
+
+#### Scenario: 终端太窄
+- **WHEN** 终端宽度为 50 列
+- **THEN** 不显示图标与字标，只显示「rulemason 版本号」与口号、三行说明
+
+#### Scenario: Windows 旧控制台
+- **WHEN** 在 Windows 的 cmd.exe 或 conhost 中的 PowerShell 运行 `rulemason`，没有 `WT_SESSION` 与 `TERM_PROGRAM`
+- **THEN** 不画图标与字标，只显示「rulemason 版本号」与口号、三行说明和常用命令
+
+#### Scenario: Windows Terminal
+- **WHEN** 在 Windows Terminal 运行 `rulemason`（有 `WT_SESSION`），宽度不小于 60 列
+- **THEN** 照常画图标与字标
+
+#### Scenario: 马蓝兔粉
+- **WHEN** 未设置 `NO_COLOR`，在终端运行 `rulemason`
+- **THEN** 马的像素带天空蓝系的 256 色转义，兔身的像素带樱粉系的 256 色转义；同一字符位上下两种颜色时，上像素做前景、下像素做背景画出

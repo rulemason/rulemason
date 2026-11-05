@@ -23,7 +23,7 @@
 
 ### Requirement: 命令在项目根目录运行
 
-命令 `rulemason judge` SHALL 在任一接入项目内运行，按与 `rulemason init`、`update`、`check` 相同的规则确定项目根：从当前目录往上找最近的 `.rulemason.yaml`，不越过所在 git 仓库的根目录；找不到时以 git 仓库根为项目根。引擎读取该项目根下的 `openspec/`。参数与原 `jev-judge` 一致：`--change <name>` 依次在 `openspec/changes/<name>`、`openspec/changes/archive/<name>`、`openspec/changes/archive/` 下唯一名为 `YYYY-MM-DD-<name>` 的目录中查找产物（只认日期前缀加完整名称；匹配到多个时列出并以非 0 退出），`--copy` 审相对主分支新增或修改的界面文案，`--lint-only` 只跑正则检查不联网，`--dry-run` 打印将要发送的请求而不发送。参数 SHALL 只在引擎里定义一处，`rulemason` 命令原样转交。
+命令 `rulemason judge` SHALL 在任一接入项目内运行，这样确定项目根：从当前目录往上找最近的 `.rulemason.yaml`，不越过所在 git 仓库的根目录；找不到时以 git 仓库根为项目根（与 `init` 不同，以便在未接入的仓库子目录里找到 `openspec/`）。引擎读取该项目根下的 `openspec/`。参数与原 `jev-judge` 一致：`--change <name>` 依次在 `openspec/changes/<name>`、`openspec/changes/archive/<name>`、`openspec/changes/archive/` 下唯一名为 `YYYY-MM-DD-<name>` 的目录中查找产物（只认日期前缀加完整名称；匹配到多个时列出并以非 0 退出），`--copy` 审相对主分支新增或修改的界面文案，`--lint-only` 只跑正则检查不联网，`--dry-run` 打印将要发送的请求而不发送。参数 SHALL 只在引擎里定义一处，`rulemason` 命令原样转交。
 
 #### Scenario: 在子目录运行
 - **WHEN** 在项目甲的 `api/` 目录下运行 `rulemason judge --change adopt-shared-rules`
@@ -156,3 +156,19 @@ Jev 的 key SHALL 从环境变量 `TYPESAFE_API_KEY` 读取；未设置时读 `~
 #### Scenario: 判断规则缺 id
 - **WHEN** `openspec/judgments.yaml` 第 2 条没有 `id`
 - **THEN** 输出「✗ openspec/judgments.yaml 第 2 条不是带 id 的映射」，退出码非 0
+
+### Requirement: key 含无效字符时给一句话提示
+
+`rulemason judge` 要调用 Jev 时，读到的 key 去掉首尾空白后含空白、不可打印或非 ASCII 字符（与 `rulemason key` 写入时的检查一致），SHALL 以非 0 退出，用一句以「✗」开头的话说明 key 含无效字符、来自环境变量 `TYPESAFE_API_KEY` 还是哪个文件，并按来源给出修法：来自文件时提示运行 `rulemason key` 重新输入（含 `0x16` 时补「用右键或 Ctrl+Shift+V 粘贴」）；来自环境变量时提示修正或删除该环境变量（环境变量优先于文件，重写文件无效）。MUST NOT 打印 Python 堆栈。不调用 Jev 时（`--dry-run`、`--lint-only`、人工模式）不检查。
+
+#### Scenario: key 文件里是控制字符
+- **WHEN** `~/.config/rulemason/env` 里 `TYPESAFE_API_KEY` 的值是控制字符 `0x16`，没有设置环境变量，运行 `rulemason judge --change x`
+- **THEN** 输出一行说明 key 含不可打印字符、来自该文件，提示运行 `rulemason key` 重新输入，退出码非 0，没有 Python 堆栈
+
+#### Scenario: 环境变量里的 key 有空格
+- **WHEN** 环境变量 `TYPESAFE_API_KEY` 的值中间夹着一个空格，运行 `rulemason judge --change x`
+- **THEN** 输出一行说明 key 含空白、来自环境变量 `TYPESAFE_API_KEY`，提示修正或删除这个环境变量（不提示运行 `rulemason key`），退出码非 0，没有 Python 堆栈
+
+#### Scenario: 只跑正则
+- **WHEN** key 文件里是控制字符 `0x16`，运行 `rulemason judge --change x --lint-only`
+- **THEN** 照常输出正则检查结果，不因 key 报错
