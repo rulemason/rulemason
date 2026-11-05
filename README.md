@@ -89,7 +89,7 @@ rulemason check     # 只读，在项目任意子目录运行都可以
 
 ```yaml
 - uses: astral-sh/setup-uv@v7
-- run: uv tool install rulemason==0.8.17
+- run: uv tool install rulemason==0.8.18
 - run: rulemason check
 ```
 
