@@ -73,6 +73,8 @@ LONG_REQUIREMENT = f"requirement 正文超过 {SPEC_REQUIREMENT_MAX} 字"
 NO_SCENARIO = "requirement 没有场景"
 SPEC_PROBLEMS = (NO_PURPOSE, PLACEHOLDER_PURPOSE, SHORT_PURPOSE, DELTA_HEADINGS, NO_REQUIREMENTS, LONG_REQUIREMENT, NO_SCENARIO)   # 也是报告顺序
 LINT_PLACEHOLDER = re.compile(r"\s*(|true|:|exit\s+0|echo([ \t][^&;|\n`$]*)?)\s*")   # 只有一条什么都不查的命令
+CODE_FENCE = re.compile(r"^\s*(```|~~~)")                  # 代码块边界：块内不算 requirement 正文
+METADATA_LINE = re.compile(r"^\*\*[^*]+\*\*:")          # **ID**: 一类元数据行，OpenSpec 不计入正文
 DELTA_HEADING = re.compile(r"^## (ADDED|MODIFIED|REMOVED|RENAMED) Requirements\s*$", re.M)
 MIN_ARCHIVED = 3                                            # 判断层至少要这么多已归档 change 作测试用例
 ARCHIVE_NAME = re.compile(r"^(\d{4}-\d{2}-\d{2})-")       # openspec archive 生成的归档目录名：日期前缀
@@ -1056,6 +1058,21 @@ def lexicon_overlap(root: Path) -> list[str]:
     return [w for w in project if w in base]
 
 
+def requirement_text(body: str) -> str:
+    """requirement 正文按 OpenSpec 的算法取：跳过代码块、空行与元数据行，每行去首尾空白后用换行连起来。"""
+    lines = []
+    fenced = False
+    for line in body.splitlines():
+        if CODE_FENCE.match(line):
+            fenced = not fenced
+            continue
+        stripped = line.strip()
+        if fenced or not stripped or METADATA_LINE.match(stripped):
+            continue
+        lines.append(stripped)
+    return "\n".join(lines)
+
+
 def spec_problems(text: str) -> list[str]:
     """一份主规格读主规格判路时会「看不见」或不合严格校验的地方，取值见 SPEC_PROBLEMS。"""
     found = []
@@ -1073,7 +1090,7 @@ def spec_problems(text: str) -> list[str]:
     for block in re.split(r"^### Requirement:.*$", text, flags=re.M)[1:]:
         requirement = re.split(r"^##\s", block, flags=re.M)[0]          # 到下一个二级标题为止
         body, *scenarios = re.split(r"^#### Scenario:", requirement, flags=re.M)
-        if len(body.strip()) > SPEC_REQUIREMENT_MAX:
+        if len(requirement_text(body)) > SPEC_REQUIREMENT_MAX:
             found.append(LONG_REQUIREMENT)
         if not scenarios:
             found.append(NO_SCENARIO)

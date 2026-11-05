@@ -900,6 +900,16 @@ def test_spec_writing_reports_each_problem(joined, text, problem):
     assert check.exit_code(report) == 0 and nxt.line == "日常巡检：一切一致"
 
 
+
+def test_requirement_length_counts_like_openspec(joined):
+    paragraphs = "\n\n".join("  " + "长" * 160 + "  " for _ in range(3))          # 三段连起来 482 字：空行与缩进不算
+    fence = "\n```text\n" + "示例" * 200 + "\n```\n"                              # 代码块不算
+    reqs = f"### Requirement: 长\n\n**ID**: R1\n\n{paragraphs}\n{fence}\n#### Scenario: s\n- **WHEN** a\n- **THEN** b\n"
+    write(joined, "openspec/specs/order-refund/spec.md", _spec(reqs=reqs))
+    assert check.spec_writing(joined, shared.list_files(joined)) == []
+    write(joined, "openspec/specs/order-refund/spec.md", _spec(reqs=reqs.replace("长" * 160, "长" * 180, 1)))
+    assert check.spec_writing(joined, shared.list_files(joined)) == ["requirement 正文超过 500 字：order-refund"]
+
 def test_spec_writing_groups_capabilities_by_problem(joined):
     for name in ("a", "b/c"):
         write(joined, f"openspec/specs/{name}/spec.md", _spec(purpose="TBD"))
