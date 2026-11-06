@@ -89,7 +89,7 @@
 2. **归档并入主规格**：运行 `openspec archive <change 名> --yes`，规格增量自动并入主规格。**不就「是否同步主规格」询问用户**：增量在方案阶段已经过用户确认。
 3. **校验**：运行 `openspec validate --specs --strict`。
 4. **失败时停下说明**：`openspec archive` 失败时什么都没移动，说明是哪条规格增量、为什么不合格、可以怎么改，修好后重新归档。归档已成功而校验失败时，change 已移进 `archive/`、主规格已合并，如实说明哪条主规格不合格、为什么，等用户决定用新 change 修正，还是授权你直接改主规格后再校验一次。两种情况都不自行跳过。
-5. **判断层提示**：归档后运行 `rulemason check --json`。`facts` 里「已归档 change」正好是 3、「判断」一行含「本机未配置 key」时，在汇报末尾提示一次：判断条件已满足，可运行 `rulemason key` 配置，key 在 https://typesafe.ai/ 申请。数量不是 3 就不提；不代用户配置 key。
+5. **判断层提示**：归档后运行 `rulemason check --json`。「判断」一行写着条件已满足、尚未启用，且 `facts` 里「已归档 change」正好是 3 或「接入后归档 change」正好是 1 时，在汇报末尾提示一次：「判断」一行含「本机未配置 key」就提示运行 `rulemason key` 配置，key 在 https://typesafe.ai/ 申请；已有 key 就提示在 AI 工具中运行 `/rulemason` 并说明要启用判断。两种说法都附一句：判断只审 OpenSpec 方案与界面文案。其余情况不提；不代用户配置 key，也不代为启用。
 
 ## 提交与推送
 

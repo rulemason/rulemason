@@ -372,6 +372,8 @@ def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, since: 
     else:
         joined = since
     report.facts.append(("接入日期", joined))
+    after_joined = str(len(dated_archives(root, since))) if since else "—"
+    report.facts.append(("接入后归档 change", after_joined))
     report.facts.append(("判断", judge_label(root, n_archived)))
     refs = ci_refs(root, files)
     if refs:

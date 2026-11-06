@@ -845,6 +845,22 @@ def test_joined_fact_inferred_from_git(bare, monkeypatch):
     assert dict(report.facts)["接入日期"] == "2026-11-02（推算）"
 
 
+def test_archives_after_joined_count_excludes_joined_day(joined):
+    set_joined(joined, "2026-11-02")
+    for name in ("2026-10-30-a", "2026-11-02-b", "2026-11-04-c", "2026-11-05-d"):
+        _archived_change(joined, name, None)
+    report, _ = check.collect(joined)
+    assert dict(report.facts)["接入后归档 change"] == "2"                       # 接入当天的 b 不算
+    assert json.loads(check.run(joined, as_json=True)[0])["facts"]["接入后归档 change"] == "2"
+
+
+def test_archives_after_joined_unknown_without_date(tmp_path):
+    root = tmp_path / "proj"
+    _install(root, [])
+    set_joined(root, None)                                                       # 没有 git，推算不出
+    report, _ = check.collect(root)
+    assert dict(report.facts)["接入后归档 change"] == "—"
+
 def test_broken_joined_is_reported_as_invalid_manifest(joined):
     set_joined(joined, "上周")
     report, nxt = check.collect(joined)
@@ -900,7 +916,6 @@ def test_spec_writing_reports_each_problem(joined, text, problem):
     assert check.exit_code(report) == 0 and nxt.line == "日常巡检：一切一致"
 
 
-
 def test_requirement_length_counts_like_openspec(joined):
     paragraphs = "\n\n".join("  " + "长" * 160 + "  " for _ in range(3))          # 三段连起来 482 字：空行与缩进不算
     fence = "\n```text\n" + "示例" * 200 + "\n```\n"                              # 代码块不算
@@ -920,7 +935,6 @@ def test_spec_writing_consistent_when_good_or_absent(joined, tmp_path):
     write(joined, "openspec/specs/order-refund/spec.md", _spec())
     assert check.spec_writing(joined, shared.list_files(joined)) == []
     assert check.spec_writing(tmp_path, shared.list_files(tmp_path)) == []    # 没有 openspec/specs/
-
 
 
 def test_spec_writing_non_utf8_spec_is_config_error(joined):
