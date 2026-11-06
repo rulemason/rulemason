@@ -154,8 +154,15 @@ def test_skill_eslint_baseline_section():
 def test_skill_asks_once_about_judgment_when_conditions_met():
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
     step = next(line for line in skill.splitlines() if line.startswith("8. **问一次判断层**"))
-    assert "只问不做，本次不进入第 4 节" in step and "只审 OpenSpec 方案与界面文案" in step and "暂时用不上" in step
+    assert "只问不做，本次不进入第 4 节" in step and "判断审 OpenSpec 方案、界面文案与直接改动的说明" in step and "直接改动的判断仍会用到" in step
     assert "说明启用条件与覆盖范围" in skill
+
+
+def test_skill_sensitive_areas_and_direct_rules():
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    assert "**先走 OpenSpec 的区域**" in skill and "先走 OpenSpec 的区域：暂无" in skill and "检查点会让 AI 先起一个最小 OpenSpec change" in skill
+    assert "`target: direct`" in skill and "`direct-` 前缀" in skill and "block 阈值起始为 0" in skill
+    assert "没有「先走 OpenSpec 的区域」一行时，提一句可以补" in skill
 
 def test_skill_legacy_cleanup_section():
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
@@ -428,6 +435,11 @@ def test_gates_cover_direct_edits_with_four_paths():
     assert "openspec list --specs" in direct and "--no-scenarios" in direct
     assert "在 `openspec/specs/` 里检索" in direct and "命中主规格点名的测试按「冲突」处理" in direct
     assert "不跑自动精简与独立审查" in direct and "只做第 4 步" in direct
+    assert "「先走 OpenSpec 的区域」" in direct and "项目没写这一项就跳过这条" in direct
+    assert "rulemason judge --direct <文件>" in direct and "不贴代码" in direct and "判断未启用就跳过这一步" in direct
+    for title in ("## 要做什么", "## 改哪些文件", "## 主规格与检索命中", "## 判路与理由"):           # 与引擎 DIRECT_SECTIONS 一致
+        assert title in direct, title
+    assert direct.index("rulemason judge --direct") < direct.index("4. **直接改完只跑 ruff 与测试**")      # 说明并进第 3 步，第 4 步编号不动
 
 
 def test_gates_archive_merges_without_asking_and_hints_key_once():
@@ -435,7 +447,7 @@ def test_gates_archive_merges_without_asking_and_hints_key_once():
     assert "`openspec archive <change 名> --yes`" in archive and "`openspec validate --specs --strict`" in archive
     assert "不就「是否同步主规格」询问用户" in archive and "verification.md" in archive
     assert "正好是 3" in archive and "「接入后归档 change」正好是 1" in archive and "rulemason key" in archive and "不代用户配置 key" in archive
-    assert "已有 key 就提示在 AI 工具中运行 `/rulemason`" in archive and "判断只审 OpenSpec 方案与界面文案" in archive
+    assert "已有 key 就提示在 AI 工具中运行 `/rulemason`" in archive and "判断审 OpenSpec 方案、界面文案与直接改动的说明" in archive
 
 
 def test_entry_blocks_say_read_before_direct_edits():

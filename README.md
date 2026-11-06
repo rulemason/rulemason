@@ -116,7 +116,7 @@ rulemason update            # 刷新项目里提交的副本与入口：每个�
 
 ## 判断（可选）
 
-配了 key 不等于启用判断：启用要在 AI 工具里运行 `/rulemason` 并说明，由它整理判断规则、你逐条确认；判断只审 OpenSpec 方案与界面文案，不走 OpenSpec 的直接改动它碰不到。判断要求项目在 git 里、已归档至少 3 个 change；`rulemason check` 的「判断」一行会写明还差什么。
+配了 key 不等于启用判断：启用要在 AI 工具里运行 `/rulemason` 并说明，由它整理判断规则、你逐条确认；判断审 OpenSpec 方案、界面文案，以及不走 OpenSpec 的直接改动的「改动说明」（见下）。判断要求项目在 git 里、已归档至少 3 个 change；`rulemason check` 的「判断」一行会写明还差什么。
 
 配 key（在自己的终端里运行，输入不显示，不会进命令历史）：
 
@@ -134,7 +134,10 @@ rulemason judge --change 功能名 --lint-only   # 只跑正则检查，不联�
 rulemason judge --copy                        # 审新增或改过的界面文案（项目配了 openspec/judge.yaml 才有）
 rulemason judge --change 功能名 --dry-run     # 打印将要发送的请求，不发送
 rulemason judge --template judgments          # 打印启用判断用的模板（judgments、judge、judge_cases）
+rulemason judge --direct 说明.md              # 审一份直接改动说明（AI 在不走 OpenSpec 改代码前自己写、自己运行）
 ```
+
+**直接改动的红线**：不走 OpenSpec 的改动里，改到项目指令「红线」一节下「先走 OpenSpec 的区域」的，会先起一个最小 OpenSpec change，用现有的方案判断对照红线；这一层不依赖判断层。其余改了代码逻辑的改动，判断启用后会让 AI 先把依据写成一份固定四段的说明（要做什么、改哪些文件、主规格与检索命中、判路与理由，不贴代码，不发送源码）交判断。通用规则 `direct-route-respects-specs` 查这次改动有没有绕开主规格，红线规则可以在启用判断时问你是否也用在直接改动上。现在只给 review、不拦截，跑一段时间看分数再收紧。
 
 项目代码也可以把引擎当库用：`from rulemason.judge import load_rules, verdict_or_pending`。
 

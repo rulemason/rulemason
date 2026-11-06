@@ -3,6 +3,7 @@
 在接入项目内任意目录运行（以所在 git 仓库的根为项目根）：
     rulemason judge --change <name>   审 openspec/changes/<name>（或 archive/<name>）下的 proposal / design / tasks / specs
     rulemason judge --copy            审 openspec/judge.yaml 配置的界面文案相对 main 分支新增或修改的条目
+    rulemason judge --direct <文件>   审一份不走 OpenSpec 的直接改动说明（四段：要做什么、改哪些文件、主规格与检索命中、判路与理由）
     加 --lint-only 只跑正则检查（不需要 key 与网络）；加 --dry-run 打印将要发送的请求体而不发送。
 
 规则 = 引擎自带的通用规则（base/judgments.yaml）+ 项目的 openspec/judgments.yaml，同 id 以项目为准。
@@ -44,7 +45,7 @@ JEV_MODEL = "jev-1.14.0"                                    # 固定版本，不
 SHORT_LABEL = 4                                             # 不超过四个字的标签不送模型，查词表（rules/copy-voice.md）
 
 Verdict = Literal["pass", "review", "block"]
-Target = Literal["proposal", "design", "tasks", "specs", "copy", "chat"]   # chat：问答忠实度，由项目的评估测试调用
+Target = Literal["proposal", "design", "tasks", "specs", "copy", "chat", "direct"]   # chat：问答忠实度，由项目的评估测试调用；direct：不走 OpenSpec 的直接改动说明
 Answer = tuple[float, float | None]                         # (模型数值, 置信度)；noul 没有置信度
 Answers = dict[str, Answer]                                 # 规则 id → Answer
 
@@ -383,6 +384,21 @@ def lint_design(md: str) -> list[str]:
     return problems
 
 
+DIRECT_SECTIONS = ("要做什么", "改哪些文件", "主规格与检索命中", "判路与理由")      # 直接改动说明必须有的四段，标题固定
+
+
+def lint_direct(md: str) -> list[str]:
+    """直接改动说明缺哪几段（二级标题）或哪几段是空的；返回问题清单，空表示四段齐全且都有正文。"""
+    problems = []
+    for title in DIRECT_SECTIONS:
+        body = _section(md, title)
+        if body is None:
+            problems.append(f"缺少「{title}」一段")
+        elif not body.strip():
+            problems.append(f"「{title}」一段是空的")
+    return problems
+
+
 def label_len(text: str) -> int:
     """短标签长度：去掉 {占位符} 与空白后数字符。「前 {y}」算一个字。"""
     return len(re.sub(r"\{[^}]*\}|\s", "", text))
@@ -486,6 +502,14 @@ def report(results: list[Verdict], v: Verdict, qid: str, why: str) -> None:
     results.append(v)
 
 
+def ask_and_report(text: str, matched: list[Rule], judge: Judge, results: list[Verdict]) -> None:
+    """把 text 交给裁判回答 matched 里的规则，逐条判定并报告。"""
+    answers = judge.ask(text, matched)
+    for r in matched:
+        v, why = verdict_or_pending(r, answers)
+        report(results, v, r.id, why)
+
+
 def run_change(name: str, rules: list[Rule], judge: Judge | None) -> list[Verdict]:
     results: list[Verdict] = []
     for label, target, text in change_files(name):
@@ -508,10 +532,27 @@ def run_change(name: str, rules: list[Rule], judge: Judge | None) -> list[Verdic
         if not matched:
             print("  （无适用规则）")
             continue
-        answers = judge.ask(text, matched)
-        for r in matched:
-            v, why = verdict_or_pending(r, answers)
-            report(results, v, r.id, why)
+        ask_and_report(text, matched, judge, results)
+    return results
+
+
+def run_direct(path: str, rules: list[Rule], judge: Judge | None) -> list[Verdict]:
+    """审一份直接改动说明：四段齐全才问裁判，缺段直接记 block，不调模型。说明文件可以在项目之外。"""
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:                # 文件不存在等 OSError 由命令行最外层接住；这里把编码错误也转成带路径的说明
+        raise ConfigError(f"{path} 不是 UTF-8 编码：{exc}") from exc
+    print(f"\n## {Path(path).name}")
+    results: list[Verdict] = []
+    problems = lint_direct(text)
+    if problems:
+        for p in problems:
+            report(results, "block", "lint/direct", p)
+        return results
+    report(results, "pass", "lint/direct", "四段齐全")
+    if judge is None:
+        return results
+    ask_and_report(text, [r for r in rules if r.target == "direct"], judge, results)
     return results
 
 
@@ -577,14 +618,15 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="rulemason judge", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--change", metavar="NAME", help="审 openspec/changes/NAME 下的产物")
     ap.add_argument("--copy", action="store_true", help="审 openspec/judge.yaml 配置的文案相对 main 的新增或修改")
+    ap.add_argument("--direct", metavar="FILE", help="审一份直接改动说明（四段：要做什么、改哪些文件、主规格与检索命中、判路与理由），文件可以在项目之外")
     ap.add_argument("--lint-only", action="store_true", help="只跑正则检查，不需要 key 与网络")
     ap.add_argument("--dry-run", action="store_true", help="打印将要发送的请求体，不发送")
     ap.add_argument("--template", metavar="NAME", help=f"打印判断层模板（{'、'.join(TEMPLATE_NAMES)}），启用判断时用")
     args = ap.parse_args(argv)
     if args.template is not None:
         return print_template(args.template)
-    if not (args.change or args.copy):
-        ap.error("请指定 --change NAME、--copy 或 --template NAME")
+    if not (args.change or args.copy or args.direct):
+        ap.error("请指定 --change NAME、--copy、--direct FILE 或 --template NAME")
 
     # 1. 规则与裁判；--lint-only 不需要裁判
     rules = load_rules()
@@ -597,6 +639,8 @@ def main(argv: list[str] | None = None) -> int:
         results += run_change(args.change, rules, judge)
     if args.copy:
         results += run_copy(rules, judge)
+    if args.direct:
+        results += run_direct(args.direct, rules, judge)
     if judge is not None:
         judge.close()
 

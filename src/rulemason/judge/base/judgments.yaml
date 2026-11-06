@@ -20,3 +20,14 @@
   # block 0.3：介于坏样本（0.08）与正常 design 的下限之间；2026-11-02 回放 rulemason 仓库 19 个归档 change，18 份 design 的 p 为 0.65–0.93，无一低于 0.3（另一份决策缺否决理由，被 lint/design 拦下，未送模型）。
   thresholds: { pass: 0.7, block: 0.3 }
 
+- id: direct-route-respects-specs
+  target: direct
+  # enforces 用 L0/Code style：这个标题所有接入项目的项目指令里都有，指向别的标题会让没有它的项目整个引擎退出。
+  enforces: L0/Code style
+  type: noul
+  # 直接改动（不走 OpenSpec）判路时最危险的一种：为了让改动通过，把几处行为变化塞进某个测试的白名单，
+  # 而另一份名字毫不相干的主规格已经点名了这个测试、禁止这类行为，检索命中时却没有当成冲突处理。
+  # block 0（只 review 不拦）：还没有真实样本的分数分布；按红线规则的惯例，连续三次零误拦后再收紧。
+  question: 这次改动改变了「主规格与检索命中」一段列出的某条主规格的行为，或改了主规格点名的测试的断言或白名单，却没有按「冲突」处理或起 change
+  expect: false
+  thresholds: { pass: 0.7, block: 0.0 }

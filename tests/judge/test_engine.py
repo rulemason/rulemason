@@ -129,7 +129,7 @@ def test_git_repo_without_openspec_exits(tmp_path, monkeypatch):
 
 def test_base_rules_load_with_project_rules(project):
     ids = [r.id for r in judge.load_rules()]
-    assert ids[:2] == ["proposal-states-non-goals", "design-no-speculative-extension"]
+    assert ids[:3] == ["proposal-states-non-goals", "design-no-speculative-extension", "direct-route-respects-specs"]
     assert "design-decisions-have-alternatives" not in ids          # 已改由 lint/design 检查
     assert "design-no-yaml" in ids
 
@@ -151,7 +151,7 @@ def test_project_rule_overrides_base_by_id(project):
 
 def test_project_without_rules_file_uses_base_only(project):
     (project / "openspec/judgments.yaml").unlink()
-    assert len(judge.load_rules()) == 2
+    assert len(judge.load_rules()) == 3
 
 
 def _load_bad(project: Path, body: str) -> str:
@@ -618,6 +618,124 @@ def test_run_change_blocks_without_calling_model(project, capsys):
     assert results == ["block"]
     assert "决策缺否决理由：1. 用 A" in capsys.readouterr().out
 
+
+# ---------- 直接改动说明（direct-edit-judgment） ----------
+
+DIRECT_OK = """## 要做什么
+给后台操作补审计日志。
+
+## 改哪些文件
+api/audit.py、api/tests/test_audit.py。
+
+## 主规格与检索命中
+读了 audit-log；检索「audit」命中其中一条 requirement。
+
+## 判路与理由
+主规格已写到审计，行为一致，判为「不改行为」。
+"""
+
+
+def test_lint_direct_names_missing_sections():
+    assert judge.lint_direct(DIRECT_OK) == []
+    problems = judge.lint_direct("## 要做什么\nx\n\n## 改哪些文件\ny\n")
+    assert problems == ["缺少「主规格与检索命中」一段", "缺少「判路与理由」一段"]
+
+
+def test_lint_direct_rejects_empty_sections():
+    assert judge.lint_direct(DIRECT_OK.replace("给后台操作补审计日志。", "")) == ["「要做什么」一段是空的"]
+
+
+def test_direct_block_threshold_zero_never_blocks(project):
+    rule = _rules(project)["direct-route-respects-specs"]
+    assert rule.thresholds.block == 0.0
+    assert verdict(rule, 1.0, None) == ("review", "p=0.00")                      # 得分恰好 0：不拦，只 review
+
+
+def test_direct_missing_sections_block_without_calling_model(project, tmp_path, capsys):
+    note = tmp_path / "note.md"                                                 # 说明文件在项目之外
+    note.write_text("## 要做什么\nx\n\n## 改哪些文件\ny\n", encoding="utf-8")
+
+    class NoModel:
+        def ask(self, *_args, **_kwargs):
+            raise AssertionError("缺段时不应送模型")
+    assert judge.run_direct(str(note), judge.load_rules(), NoModel()) == ["block", "block"]
+    assert "缺少「主规格与检索命中」一段" in capsys.readouterr().out
+
+
+def test_direct_complete_note_uses_only_direct_rules(project, tmp_path):
+    _write(project, "openspec/judgments.yaml", PROJECT_RULE + """
+- id: direct-no-second-entry
+  target: direct
+  enforces: L1/context
+  type: noul
+  question: 这次改动：新增商务咨询表单以外的数据提交入口
+  expect: false
+  thresholds: { pass: 0.7, block: 0.0 }
+""")
+    note = tmp_path / "note.md"
+    note.write_text(DIRECT_OK, encoding="utf-8")
+    asked = []
+
+    class Fake:
+        def ask(self, text, rules):
+            asked.append([r.id for r in rules])
+            return {r.id: (0.9, None) for r in rules}                           # 模型说「有」：expect false 的违规检查得分 0.1
+    results = judge.run_direct(str(note), judge.load_rules(), Fake())
+    assert asked == [["direct-route-respects-specs", "direct-no-second-entry"]]
+    assert results == ["pass", "review", "review"]                                # 四段齐全 pass；两条 direct 规则 block 为 0，低分只 review
+
+
+def test_direct_lint_only_needs_no_judge(project, tmp_path, capsys):
+    note = tmp_path / "note.md"
+    note.write_text(DIRECT_OK, encoding="utf-8")
+    assert judge.main(["--direct", str(note), "--lint-only"]) == 0
+    assert "四段齐全" in capsys.readouterr().out
+
+
+def test_direct_missing_sections_exit_nonzero(project, tmp_path):
+    note = tmp_path / "note.md"
+    note.write_text("## 要做什么\nx\n", encoding="utf-8")
+    assert judge.main(["--direct", str(note), "--lint-only"]) == 1
+
+
+def test_direct_note_not_found_exits_with_one_line(project, tmp_path):
+    with pytest.raises(OSError):
+        judge.run_direct(str(tmp_path / "no-such.md"), judge.load_rules(), None)    # 命令行最外层把 OSError 转成一行说明
+
+
+def test_direct_note_not_utf8_is_config_error(project, tmp_path):
+    note = tmp_path / "note.md"
+    note.write_bytes("## 要做什么\n补审计".encode("gbk"))
+    with pytest.raises(judge.ConfigError, match="不是 UTF-8 编码"):
+        judge.run_direct(str(note), judge.load_rules(), None)
+
+
+def test_direct_dry_run_sends_only_the_note(project, tmp_path, capsys):
+    note = tmp_path / "note.md"
+    note.write_text(DIRECT_OK, encoding="utf-8")
+    assert judge.main(["--direct", str(note), "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    payload = json.loads(out[out.index("{"):out.rindex("}") + 1])
+    assert payload["state"] == DIRECT_OK and list(payload["questions"]) == ["direct-route-respects-specs"]
+
+
+def test_direct_with_change_adds_up_results(project, tmp_path, capsys):
+    note = tmp_path / "note.md"
+    note.write_text("## 要做什么\nx\n", encoding="utf-8")
+    _write(project, "openspec/changes/x/proposal.md", "## Why\n无\n\n## Non-Goals\n无\n")
+    assert judge.main(["--direct", str(note), "--change", "x", "--lint-only"]) == 1
+    assert "合计：pass 0 / review 0 / block 3" in capsys.readouterr().out         # 说明缺三段，change 无 design 与 tasks 被跳过，不计违规
+
+def test_change_does_not_use_direct_rules(project, capsys):
+    _write(project, "openspec/changes/x/proposal.md", "## Why\n无\n\n## Non-Goals\n无\n")
+    seen = []
+
+    class Fake:
+        def ask(self, text, rules):
+            seen.append([r.id for r in rules])
+            return {r.id: (1.0, None) for r in rules}
+    judge.run_change("x", judge.load_rules(), Fake())
+    assert seen == [["proposal-states-non-goals"]]                              # --change 时只有原来的通用规则参与
 
 # ---------- Windows 中文版：git 按 UTF-8 读、key 含无效字符、路径分隔符（windows-followups） ----------
 
