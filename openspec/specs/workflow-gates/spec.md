@@ -249,18 +249,6 @@ apply 最后一个任务做完、汇报完成之前，SHALL 按顺序执行：1.
 - **WHEN** 要归档的 change 还有 2 条任务没勾
 - **THEN** AI 不归档，说明还差哪两条
 
-### Requirement: 归档够 3 个时提示一次配置 key
-
-归档完成后，已归档 change 数正好等于 3、项目判断层未启用且本机没有 Jev key 时，AI SHALL 在汇报末尾提示一次：判断条件已满足，可运行 `rulemason key` 配置（申请地址 https://typesafe.ai/ ）。AI MUST NOT 代为配置 key，归档数不等于 3 时 MUST NOT 提示。
-
-#### Scenario: 第 3 个归档
-- **WHEN** 项目归档第 3 个 change，没有 `openspec/judgments.yaml`，本机未配置 key
-- **THEN** 汇报末尾有一句配置 key 的提示与申请地址
-
-#### Scenario: 第 4 个归档
-- **WHEN** 同一项目归档第 4 个 change，仍未配置 key
-- **THEN** 汇报不再提示
-
 ### Requirement: 检查点以被改文件所属项目为准
 
 共享检查点 SHALL 写明：检查点所说的「本项目」（命令表、红线规则、额外步骤、主规格）指被改文件往上最近的 `.rulemason.yaml` 所在目录，不是打开 AI 工具的目录。一次改动涉及多个接入项目时，AI SHALL 对每个项目各跑一遍检查点：命令在该项目根执行，diff、审查材料与提交按项目分开。只涉及一个项目时，检查点的行为 MUST NOT 改变。
@@ -284,3 +272,23 @@ apply 最后一个任务做完、汇报完成之前，SHALL 按顺序执行：1.
 #### Scenario: 删掉断言
 - **WHEN** AI 发现删掉这条文本断言最省事
 - **THEN** 检查点不允许，AI 保留断言并改成等价内容；确实无法等价时停下说明，由用户决定
+
+### Requirement: 归档后提示一次启用判断
+
+归档完成后，`rulemason check --json` 的「判断」一行显示条件已满足且未启用，并且「已归档 change」正好是 3 或「接入后归档 change」正好是 1 时，AI SHALL 在汇报末尾提示一次：本机没有 key 时提示运行 `rulemason key`（申请地址 https://typesafe.ai/ ）；已有 key 时提示在 AI 工具中运行 `/rulemason` 并说明要启用判断。两种提示都 SHALL 附一句：判断只审 OpenSpec 方案与界面文案。AI MUST NOT 代为配置 key 或启用判断；其余情况 MUST NOT 提示。
+
+#### Scenario: 第 3 个归档且没有 key
+- **WHEN** 项目归档第 3 个 change，没有 `openspec/judgments.yaml`，本机未配置 key
+- **THEN** 汇报末尾有一句配置 key 的提示与申请地址，附判断覆盖范围
+
+#### Scenario: 接入后第一次归档且已有 key
+- **WHEN** 接入时已归档 60 个 change，接入后归档第 1 个，没有 `openspec/judgments.yaml`，本机已有 key
+- **THEN** 汇报末尾提示在 AI 工具中运行 `/rulemason` 并说明要启用判断，附判断覆盖范围
+
+#### Scenario: 之后的归档
+- **WHEN** 同一项目接入后归档第 2 个 change，仍未启用判断
+- **THEN** 汇报不再提示
+
+#### Scenario: 判断已启用
+- **WHEN** 项目有 `openspec/judgments.yaml`，接入后归档第 1 个 change
+- **THEN** 汇报不提示

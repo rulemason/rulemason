@@ -67,7 +67,7 @@ skill SHALL 按「补项目信息 → 日常巡检」的顺序找出第一个未
 
 ### Requirement: 阶段一接入代码规矩与 gates
 
-阶段一的文件写入 SHALL 由 `rulemason init` 完成（见 `rulekit-cli` 规格）。skill 在 init 之后 SHALL 补项目专属内容：核对并修正 init 预填的项目简介（仍是占位时按 README 与代码写）、经用户确认的红线（init 写的「暂无」也要问用户一次）、对自动识别命令表的确认或修正；`rulemason init` 报告无法安全合并的 `openspec/specs/workflow-gates/spec.md` 也由 skill 合并。skill MUST NOT 修改 rulemason 标记块内的内容，也 MUST NOT 有专门处理旧名的步骤。此时判断层未启用，命令表中判断与文案检查写明「可选，未启用」。
+阶段一的文件写入 SHALL 由 `rulemason init` 完成（见 `rulekit-cli` 规格）。skill 在 init 之后 SHALL 补项目专属内容：核对并修正 init 预填的项目简介（仍是占位时按 README 与代码写）、经用户确认的红线（init 写的「暂无」也要问用户一次）、对自动识别命令表的确认或修正；`rulemason init` 报告无法安全合并的 `openspec/specs/workflow-gates/spec.md` 也由 skill 合并。skill MUST NOT 修改 rulemason 标记块内的内容，也 MUST NOT 有专门处理旧名的步骤。此时判断层未启用，命令表中判断与文案检查写明「可选，未启用」。补完时判断条件已满足的，SHALL 在汇报末尾问一次下一步是否整理判断规则，并说明判断只审 OpenSpec 方案与界面文案。
 
 #### Scenario: Python 项目没有 ruff 配置
 - **WHEN** 项目有 Python 代码但没有任何 ruff 配置
@@ -88,6 +88,10 @@ skill SHALL 按「补项目信息 → 日常巡检」的顺序找出第一个未
 #### Scenario: 简介已由 init 预填
 - **WHEN** `AGENTS.md` 的简介是 init 从 README 取的两句话，红线为「暂无」
 - **THEN** skill 把简介念给用户核对，只在用户要改时改；红线仍从 README 与 `context` 找候选问一次，没有就保留「暂无」
+
+#### Scenario: 补完时判断条件已满足
+- **WHEN** 项目已归档 60 个 change、本机已有 key、没有 `openspec/judgments.yaml`，接入后还没归档过 change，补项目信息完成
+- **THEN** 汇报末尾问一次「下一步要不要整理判断规则」，说明判断只审 OpenSpec 方案与界面文案，并照实说明接入后还没起过 change、启用后暂时用不上；本次不进入整理
 
 ### Requirement: 阶段一同步项目工作流规格
 
