@@ -1134,7 +1134,7 @@ def test_has_key_hint_says_how_to_enable_judgment(project, tty, monkeypatch, cap
     asked = _answers(monkeypatch, "y")
     assert init.run(project, "claude", False) == 0
     out = capsys.readouterr().out
-    assert "判断条件已满足；判断只审 OpenSpec 方案与界面文案" in out and "/rulemason" in out
+    assert "判断条件已满足；判断审 OpenSpec 方案、界面文案与直接改动的说明" in out and "/rulemason" in out
     assert all("key" not in q for q in asked)                                   # 只说明，不提问
 
 

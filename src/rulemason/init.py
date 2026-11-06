@@ -937,7 +937,7 @@ def guide_key(root: Path) -> None:
     blockers = check.judge_blockers(root, check.archived(root))
     if engine.api_key():
         if not blockers and not (root / "openspec/judgments.yaml").exists():
-            print(f"判断条件已满足；判断只审 OpenSpec 方案与界面文案。要启用，在 AI 工具中运行 /{NAME} 并说明要启用判断。")
+            print(f"判断条件已满足；判断审 OpenSpec 方案、界面文案与直接改动的说明。要启用，在 AI 工具中运行 /{NAME} 并说明要启用判断。")
         return
     if blockers:
         print(f"判断功能需要 git 与至少 {check.MIN_ARCHIVED} 个已归档 change；满足后运行 {NAME} key 配置 Jev 的 key（申请：{KEY_URL}）")
