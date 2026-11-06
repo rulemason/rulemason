@@ -151,6 +151,12 @@ def test_skill_eslint_baseline_section():
         assert text in section, text
 
 
+def test_skill_asks_once_about_judgment_when_conditions_met():
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    step = next(line for line in skill.splitlines() if line.startswith("8. **问一次判断层**"))
+    assert "只问不做，本次不进入第 4 节" in step and "只审 OpenSpec 方案与界面文案" in step and "暂时用不上" in step
+    assert "说明启用条件与覆盖范围" in skill
+
 def test_skill_legacy_cleanup_section():
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
     section = skill[skill.index("## 7. 存量清理（可选，用户提出时才做）"):skill.index("## 8. 汇报")]
@@ -403,7 +409,6 @@ def test_eslint_wording_per_file_and_react_equivalence():
         assert name not in section, name
 
 
-
 # ---------- 不走 OpenSpec 的改动与归档（spec-guard） ----------
 
 def _section(text: str, heading: str) -> str:
@@ -429,7 +434,8 @@ def test_gates_archive_merges_without_asking_and_hints_key_once():
     archive = _section((ROOT / "rules/workflow-gates.md").read_text(encoding="utf-8"), "归档")
     assert "`openspec archive <change 名> --yes`" in archive and "`openspec validate --specs --strict`" in archive
     assert "不就「是否同步主规格」询问用户" in archive and "verification.md" in archive
-    assert "正好是 3" in archive and "rulemason key" in archive and "不代用户配置 key" in archive
+    assert "正好是 3" in archive and "「接入后归档 change」正好是 1" in archive and "rulemason key" in archive and "不代用户配置 key" in archive
+    assert "已有 key 就提示在 AI 工具中运行 `/rulemason`" in archive and "判断只审 OpenSpec 方案与界面文案" in archive
 
 
 def test_entry_blocks_say_read_before_direct_edits():

@@ -1128,6 +1128,32 @@ def test_no_key_prompt_with_key_or_yes(project, tty, monkeypatch, capsys, has_ke
     assert "Jev 的 key" not in capsys.readouterr().out and all("key" not in q for q in asked)
 
 
+def test_has_key_hint_says_how_to_enable_judgment(project, tty, monkeypatch, capsys):
+    _archives(project, 60)
+    monkeypatch.setattr(init.engine, "api_key", lambda: "k")
+    asked = _answers(monkeypatch, "y")
+    assert init.run(project, "claude", False) == 0
+    out = capsys.readouterr().out
+    assert "判断条件已满足；判断只审 OpenSpec 方案与界面文案" in out and "/rulemason" in out
+    assert all("key" not in q for q in asked)                                   # 只说明，不提问
+
+
+def test_has_key_hint_absent_when_conditions_not_met(project, tty, monkeypatch, capsys):
+    monkeypatch.setattr(init.engine, "api_key", lambda: "k")                    # 只归档了 0 个，条件未满足
+    _answers(monkeypatch, "y")
+    assert init.run(project, "claude", False) == 0
+    out = capsys.readouterr().out
+    assert "判断条件已满足" not in out and "判断功能需要" not in out
+
+
+def test_has_key_hint_absent_when_judgment_enabled(project, tty, monkeypatch, capsys):
+    _archives(project, 60)
+    write(project, "openspec/judgments.yaml", "[]\n")
+    monkeypatch.setattr(init.engine, "api_key", lambda: "k")
+    _answers(monkeypatch, "y")
+    assert init.run(project, "claude", False) == 0
+    assert "判断条件已满足" not in capsys.readouterr().out
+
 def test_go_project_gets_only_generic_rules_and_update_adds_python_later(tmp_path, capsys):
     root = tmp_path / "svc"
     git_init(root)

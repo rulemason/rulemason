@@ -116,7 +116,7 @@ rulemason update            # 刷新项目里提交的副本与入口：每个�
 
 ## 判断（可选）
 
-判断要求项目在 git 里、已归档至少 3 个 change；`rulemason check` 的「判断」一行会写明还差什么。要启用时在 AI 工具里运行 `/rulemason` 并说明要启用判断，它会整理候选判断规则让你逐条确认。
+配了 key 不等于启用判断：启用要在 AI 工具里运行 `/rulemason` 并说明，由它整理判断规则、你逐条确认；判断只审 OpenSpec 方案与界面文案，不走 OpenSpec 的直接改动它碰不到。判断要求项目在 git 里、已归档至少 3 个 change；`rulemason check` 的「判断」一行会写明还差什么。
 
 配 key（在自己的终端里运行，输入不显示，不会进命令历史）：
 

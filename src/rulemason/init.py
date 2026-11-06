@@ -933,10 +933,13 @@ def agents_template(root: Path) -> str:
 
 
 def guide_key(root: Path) -> None:
-    """交互 init 结尾：本机没有 key 时按判断条件提示或问一句；有 key 什么都不说。"""
+    """交互 init 结尾：判断条件已满足、未启用时，有 key 说一句怎么启用，没有 key 问一句是否配置；条件未满足只提示启用条件。"""
+    blockers = check.judge_blockers(root, check.archived(root))
     if engine.api_key():
+        if not blockers and not (root / "openspec/judgments.yaml").exists():
+            print(f"判断条件已满足；判断只审 OpenSpec 方案与界面文案。要启用，在 AI 工具中运行 /{NAME} 并说明要启用判断。")
         return
-    if check.judge_blockers(root, check.archived(root)):
+    if blockers:
         print(f"判断功能需要 git 与至少 {check.MIN_ARCHIVED} 个已归档 change；满足后运行 {NAME} key 配置 Jev 的 key（申请：{KEY_URL}）")
         return
     if ask_yes(f"这个项目已满足开启判断的条件。现在配置 Jev 的 key（申请：{KEY_URL}）吗？"):
