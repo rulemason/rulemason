@@ -184,6 +184,10 @@ def test_skill_legacy_cleanup_section():
                  "仍算未完成", "视为已完成", "不再抽样", "不改下一个模块的文件",
                  "行数从多到少", "这一轮先排除当前模块", "这次没有要做的模块", "不决定先后",
                  "有未提交文件的模块里", "也不看高、中、低", "排序后第一条",
+                 "这次要做的事", "不算这次要清的内容", "同一次诊断",
+                 "不写入文件", "也不是用户确认", "具体改哪些等进入该模块后的计划",
+                 "这两种都不写这次要做的事", "哪一类软指标不算这次要清的内容",
+                 "不写具体改哪些",
                  "`init`、`fix_manifest`、`upgrade_machine`、`update` 时按第 1 节停下",
                  "为 `fill_project_info`、`manual_lint`、`fix_gitignore`、`none` 时继续"):
         assert text in section, text
