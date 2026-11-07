@@ -168,13 +168,22 @@ def test_skill_legacy_cleanup_section():
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
     section = skill[skill.index("## 7. 存量清理（可选，用户提出时才做）"):skill.index("## 8. 汇报")]
 
-    assert len(section.strip().splitlines()) <= 30
+    assert len(section.strip().splitlines()) <= 70
     for step in ("**规划**", "**先存证据**", "**代理指令**", "**恢复**", "**主会话复核**", "**收尾**"):
         assert step in section, step
     for text in ("共用模块", "不要为了缩小改动面要求「不新建文件」", "git worktree add --detach", "不要把改前代码经 stdin 交给 lint",
                  "git diff --stat", "不重做已完成的部分", "「改既有测试时」", "「重构等价性」", "本 skill 不提交",
-                 "用户确认后再做", "临时目录放在仓库外", "git worktree remove --force", "先用本机缓存离线安装", "有未提交改动时先剔除"):
+                 "用户确认后再做", "临时目录放在仓库外", "git worktree remove --force", "先用本机缓存离线安装", "有未提交改动时先剔除",
+                 "不改任何文件", "接入前遗留", "ARG,ERA,BLE,S110,T201", "npx --yes jscpd@5.4.2", "uvx pylint@4.1.3",
+                 "不改项目的 lint 配置", "空出这一列", "2 到 3 个", "高、中、低", "最多 5 个", "最多 3 个",
+                 "没有子代理就串行", "通读该模块", "不把诊断或进度写入 `.rulemason/`", "refactor(cleanup):",
+                 "不带模块名时只输出诊断", "再按模块拆开计数", "仓库外临时目录", "用完删掉", "命令失败",
+                 "说要做存量清理", "离线", "下载失败", "由用户提交", "--output-format json",
+                 "`init`、`fix_manifest`、`upgrade_machine`、`update` 时按第 1 节停下",
+                 "为 `fill_project_info`、`manual_lint`、`fix_gitignore`、`none` 时继续"):
         assert text in section, text
+    gate = skill[skill.index("## 1. 识别"):skill.index("## 2. 补项目信息")]
+    assert "`next.code` 只作第 7 节的入口闸门" in gate and "说要做存量清理" in gate
     description = next(line for line in skill.splitlines() if line.startswith("description:"))
     assert "存量清理" in description
 
