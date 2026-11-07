@@ -179,6 +179,11 @@ def test_skill_legacy_cleanup_section():
                  "没有子代理就串行", "通读该模块", "不把诊断或进度写入 `.rulemason/`", "refactor(cleanup):",
                  "不带模块名时只输出诊断", "再按模块拆开计数", "仓库外临时目录", "用完删掉", "命令失败",
                  "说要做存量清理", "离线", "下载失败", "由用户提交", "--output-format json",
+                 "不把队列写入文件", "工作区干净的排在有未提交改动的前面", "模块路径字典序",
+                 "高、中、低只标在行旁", "这次不做", "要先提交的路径", "不进入该模块",
+                 "仍算未完成", "视为已完成", "不再抽样", "不改下一个模块的文件",
+                 "行数从多到少", "这一轮先排除当前模块", "这次没有要做的模块", "不决定先后",
+                 "有未提交文件的模块里", "也不看高、中、低", "排序后第一条",
                  "`init`、`fix_manifest`、`upgrade_machine`、`update` 时按第 1 节停下",
                  "为 `fill_project_info`、`manual_lint`、`fix_gitignore`、`none` 时继续"):
         assert text in section, text
