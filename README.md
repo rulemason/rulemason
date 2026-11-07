@@ -27,7 +27,8 @@ rulemason --version
 | 配一次 Jev 的 key（只在启用判断时需要） | `rulemason key` |
 | 不再使用：从项目卸载 | `rulemason remove` |
 | 手动判断一个方案 | `rulemason judge --change 功能名` |
-| 在 AI 工具里补项目简介、红线、命令表、启用判断，或做存量清理 | `/rulemason` |
+| 在 AI 工具里补项目简介、红线、命令表、启用判断 | `/rulemason` |
+| 诊断全仓，或按模块清理接入前遗留 | `/rulemason cleanup` |
 
 ## 第一次接入
 
@@ -91,7 +92,7 @@ rulemason check     # 只读，在项目任意子目录运行都可以
 
 ```yaml
 - uses: astral-sh/setup-uv@v7
-- run: uv tool install rulemason==0.8.25
+- run: uv tool install rulemason==0.8.26
 - run: rulemason check
 ```
 

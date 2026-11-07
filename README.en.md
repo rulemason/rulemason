@@ -33,13 +33,14 @@ rulemason --version
 | Configure the Jev key once per machine (only for judgment) | `rulemason key` |
 | Stop using rulemason in a project | `rulemason remove` |
 | Judge one plan by hand | `rulemason judge --change <change-name>` |
-| Inside your AI tool: fill in the project summary, red lines and command table, enable judgment, or clean up existing code | `/rulemason` |
+| Inside your AI tool: fill in the project summary, red lines and command table, or enable judgment | `/rulemason` |
+| Diagnose the whole repository, or clean up one module of existing code | `/rulemason cleanup` |
 
 Run `rulemason init` in the directory you want to set up, the same way OpenSpec's own init works; in a monorepo, run it at the repository root, or run `rulemason init <repo-root>`, to cover the whole repository.
 
 `rulemason check` exits non-zero when the setup is incomplete, so it can run in CI as is. When a lint setting cannot be fixed for you, the report names the file and line, quotes it, and says what to change. It also reports, without failing: main specs whose wording OpenSpec cannot read cleanly (placeholder purposes, delta-style headings, overlong requirements), lint scripts that are only placeholders (an echo or an empty script), and archived changes since the project was set up that lack a verification record.
 
-In a project with a lot of existing code, ruff and ESLint often report many problems that were there before rulemason. Run `/rulemason` in your AI tool once to set up a baseline (with your confirmation): ruff gets per-file exemptions, and ESLint gets one entry per file with only the rules that file breaks and its own complexity cap — the global cap stays at 15 and no rule is switched off. After that, the checkpoints fix only the problems each change introduces. To clear what remains, run `/rulemason cleanup`. With no module name it only diagnoses the repository and changes nothing; with a module name it cleans just that module, after you confirm the plan. Progress is the baseline entries plus your own commits titled `refactor(cleanup): <module>`.
+In a project with a lot of existing code, ruff and ESLint often report many problems that were there before rulemason. Run `/rulemason` in your AI tool once to set up a baseline (with your confirmation): ruff gets per-file exemptions, and ESLint gets one entry per file with only the rules that file breaks and its own complexity cap — the global cap stays at 15 and no rule is switched off. After that, the checkpoints fix only the problems each change introduces. To clear what remains, run `/rulemason cleanup`. With no module name it only diagnoses the repository (baseline entries, a temporary soft-metric count, and a few files per module for how much they could shrink) and changes nothing; the last line tells you what to type next. With a module name it cleans just that module: it lists the plan first, and you can accept only some of it. Progress is not stored in a file. It is the baseline entries plus your own commits titled refactor(cleanup): <module>.
 
 ## Several projects in one folder
 
