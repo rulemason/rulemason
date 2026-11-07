@@ -407,6 +407,164 @@ def test_rejected_key_gives_one_line_error(project, monkeypatch, capsys):
     assert "Traceback" not in message + capsys.readouterr().err
 
 
+# ---------- 被按地区拒绝时改走本机代理（judge-region-proxy-fallback） ----------
+
+PROXY = {"https": "http://127.0.0.1:7890"}
+SWITCHED = "直连 Typesafe 被按地区拒绝，已改用本机代理"
+
+
+class _FakeJev:
+    """假的 SDK 客户端：按连接是否走代理给出状态码，记下每次请求走的路。"""
+
+    def __init__(self, routes: dict[bool, int], calls: list[bool], api_key: str, model: str, http_client):
+        self.via_proxy = http_client.trust_env
+        self._http, self._routes, self._calls = http_client, routes, calls
+
+    def system_one(self, state, questions):
+        import httpx2
+        from typesafe_sdk import TypeSafeAPIError
+
+        self._calls.append(self.via_proxy)
+        status = self._routes[self.via_proxy]
+        if status != 200:
+            raise TypeSafeAPIError(status, {}, httpx2.Headers(), "Typesafe is not available in your region.")
+        return type("Resp", (), {"answers": {q: type("A", (), {"noul": 1.0})() for q in questions}})()
+
+    def close(self):
+        self._http.close()
+
+
+class _FakeHttp:
+    """假的 httpx2.Client：只记 trust_env，不读运行机器的代理设置。"""
+
+    def __init__(self, trust_env: bool):
+        self.trust_env = trust_env
+
+    def close(self):
+        pass
+
+
+def _fake_jev(monkeypatch, direct: int, proxy: int, proxies: dict[str, str]) -> list[bool]:
+    """装上假的 SDK 客户端与本机代理设置。返回每次请求是否经代理的记录（False 为直连）。"""
+    import httpx2
+    import typesafe_sdk
+
+    calls: list[bool] = []
+    monkeypatch.setenv("TYPESAFE_API_KEY", "sk-test")
+    monkeypatch.setattr(judge.urllib.request, "getproxies", lambda: proxies)
+    monkeypatch.setattr(httpx2, "Client", _FakeHttp)
+    monkeypatch.setattr(typesafe_sdk, "TypeSafeClient", lambda **kw: _FakeJev({False: direct, True: proxy}, calls, **kw))
+    return calls
+
+
+@pytest.mark.parametrize(("proxies", "expected"), [
+    (PROXY, True),
+    ({"all": "socks5://127.0.0.1:7891"}, True),
+    ({"http": "http://127.0.0.1:7890"}, False),                             # 只有 http 代理，管不到 https 请求
+    ({}, False),
+])
+def test_has_proxy_reads_https_or_all(monkeypatch, proxies, expected):
+    monkeypatch.setattr(judge.urllib.request, "getproxies", lambda: proxies)
+    assert judge.has_proxy() is expected
+
+
+def test_socks_proxy_connection_can_be_built(monkeypatch):
+    """Clash 等工具常导出 all_proxy=socks5://…：改走代理时按 trust_env=True 建连接，缺 socks 支持会直接报错。"""
+    import httpx2
+
+    for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "NO_PROXY", "no_proxy", "all_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("ALL_PROXY", "socks5://127.0.0.1:1")
+    httpx2.Client(trust_env=True).close()                                      # 只建连接，不发请求
+
+
+def test_direct_success_never_uses_proxy(project, monkeypatch, capsys):
+    calls = _fake_jev(monkeypatch, direct=200, proxy=200, proxies=PROXY)
+    rule = _rules(project)["design-no-yaml"]
+    j = judge.Judge("jev")
+    j.ask("正文", [rule])
+    j.ask("正文", [rule])
+    j.close()
+    assert calls == [False, False]
+    assert SWITCHED not in capsys.readouterr().out
+
+
+def test_region_blocked_switches_to_proxy_once_per_run(project, monkeypatch, capsys):
+    calls = _fake_jev(monkeypatch, direct=451, proxy=200, proxies=PROXY)
+    rule = _rules(project)["design-no-yaml"]
+    j = judge.Judge("jev")
+    assert j.ask("正文", [rule]) == {"design-no-yaml": (1.0, None)}
+    j.ask("正文", [rule])
+    j.close()
+    assert calls == [False, True, True]                                      # 只有第一个请求先直连
+    assert capsys.readouterr().out.count(SWITCHED) == 1
+
+    again = judge.Judge("jev")
+    again.ask("正文", [rule])
+    again.close()
+    assert calls[-2:] == [False, True]                                       # 下一次运行重新先直连
+
+
+def test_region_blocked_run_prints_switch_before_results(project, monkeypatch, capsys):
+    _fake_jev(monkeypatch, direct=451, proxy=200, proxies=PROXY)
+    _write(project, "openspec/changes/x/proposal.md", "## Why\n无\n\n## Non-Goals\n无\n")
+    assert judge.main(["--change", "x"]) == 0
+    out = capsys.readouterr().out
+    assert out.index(SWITCHED) < out.index("pass   proposal-states-non-goals")
+    assert "合计：pass 1 / review 0 / block 0" in out
+
+
+def _cli_message(project, monkeypatch, capsys) -> tuple[str, str]:
+    """cli 跑一次只问一条规则的判断，返回 (退出提示, 标准输出)；要求以非 0 退出且没有堆栈。"""
+    rule = _rules(project)["design-no-yaml"]
+    monkeypatch.setattr(judge, "main", lambda argv=None: judge.Judge("jev").ask("正文", [rule]))
+    with pytest.raises(SystemExit) as exc:
+        judge.cli()
+    message = str(exc.value.code)
+    out, err = capsys.readouterr()
+    assert message.startswith("✗ ") and "Traceback" not in message + err
+    return message, out
+
+
+def test_region_blocked_without_proxy_says_set_https_proxy(project, monkeypatch, capsys):
+    calls = _fake_jev(monkeypatch, direct=451, proxy=200, proxies={})
+    message, out = _cli_message(project, monkeypatch, capsys)
+    assert calls == [False]
+    assert "按地区拒绝" in message and "没有设置代理" in message and "HTTPS_PROXY" in message
+    assert SWITCHED not in out
+
+
+def test_region_blocked_through_proxy_says_change_proxy(project, monkeypatch, capsys):
+    calls = _fake_jev(monkeypatch, direct=451, proxy=451, proxies=PROXY)
+    message, out = _cli_message(project, monkeypatch, capsys)
+    assert calls == [False, True]
+    assert SWITCHED in out
+    assert "经本机代理仍被" in message and "换一个" in message
+
+
+def test_connection_error_still_gives_one_line(project, monkeypatch, capsys):
+    """连接失败不是 TypeSafeAPIError，仍由最外层的 OSError 分支接住，不被 451 分支截走。"""
+    from typesafe_sdk import TypeSafeAPIConnectionError
+
+    def unreachable(argv=None):
+        raise TypeSafeAPIConnectionError("Connection refused")
+
+    monkeypatch.setattr(judge, "main", unreachable)
+    with pytest.raises(SystemExit) as exc:
+        judge.cli()
+    assert str(exc.value.code).startswith("✗ rulemason judge 失败")
+    assert "Traceback" not in capsys.readouterr().err
+
+
+def test_other_api_errors_are_not_retried_through_proxy(project, monkeypatch):
+    from typesafe_sdk import TypeSafeAPIError
+
+    calls = _fake_jev(monkeypatch, direct=403, proxy=200, proxies=PROXY)
+    with pytest.raises(TypeSafeAPIError):
+        judge.Judge("jev").ask("正文", [_rules(project)["design-no-yaml"]])
+    assert calls == [False]
+
+
 # ---------- key 位置：新位置优先，旧位置只读兜底 ----------
 
 

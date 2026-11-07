@@ -126,6 +126,8 @@ rulemason key
 
 key 写在 `~/.config/rulemason/env`（权限 600），只在本机，不进任何仓库；环境变量 `TYPESAFE_API_KEY` 优先。
 
+判断默认直连 Typesafe。直连被按地区拒绝（451）时，会自动改用本机代理，并提示一句；Linux 与 WSL 只认 `HTTPS_PROXY` 等环境变量，桌面系统里设的代理读不到。
+
 手动运行判断：
 
 ```bash
