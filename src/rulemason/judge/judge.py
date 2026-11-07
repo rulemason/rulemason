@@ -17,6 +17,7 @@ import json
 import os
 import re
 import sys
+import urllib.request
 from functools import cache
 from pathlib import Path
 from typing import Any, Literal
@@ -43,6 +44,7 @@ USER_ENV = Path.home() / ".config/rulemason/env"            # key 只放这一�
 OLD_USER_ENV = Path.home() / ".config/jev-judge/env"        # 旧位置：新位置没有时只读兜底，已配置的机器不用重放 key
 JEV_MODEL = "jev-1.14.0"                                    # 固定版本，不用 jev-latest；升级前先跑引擎测试与各项目回归
 SHORT_LABEL = 4                                             # 不超过四个字的标签不送模型，查词表（rules/copy-voice.md）
+REGION_BLOCKED = 451                                        # Typesafe 按出口地区拒绝服务时的状态码
 
 Verdict = Literal["pass", "review", "block"]
 Target = Literal["proposal", "design", "tasks", "specs", "copy", "chat", "direct"]   # chat：问答忠实度，由项目的评估测试调用；direct：不走 OpenSpec 的直接改动说明
@@ -259,16 +261,24 @@ def build_questions(rules: list[Rule]) -> dict[str, Any]:
     }
 
 
+def has_proxy() -> bool:
+    """本机是否设有代理。与 httpx 在 trust_env=True 时读同一份来源：环境变量，macOS / Windows 还有系统代理设置。"""
+    proxies = urllib.request.getproxies()
+    return bool(proxies.get("https") or proxies.get("all"))
+
+
 class Judge:
     """一次运行一个裁判。ask() 的输入输出与裁判无关，manual 返回空答案，让所有问题落 review。
 
     jev 裁判在首次 ask() 时建连接并复用（--copy 一条一请求，每次新建连接就是每条一次握手），用完 close()。
+    连接先直连；直连被按地区拒绝且本机有代理时改走代理，本次运行内不再直连。
     """
 
     def __init__(self, provider: str, dry_run: bool = False):
         self.provider = provider
         self.dry_run = dry_run
         self._client = None
+        self._via_proxy = False
 
     def close(self) -> None:
         if self._client is not None:
@@ -276,7 +286,7 @@ class Judge:
             self._client = None
 
     def _jev(self):
-        """懒建 SDK 客户端。trust_env=False 绕过 shell 代理：大陆直连稳定，走代理偶发断连。"""
+        """懒建 SDK 客户端。先 trust_env=False 绕过 shell 代理（直连可用时比代理稳，代理偶发断连）；_system_one 换路后按 True 重建。"""
         if self._client is None:
             import httpx2
             from typesafe_sdk import TypeSafeClient
@@ -289,8 +299,22 @@ class Judge:
                 fix = f"请修正或删除环境变量 {KEY_NAME}" if from_env else f"运行 rulemason key 重新输入{paste_hint(key)}"
                 sys.exit(fail(f"{KEY_NAME}（来自{source}）{problem}：{fix}"))
             self._client = TypeSafeClient(api_key=key, model=JEV_MODEL,
-                                          http_client=httpx2.Client(trust_env=False))
+                                          http_client=httpx2.Client(trust_env=self._via_proxy))
         return self._client
+
+    def _system_one(self, state: str, questions: dict[str, Any]):
+        """问 Jev；直连被按地区拒绝且本机有代理时，改走代理重发一次。"""
+        from typesafe_sdk import TypeSafeAPIError
+        try:
+            return self._jev().system_one(state=state, questions=questions)
+        except TypeSafeAPIError as exc:
+            if exc.status != REGION_BLOCKED or self._via_proxy or not has_proxy():
+                raise
+            # 走到这里说明直连被 Typesafe 按地区拒绝，而本机设有代理
+            print("  （直连 Typesafe 被按地区拒绝，已改用本机代理）")
+            self.close()
+            self._via_proxy = True
+            return self._jev().system_one(state=state, questions=questions)
 
     def ask(self, state: str, rules: list[Rule]) -> Answers:
         # 1. 人工模式：打印清单给人勾，不发请求；带 --dry-run 时不走这里，让没有 key 的人也能核对请求
@@ -312,7 +336,7 @@ class Judge:
             return {}
 
         # 3. 问 Jev
-        resp = self._jev().system_one(state=state, questions=questions)
+        resp = self._system_one(state, questions)
 
         answers: Answers = {}
         for r in rules:
@@ -651,13 +675,20 @@ def main(argv: list[str] | None = None) -> int:
 
 def cli(argv: list[str] | None = None) -> None:
     """命令行入口 rulemason judge：argv 是 judge 之后的参数。"""
-    from typesafe_sdk import TypeSafeAuthenticationError
+    from typesafe_sdk import TypeSafeAPIError, TypeSafeAuthenticationError
 
     try:
         sys.exit(main(argv))
     except TypeSafeAuthenticationError:
         # 命令行最外层：key 被拒是配置问题，给一句能照做的说明，不打印堆栈
         sys.exit(fail(f"Jev 拒绝了 key（已作废或填错）：请检查 {USER_ENV} 或环境变量 TYPESAFE_API_KEY"))
+    except TypeSafeAPIError as exc:
+        if exc.status != REGION_BLOCKED:
+            raise
+        # 命令行最外层：Judge 遇 451 已在有代理时换过路，走到这里说明有代理也没解决
+        if has_proxy():
+            sys.exit(fail("经本机代理仍被 Typesafe 按地区拒绝（451）：请换一个所在地区可用的代理"))
+        sys.exit(fail("Typesafe 按地区拒绝了当前网络（451），本机没有设置代理：把 HTTPS_PROXY 设为能访问 Typesafe 的代理后重试"))
     except ConfigError as exc:
         # 命令行最外层：项目配置写错，给出文件与位置，不打印堆栈
         sys.exit(fail(str(exc)))
