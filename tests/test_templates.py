@@ -346,6 +346,8 @@ def test_react_rules_are_shared_and_project_neutral():
     for word in ("Next", "next-intl", "notFound", "gallery", "src/lib"):     # 项目名由 pre-commit 按本机私有词表拦截
         assert word not in text, word
     assert "react-hooks/exhaustive-deps" in text and "eslint-disable" in text
+    ninth = _line(text, "9. ")
+    assert "只有一处使用" in ninth and "包装组件" in ninth
 
 
 def test_rules_wording_key_sections():
@@ -361,7 +363,7 @@ def test_rules_wording_key_sections():
     tests = _section(gates, "改既有测试时")
     assert "不删除、不放宽" in tests and gates.count("按「改既有测试时」一节处理") == 2
     assert "只带本次计划内的文件" in commit and "git worktree" in commit
-    front = next(line for line in gates.splitlines() if line.startswith("4. 改了前端时"))
+    front = _line(gates, "4. 改了前端时")
     assert "修掉本次改动引入的问题" in front and "建立 ESLint 基线" in front      # 与 ruff 一步对称，不要求修既有问题
     python = (ROOT / "rules/python.md").read_text(encoding="utf-8")
     assert "logging" in python and "encoding=\"utf-8\"" in python
@@ -383,8 +385,12 @@ def test_code_style_external_operations_and_secrets():
     for text in ("不让用户把密钥值贴进对话", "确认不会被提交", "只引用变量名", "不把密钥值打印到命令输出", "只检查是否存在",
                  "按泄露处理", "一个用途一把", "预发与生产分开"):
         assert text in section, text
-    eighth = next(line for line in code_style.splitlines() if line.startswith("8. "))
-    assert "静默改走另一条路径" in eighth
+    eighth = _line(code_style, "8. ")
+    for text in ("静默改走另一条路径", "上游已保证的条件再加判断或包 `try`", "调用链里看得到", "看不出保证时不删检查"):
+        assert text in eighth, text
+    ninth = _line(code_style, "9. ")
+    for text in ("不加、不留", "函数和文件", "直接内联", "带有自己逻辑的辅助函数不算"):
+        assert text in ninth, text
 
 
 def test_copy_voice_levels_unchanged():
@@ -422,6 +428,10 @@ def _section(text: str, heading: str) -> str:
     start = text.index(f"## {heading}\n")
     end = text.find("\n## ", start + 1)
     return text[start:end if end != -1 else len(text)]
+
+
+def _line(text: str, prefix: str) -> str:
+    return next(line for line in text.splitlines() if line.startswith(prefix))
 
 
 def test_gates_cover_direct_edits_with_four_paths():
