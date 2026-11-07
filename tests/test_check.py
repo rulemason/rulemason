@@ -827,6 +827,72 @@ def test_no_archive_after_joined_says_so(joined):
     assert data["findings"]["最近归档的检查点记录"] == [] and data["facts"]["接入日期"] == "2026-11-04"
 
 
+def _active_change(root, name: str, tasks: str, report: str | None = None) -> None:
+    write(root, f"openspec/changes/{name}/.openspec.yaml", "schema: spec-driven\n")
+    write(root, f"openspec/changes/{name}/tasks.md", tasks)
+    if report is not None:
+        write(root, f"openspec/changes/{name}/verification.md", report)
+
+
+DONE_TASKS = "- [x] 1.1 一\n- [X] 1.2 二\n- [ x] 1.3 三\n"
+
+
+def test_finished_change_without_report_is_listed(joined):
+    set_joined(joined, "2026-11-04")
+    _archived_change(joined, "2026-11-03-before", None)                # 接入前的归档不列
+    _active_change(joined, "done-without-report", DONE_TASKS)
+    report, nxt = check.collect(joined)
+    text = check.render(joined, report, nxt)
+    assert _finding(report, "最近归档的检查点记录") == ["done-without-report：没有 verification.md"]
+    assert "接入后尚未归档，无记录可查" not in text
+    assert check.exit_code(report) == 0 and nxt.line == "日常巡检：一切一致"
+
+
+def test_finished_change_with_report_is_unarchived(joined):
+    _active_change(joined, "done-with-report", DONE_TASKS, "审查与测试都写了\n")
+    report, nxt = check.collect(joined)
+    assert _finding(report, "最近归档的检查点记录") == ["done-with-report：尚未归档"]
+    assert check.exit_code(report) == 0 and nxt.line == "日常巡检：一切一致"
+
+
+def test_unfinished_change_stays_unlisted(joined):
+    set_joined(joined, "2026-11-04")
+    _archived_change(joined, "2026-11-03-before", None)
+    _active_change(joined, "still-open", "- [x] 1.1 一\n- [ ] 1.2 二\n")
+    report, nxt = check.collect(joined)
+    text = check.render(joined, report, nxt)
+    assert _finding(report, "最近归档的检查点记录") == []
+    assert "- 最近归档的检查点记录：接入后尚未归档，无记录可查" in text
+    assert check.exit_code(report) == 0 and nxt.line == "日常巡检：一切一致"
+
+
+def test_change_without_checkboxes_stays_unlisted(joined):
+    _active_change(joined, "notes-only", "- 只是列表\n")
+    write(joined, "openspec/changes/no-marker/tasks.md", DONE_TASKS)   # 没有 .openspec.yaml，不算 change
+    write(joined, "openspec/changes/no-tasks/.openspec.yaml", "schema: spec-driven\n")
+    report, _nxt = check.collect(joined)
+    assert _finding(report, "最近归档的检查点记录") == []
+
+
+def test_unarchived_change_keeps_an_existing_failure(joined):
+    write(joined, "openspec/judgments.yaml", "[]\n")                   # 副本因此落后，接入层失败
+    _active_change(joined, "done-without-report", DONE_TASKS)
+    report, nxt = check.collect(joined)
+    assert "done-without-report：没有 verification.md" in _finding(report, "最近归档的检查点记录")
+    assert check.exit_code(report) == 1 and nxt.code == "update"
+
+
+def test_archive_gap_and_unarchived_change_are_both_listed(joined):
+    _archived_change(joined, "2026-11-03-gap", None)
+    _active_change(joined, "finished-active", DONE_TASKS)
+    report, nxt = check.collect(joined)
+    assert _finding(report, "最近归档的检查点记录") == [
+        "2026-11-03-gap：没有 verification.md",
+        "finished-active：没有 verification.md",
+    ]
+    assert check.exit_code(report) == 0 and nxt.line == "日常巡检：一切一致"
+
+
 def test_archive_on_joined_day_counts_as_before(joined):
     set_joined(joined, "2026-11-04")
     _archived_change(joined, "2026-11-04-x", None)

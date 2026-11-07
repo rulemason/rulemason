@@ -78,6 +78,7 @@ METADATA_LINE = re.compile(r"^\*\*[^*]+\*\*:")          # **ID**: 一类元数�
 DELTA_HEADING = re.compile(r"^## (ADDED|MODIFIED|REMOVED|RENAMED) Requirements\s*$", re.M)
 MIN_ARCHIVED = 3                                            # 判断层至少要这么多已归档 change 作测试用例
 ARCHIVE_NAME = re.compile(r"^(\d{4}-\d{2}-\d{2})-")       # openspec archive 生成的归档目录名：日期前缀
+TASK_BOX = re.compile(r"^\s*-\s+\[([^\]]*)\]", re.M)       # tasks.md 的勾选框；框内去掉空白后是 x 或 X 才算完成
 GATE_RECORDS = (                                           # 完成汇报里要写到的两项：(名称, 匹配)
     # 英文按 ASCII 词边界：preview、latest 不算；紧贴汉字的「独立review」「单元test」要算（默认 Unicode 边界把汉字当字母）
     ("审查", re.compile(r"审查|\breview", re.I | re.A)),
@@ -316,6 +317,27 @@ def gate_records(dated: list[tuple[str, Path]]) -> list[str]:
         if missing:
             problems.append(f"{change.name}：verification.md 没有写到{'、'.join(missing)}")
     return problems
+
+
+def tasks_finished(text: str) -> bool:
+    """至少有一个勾选框，且每个框内去掉空白后是 x 或 X。没有框时不算完成。"""
+    boxes = TASK_BOX.findall(text)
+    return bool(boxes) and all(box.strip().lower() == "x" for box in boxes)
+
+
+def unarchived_finished(root: Path) -> list[str]:
+    """openspec/changes/ 下任务已全部勾完、还没归档的 change。没有汇报和有汇报分成两句。"""
+    changes = root / "openspec/changes"
+    if not changes.is_dir():
+        return []
+    found = []
+    for change in sorted(p for p in changes.iterdir() if p.is_dir() and (p / ".openspec.yaml").is_file()):
+        tasks = change / "tasks.md"
+        if not tasks.is_file() or not tasks_finished(_read(root, tasks.relative_to(root).as_posix())):
+            continue
+        state = "尚未归档" if (change / "verification.md").is_file() else "没有 verification.md"
+        found.append(f"{change.name}：{state}")
+    return found
 
 
 def ci_files(files: list[str]) -> list[str]:
@@ -1134,7 +1156,7 @@ def audit(root: Path, files: list[str], sel: Selection, behind: list[str], since
     report.findings.append(("项目词表中已在通用词表的词", lexicon_overlap(root)))
     gates = "最近归档的检查点记录"
     dated = dated_archives(root, since)
-    report.findings.append((gates, gate_records(dated)))
+    report.findings.append((gates, gate_records(dated) + unarchived_finished(root)))
     if since and not dated and dated_archives(root, None):
         report.notes[gates] = "接入后尚未归档，无记录可查"            # 走到这里说明有归档，但都在接入当天或之前
     report.findings.append(("主规格写法", spec_writing(root, files)))
