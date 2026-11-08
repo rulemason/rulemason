@@ -14,6 +14,8 @@ Shared rules and checkpoints for AI coding tools (Claude Code, OpenCode, Cursor,
 
 Checkpoints that involve plans and specs need [OpenSpec](https://github.com/Fission-AI/OpenSpec); without it, rulemason installs the rules and lint configuration only.
 
+**Switching tools keeps the rules**: the rule copies, project summary, red lines, command table and checkpoint spec are files in the project (`.rulemason/`, `AGENTS.md`, `CLAUDE.md`, each tool's skill) and are committed with it; with OpenSpec, plans, specs and each change's check record stay in `openspec/` too. If one AI tool or account stops working, run `rulemason init` to add another tool and it reads the same rules and checkpoints. Chat history and personal memory held in your accounts are not included; rulemason neither stores nor syncs them.
+
 ## Install
 
 Requires [uv](https://docs.astral.sh/uv/):
