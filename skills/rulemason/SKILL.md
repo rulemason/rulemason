@@ -19,7 +19,7 @@ rulemason 管三件事：**规则**（写法规矩）、**检查点**（方案�
 ## 1. 识别
 
 1. 先确认本机有 `rulemason` 命令，且 `rulemason --version` 不低于项目 `.rulemason.yaml` 里 `rulemason:` 记录的版本；没有命令或版本更低时，给出安装命令 `uv tool install rulemason`（已装旧版本时用 `uv tool upgrade rulemason`；需要与清单记录的版本一致时用 `uv tool install --force rulemason==<版本>`），然后停下。
-2. 在项目根目录（或任意子目录）运行 `rulemason check --json`，把 `text`（报告全文）原样放进汇报；`next.action` 是给人看的下一步，`next.code` 决定这次做什么。命令以非 0 退出且输出不是 JSON 时（例如「rulemason check 失败：openspec/config.yaml 不是合法的 YAML…」），原样转述这条提示，请用户修正对应文件，然后停下：
+2. 在项目根目录（或任意子目录）运行 `rulemason check --json`。除存量清理外，把 `text`（报告全文）原样放进汇报；存量清理的展示见本段末尾。`next.action` 是给人看的下一步，`next.code` 决定这次做什么。命令以非 0 退出且输出不是 JSON 时（例如「rulemason check 失败：openspec/config.yaml 不是合法的 YAML…」），原样转述这条提示，请用户修正对应文件，然后停下：
 
 | `next.code` | 这次做什么 |
 |---|---|
@@ -32,7 +32,7 @@ rulemason 管三件事：**规则**（写法规矩）、**检查点**（方案�
 | `upgrade_machine` | 本机 rulemason 比项目记录的旧：按上面第 1 条给出安装命令。停下 |
 | `none` | 第 3 步；用户说要启用判断时做第 4 步。`next.action` 附有「版本号落后」时，提一句可运行 `rulemason update` 更新记录 |
 
-用户要做存量清理时（输入里带 `cleanup`，或自然语言说要做存量清理），`next.code` 只作第 7 节的入口闸门，不按上表进入后面的阶段。
+用户要做存量清理时（输入里带 `cleanup`，或自然语言说要做存量清理），`next.code` 只作第 7 节的入口闸门，不按上表进入后面的阶段。`next.code` 为 `init`、`fix_manifest`、`upgrade_machine`、`update` 时仍把 `text` 原样放进汇报并停下，不诊断也不改文件。可以继续时不贴识别表，不列写着「齐全」的行，也不列值为「一致」的巡检项。这次对话的第一次清理写一行 `next.code`，列出不是「一致」的项及其子行、不是「齐全」的行；汇报第一行不是「日常巡检：一切一致」时带上该行。同一对话里再次清理，这些行没变就写「巡检与这次清理开始时相同」，有变只列变了的行。不把上次巡检写入文件。对话中断后不记得上次的行时，按这次对话的第一次清理处理。
 
 ## 2. 补项目信息
 
@@ -140,7 +140,7 @@ rulemason 管三件事：**规则**（写法规矩）、**检查点**（方案�
 
 用户要清理既有代码时做：输入里带 `cleanup`，或自然语言说要做存量清理。不带模块名只诊断全仓；带模块名只修该模块。这是不改行为的重构，改完按检查点「不走 OpenSpec 改代码时」第 4 步跑 ruff、前端 lint 与测试。
 
-**入口**：先跑 `rulemason check --json`。`next.code` 为 `init`、`fix_manifest`、`upgrade_machine`、`update` 时按第 1 节停下，不诊断也不改文件。为 `fill_project_info`、`manual_lint`、`fix_gitignore`、`none` 时继续。
+**入口**：先跑 `rulemason check --json`。`next.code` 为 `init`、`fix_manifest`、`upgrade_machine`、`update` 时按第 1 节停下，不诊断也不改文件。为 `fill_project_info`、`manual_lint`、`fix_gitignore`、`none` 时继续。可以继续时的展示按第 1 节，不贴全文。
 
 **只诊断**：不带模块名时只输出诊断，不改任何文件。最后一行之前列出队列，不把队列写入文件。已有 `refactor(cleanup): <模块>` 提交的模块跳过。工作区干净的排在有未提交改动的前面；再按软指标条数从多到少，相同按行数从多到少，仍相同按模块路径字典序。高、中、低只标在行旁，不决定先后。潜力为低的合成一行，写明这次不做。还有工作区干净、且不是低的模块时，汇报最后一行写排序后第一条的 `/rulemason cleanup <模块>`。这条命令之前写一句这次要做的事，只用该模块已经抽到的 1 到 2 个例子，写明要动的位置、要做的事，以及哪一类软指标不算这次要清的内容。这句只给这一条命令点名的模块，不写入文件，也不代替进入后的计划，也不是用户确认。没有这种模块时，不写这句；在有未提交文件的模块里按同一顺序取第一条，最后一行写它的要先提交的路径，不进入该模块。这种模块也没有时，写明这次没有要做的模块。
 
@@ -165,4 +165,4 @@ rulemason 管三件事：**规则**（写法规矩）、**检查点**（方案�
 
 ## 8. 汇报
 
-按顺序：`rulemason check --json` 的 `text` → 本次做了什么 → 每项验证命令与结果 → 本次新增、修改的文件清单 → 没碰的东西（未提交改动数）→ 下一步（以 `next.action` 为准）。
+按顺序：`rulemason check --json` 的 `text` → 本次做了什么 → 每项验证命令与结果 → 本次新增、修改的文件清单 → 没碰的东西（未提交改动数）→ 下一步（以 `next.action` 为准）。存量清理可以继续时，收尾不以全文开头，展示与第 1 节可以继续时相同。要停下时仍贴全文并停下。

@@ -193,6 +193,12 @@ def test_skill_legacy_cleanup_section():
         assert text in section, text
     gate = skill[skill.index("## 1. 识别"):skill.index("## 2. 补项目信息")]
     assert "`next.code` 只作第 7 节的入口闸门" in gate and "说要做存量清理" in gate
+    assert "巡检与这次清理开始时相同" in gate and "不把上次巡检写入文件" in gate
+    assert "不贴识别表" in gate and "不列写着「齐全」的行" in gate and "不诊断也不改文件" in gate
+    assert "按这次对话的第一次清理处理" in gate
+    assert "可以继续时的展示按第 1 节" in section
+    report = skill[skill.index("## 8. 汇报"):]
+    assert "收尾不以全文开头" in report and "要停下时仍贴全文并停下" in report
     description = next(line for line in skill.splitlines() if line.startswith("description:"))
     assert "存量清理" in description
 
