@@ -167,10 +167,16 @@ def frontend_dirs(root: Path, files: list[str]) -> list[str]:
 
 
 def copied_rules(root: Path, files: list[str]) -> list[str]:
-    """项目用得上的共享文件：九条与检查点必复制；Python 落法与 ruff 基础配置随 Python；React 落法随 React 目录；
+    """项目用得上的共享文件：九条、检查点、中文排版与 result-check 契约必复制；
+    Python 落法与 ruff 基础配置随 Python；React 落法随 React 目录；
     ESLint 基础配置随 React 目录或已有的 ESLint 配置；文案语气随前端目录或已启用的判断。"""
     react = bool(react_dirs(root, files))
-    wanted = {"rules/code-style.md", "rules/workflow-gates.md"}
+    wanted = {
+        "rules/code-style.md",
+        "rules/workflow-gates.md",
+        "rules/cjk-typography.md",
+        "rules/result-check-contracts.md",
+    }
     if has_python(files):
         wanted |= {"rules/python.md", RUFF_BASE}
     if react:

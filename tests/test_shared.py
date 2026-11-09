@@ -34,7 +34,7 @@ def test_shared_root_missing_everywhere_raises(tmp_path, monkeypatch):
 def test_generated_files_cover_rulemason_dir_and_selected_skills():
     files = shared.generated_files(["claude", "codex"])
 
-    assert sum(1 for rel in files if rel.startswith(".rulemason/")) == 8
+    assert sum(1 for rel in files if rel.startswith(".rulemason/")) == 10
     assert files[".rulemason/rules/code-style.md"] == (shared.SOURCE_ROOT / "rules/code-style.md").read_text(encoding="utf-8")
     assert ".claude/skills/rulemason/SKILL.md" in files
     assert ".agents/skills/rulemason/SKILL.md" in files

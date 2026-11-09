@@ -72,7 +72,7 @@
 
 ### Requirement: init 生成项目内只读副本
 
-`init` SHALL 把项目用得上的共享规则正文与 lint 基础配置复制到 `.rulemason/`：`code-style.md` 与 `workflow-gates.md` 必复制；`python.md` 与 `ruff-base.toml` 只在识别到 Python 时；`react.md` 只在识别到 React 目录时；`eslint-base.mjs` 在有 React 目录或已有 ESLint 配置时；`copy-voice.md` 只在有前端目录或判断已启用时。`rulemason` skill 的 `SKILL.md` SHALL 复制到每个已选工具的 skill 发现路径，`.rulemason.yaml` 记录每个生成文件的校验值，副本的有无以清单为准；项目后来出现新语言时由 `update` 补齐。判断层模板 MUST NOT 复制进项目。副本 SHALL 作为项目文件提交，MUST NOT 被手工修改。
+`init` SHALL 把项目用得上的共享规则正文与 lint 基础配置复制到 `.rulemason/`：`code-style.md`、`workflow-gates.md`、`cjk-typography.md` 与 `result-check-contracts.md` 必复制；`python.md` 与 `ruff-base.toml` 只在识别到 Python 时；`react.md` 只在识别到 React 目录时；`eslint-base.mjs` 在有 React 目录或已有 ESLint 配置时；`copy-voice.md` 只在有前端目录或判断已启用时。`rulemason` skill 的 `SKILL.md` SHALL 复制到每个已选工具的 skill 发现路径，`.rulemason.yaml` 记录每个生成文件的校验值，副本的有无以清单为准；项目后来出现新语言时由 `update` 补齐。判断层模板 MUST NOT 复制进项目。副本 SHALL 作为项目文件提交，MUST NOT 被手工修改。
 
 #### Scenario: 同事克隆项目
 - **WHEN** 同事克隆一个已接入并提交的项目，本机没有装 rulemason
@@ -88,7 +88,7 @@
 
 #### Scenario: Go 项目只拿到通用规则
 - **WHEN** 只有 `go.mod` 与 `.go` 文件的项目运行 `rulemason init --tools claude --yes`
-- **THEN** `.rulemason/` 下只有 `rules/code-style.md`、`rules/workflow-gates.md` 与 `README.md`，没有 `python.md`、`react.md`、`copy-voice.md` 与 `lint/`；`check` 不报缺少副本
+- **THEN** `.rulemason/` 下只有 `rules/code-style.md`、`rules/workflow-gates.md`、`rules/cjk-typography.md`、`rules/result-check-contracts.md` 与 `README.md`，没有 `python.md`、`react.md`、`copy-voice.md` 与 `lint/`；`check` 不报缺少副本
 
 #### Scenario: 后来加了 Python
 - **WHEN** 上述项目新增 `pyproject.toml` 后运行 `rulemason update`
