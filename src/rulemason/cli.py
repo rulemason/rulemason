@@ -1,13 +1,31 @@
-"""rulemason 命令行入口：解析参数，分发到 init / update / check / remove / key；judge 的参数原样交给判断引擎。"""
+"""rulemason 命令行入口：解析参数，分发到 init / update / check / remove / key / result-check；judge 的参数原样交给判断引擎。"""
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
-from rulemason import __version__, banner, check, init, key, remove, update
+from rulemason import (
+    __version__,
+    banner,
+    check,
+    init,
+    key,
+    remove,
+    result_check,
+    update,
+)
 from rulemason.judge import judge
 from rulemason.shared import find_root
+
+_RESULT_CHECK_EPILOG = """\
+首个接入场景：产品解读结构化输出（调用方交已发生记录）。
+离线可用 fixture 验收；fixture 不等于真实模型会话。
+本期排除 Skill / 工具调用出现检查；不为日后 eval 报告写解析器（调用方可自行映射后再交进来）。
+模式核对信任调用方提供的模式（本地确定性，无超时沙箱）。
+不改 check / update / judge 的既有语义。退出码：0 总体通过；1 失败或无法判断；2 输入错误。
+"""
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -32,6 +50,15 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("key", help="在终端里交互输入 Jev 的 key（不回显），写入 ~/.config/rulemason/env")
     # judge 的参数只在引擎里定义一处，这里不重复声明，原样转交
     sub.add_parser("judge", add_help=False, help="判断 change 产物或界面文案（rulemason judge --help 查看参数）")
+    p_result = sub.add_parser(
+        "result-check",
+        help="对调用方提供的已发生运行记录做确定性检查（本地、不调模型）",
+        epilog=_RESULT_CHECK_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_result.add_argument("--record", required=True, help="运行记录 JSON 路径（调用方提供）")
+    p_result.add_argument("--requirements", required=True, help="检查要求 JSON 路径")
+    p_result.add_argument("--json", action="store_true", help="只输出机器可读 JSON（schema 自有，不改 check --json）")
     argv = sys.argv[1:] if argv is None else argv
     if not argv and banner.interactive():
         # 终端里不带参数：显示启动画面与常用命令；脚本里交给 argparse 照旧报用法错误
@@ -67,6 +94,17 @@ def _dispatch(args: argparse.Namespace) -> int:
         return key.run()
     if args.command == "update":
         return update.run(root, args.yes, args.dry_run, args.json)
+    if args.command == "result-check":
+        return _run_result_check(args)
     text, code = check.run(root, args.json)
     print(text)
     return code
+
+
+def _run_result_check(args: argparse.Namespace) -> int:
+    report = result_check.run_files(Path(args.record), Path(args.requirements))
+    if args.json:
+        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        print(result_check.render_human(report))
+    return report.exit_code

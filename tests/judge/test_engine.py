@@ -37,7 +37,13 @@ def _git(cwd: Path, *args: str) -> None:
 
 
 def _commit(root: Path, *args: str) -> None:
-    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", *args)
+    _git(
+        root,
+        "-c", "user.email=t@t",
+        "-c", "user.name=t",
+        "-c", "commit.gpgsign=false",
+        "commit", "-q", *args,
+    )
 
 
 def _write(root: Path, rel: str, text: str) -> None:

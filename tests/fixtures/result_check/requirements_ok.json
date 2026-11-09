@@ -1,0 +1,12 @@
+{
+  "checks": [
+    { "id": "must-yongshen", "type": "must_contain", "texts": ["妻财"] },
+    { "id": "forbid-absolute", "type": "must_not_contain", "texts": ["必然成功", "五格", "神煞"] },
+    { "id": "pattern-conclusion", "type": "pattern", "pattern": "时机|观望" },
+    {
+      "id": "structured-required",
+      "type": "structured_keys",
+      "keys": ["结论", "信心度", "白话推理", "专业断卦", "签语"]
+    }
+  ]
+}
