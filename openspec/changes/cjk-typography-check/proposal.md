@@ -6,11 +6,12 @@
 
 ## What Changes
 
-- 在 `result-check` 增加检查类型（暂名 `cjk_typography`）：对调用方提供的正文做可开关的中文排版规则集。
-- 首批规则（短名自拟）：禁用全角数字；禁止叠用标点（写死允许的一次叹问组合）；中英空格；中数空格；常用单位前空格与 °/% 不加空格；全角标点旁不加空格。
-- 固定假阳性处理：检查前剥离围栏/行内代码、裸 URL、Markdown 链接目标与图片目标、行内 HTML；支持产品名 allowlist。
-- 失败报告带规则短名与原文位置（码点偏移或行/列）；非法配置 → 输入错误（exit 2）；无该类型时既有检查不变。
-- **不做**：照抄指北长文；依赖 Promptfoo / Rea / Cedar / Ruler / pangu / autocorrect 代码；本期做专名大小写、生造缩写、中文语境半角标点、争议链接/引号规则；本期不改 `copy-voice`/`judge` 语义；本期不把本检查默认挂进 `rulemason check` 巡检（可作为后续 opt-in 另开 change）。
+- 在 `result-check` 增加检查类型 `cjk_typography`：对调用方提供的正文做可开关的中文排版规则集。
+- 首批规则（短名自拟）：禁用全角数字；禁止叠用标点（允许恰好一次的 `？！`/`?!`/`！？`/`!?`）；中英空格；中数空格；默认单位前空格与 °/% 不加空格；全角标点旁不加空格。
+- 固定假阳性处理：检查前剥离围栏/行内代码、裸 URL、Markdown 链接/图片**目标**、行内 HTML；**可见链接文案参检**；支持产品名 allowlist。
+- 失败报告带规则短名与原文位置；非法配置 → 输入错误（exit 2）；无该类型时既有检查不变。
+- 对本仓库 README 与 `rules/` 跑一次样例并记入 verification；包版本 bump 至 **0.8.32**（含 README CI 钉版本）。
+- **不做**：照抄指北长文；依赖 Promptfoo / Rea / Cedar / Ruler / pangu / autocorrect 代码；本期做专名大小写、生造缩写、中文语境半角标点、争议链接/引号规则；本期不改 `copy-voice`/`judge` 语义；本期不把本检查默认挂进 `rulemason check` 巡检。
 
 ## Capabilities
 
@@ -26,4 +27,4 @@
 
 - 代码：`result_check` 模块与 CLI 帮助；测试夹具。
 - 调用方：在 requirements 中显式声明该类型才会生效。
-- 版本：建议发 **0.8.32**（additive）；不升 0.9.0。
+- 版本：本 change 升至 **0.8.32**（additive）；合入后立刻打 tag 发 PyPI；不升 0.9.0。
