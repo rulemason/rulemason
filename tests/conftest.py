@@ -56,7 +56,14 @@ def set_joined(root: Path, joined: str | None) -> None:
 
 def commit(root: Path, subject: str = "x") -> None:
     git(root, "add", "-A")
-    git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", subject)
+    # 测试仓关闭签名：本机若开启 commit.gpgsign，ssh-keygen 可能挂起导致全量 pytest 假死
+    git(
+        root,
+        "-c", "user.email=t@t",
+        "-c", "user.name=t",
+        "-c", "commit.gpgsign=false",
+        "commit", "-q", "--allow-empty", "-m", subject,
+    )
 
 
 def drop_operations(root: Path) -> None:

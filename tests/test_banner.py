@@ -78,7 +78,8 @@ def test_accent_color_marks_labels_commands_and_prompt():
     assert f"\033[{banner.DIM}m9.9.9" in init_text
     assert f"\033[{banner.SKY}m先列计划，你确认后才写入。" in init_text
     commands = banner.render("9.9.9", banner.COMMANDS_FOOTER, 80, True, True)
-    assert f"\033[{banner.SKY}mrulemason init    \033[0m初始化" in commands
+    init_label = "rulemason init".ljust(banner._CMD_WIDTH)
+    assert f"\033[{banner.SKY}m{init_label}\033[0m初始化" in commands
 
 
 def test_no_color_has_no_escape():

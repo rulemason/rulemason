@@ -26,6 +26,7 @@ rulemason --version
 | 项目第一次接入，或增减 AI 工具 | `rulemason init` |
 | 以后任何时候：升级、补齐缺的配置、恢复被改的副本 | `rulemason update` |
 | 看现状与下一步（CI 里也用它） | `rulemason check` |
+| 检查调用方提供的已发生运行记录（本地确定性；加 --help 见范围与退出码） | `rulemason result-check --record <记录.json> --requirements <要求.json>` |
 | 配一次 Jev 的 key（只在启用判断时需要） | `rulemason key` |
 | 不再使用：从项目卸载 | `rulemason remove` |
 | 手动判断一个方案 | `rulemason judge --change 功能名` |

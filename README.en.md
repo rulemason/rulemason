@@ -32,6 +32,7 @@ rulemason --version
 | First time in a project, or to add or remove AI tools | `rulemason init` |
 | Any time later: upgrade, fill in missing configuration, restore edited copies | `rulemason update` |
 | See the current state and the next step (also for CI) | `rulemason check` |
+| Check a caller-provided run record (local and deterministic; add --help for scope and exit codes) | `rulemason result-check --record <record.json> --requirements <requirements.json>` |
 | Configure the Jev key once per machine (only for judgment) | `rulemason key` |
 | Stop using rulemason in a project | `rulemason remove` |
 | Judge one plan by hand | `rulemason judge --change <change-name>` |

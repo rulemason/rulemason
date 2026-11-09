@@ -72,6 +72,7 @@ COMMANDS = (
     ("rulemason init", "初始化"),
     ("rulemason check", "检查初始化状态，不改文件"),
     ("rulemason update", "同步新版规则和配置"),
+    ("rulemason result-check", "检查调用方提供的运行记录"),
     ("rulemason key", "配置判断用的 Jev key（本机一次）"),
     ("rulemason --help", "查看全部命令"),
 )
