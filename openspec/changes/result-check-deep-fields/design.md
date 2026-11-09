@@ -30,46 +30,60 @@
    - 否决：把约束塞进 `structured_keys` — 旧项只声明键名，混入约束易破坏「仅存在性」语义与既有测试。  
    - 否决：整份 `structured` 一次喂完整 JSON Schema — 等于引入 Schema 引擎与组合语法，超出本期。
 
-2. **路径语法：`.` 分隔段**（如 `应期.推测`）；段名可含中文；不支持数组下标通配（`[*]`）本期不做。缺中间节点 → 该项「失败」并指出路径；`structured` 未提供 → 「无法判断」。  
+2. **路径语法：`.` 分隔段**（如 `应期.推测`）；段名可含中文；不支持数组下标通配（`[*]`）本期不做；**一项一路径**。`structured` 未提供 → 「无法判断」。  
    - 否决：JSON Pointer `/a/b` 唯一语法 — 中文键与转义对调用方更吵；若未来需要再兼容。  
-   - 否决：本期就做数组通配 — 无当前调用方需求（两套 schema 均无数组必检）。
+   - 否决：本期就做数组通配或一项多 path — 无必要，组合用多条 `field` 即可。
 
-3. **约束字段（可组合，缺省表示不检查该项）**：`type`（`string`/`integer`/`number`/`boolean`/`object`/`array`/`null`，可给数组表示联合，如 `["object","null"]`）、`minimum`/`maximum`（数）、`min_length`/`max_length`（字符串，按 `len(s)`＝Unicode 码点）、`enum`、`pattern`（整值匹配，非法模式→输入错误）、`min_items`/`max_items`（数组）。  
-   - 否决：依赖 PyPI `jsonschema` — 重、且鼓励投机扩展；本仓无第二个调用方要完整 Draft。  
-   - 否决：按「字形簇 / 显示宽度」计长 — 标准库无稳定 API；写明码点，调用方（中文）与 `len` 一致。  
-   - 否决：自动把 prompt「8–14 字」写进本包默认 — 产品无关；阈值由调用方 requirements 提供。
+3. **「可为 null，非 null 时校验子字段」用两条 `field` + 路径穿越规则，不做 if-then DSL。**  
+   - 父路径项：如 `path: 应期`，`type: ["object","null"]`，并设 `optional: true`（键缺失与 `null` 同等视为类型通过；未设 `optional` 时键缺失仍为路径失败）。  
+   - 子路径项：如 `path: 应期.推测`，`type: string`，`min_length: 1`。  
+   - **穿越规则**：解析多段路径时，若某一前缀段的值是 JSON `null`，或该前缀键缺失 → 本项记「未检查/不适用」（skip），**不**失败；若前缀存在但不是可下降的 object → 失败；若前缀为 object 而末段键缺失或约束不符 → 失败。  
+   - 这样：`应期: null` 或省略时，父项（optional+联合类型）通过、子项 skip；`应期: {推测: "…"}` 时子项强制非空字符串；`应期: {}` 或 `推测: ""` → 子项失败。  
+   - 否决：引入 `if`/`then`/`anyOf` 组合引擎 — 投机扩展，且本期只需 null 与对象二选一。  
+   - 否决：子路径在父为 null 时记失败 — 无法表达「允许 null」。
 
-4. **错误信息**：指出 `path`、期望约束与实际类型/标量摘要；MUST NOT 回显完整字段字符串；短标量可给定位式摘要（沿用现有摘录限度精神）。  
-   - 否决：失败时打印整段 `专业断卦` — 违反默认不回显全文。
+4. **约束字段（可组合，缺省表示不检查该项）**：`type`（单值或联合数组）、`optional`（仅影响「键是否必须存在」）、`minimum`/`maximum`、`min_length`/`max_length`（字符串按 `len(s)`＝Unicode 码点；**不**引入 grapheme 依赖；将来若要字形簇计长另开 change）、`enum`、`pattern`、`min_items`/`max_items`。  
+   - 否决：依赖 PyPI `jsonschema` — 重、且鼓励投机扩展。  
+   - 否决：按字形簇 / 显示宽度计长 — 无稳定标准库 API；本期固定码点。
 
-5. **版本与下游**：实现合入后发 **0.8.31**（末位 +1；非 0.9，因兼容扩展）。Yaomancy：升级钉版本 → 在其 requirements 增加 `field` 项（信心度范围、签语长度、应期类型等）→ CI 跑 `result-check`。本 change 只在帮助/verification 写步骤，不提 PR 到产品仓。  
-   - 否决：直接发 0.9.0 — 无破坏性契约变更，不符合 `AGENTS.md` 升位标准。
+5. **错误信息**：指出 `path`、期望约束与实际类型/标量摘要；MUST NOT 回显完整字段字符串。  
+   - 否决：失败时打印整段长文本字段 — 违反默认不回显全文。
+
+6. **版本与下游**：合入后发 **0.8.31**。Yaomancy：钉 `==0.8.31` → 自行写 `field` 项（见下「已决接入参考」）→ CI 跑 `result-check`。**0.8.31 Release 说明附 Yaomancy 示例 requirements 片段**（只在 GitHub Release / 发版说明，**不**写入共享 `rules/`）。本 change 不改产品仓。  
+   - 否决：发 0.9.0 — 无破坏性契约变更。
 
 ## Risks / Trade-offs
 
-- [调用方误以为本包内置 Yaomancy 阈值] → 帮助与限度写明「约束由 requirements 提供」；测试用合成字段名。
-- [码点长度与产品「字」直觉偶有偏差（组合字符）] → 文档写清；待决是否要 grapheme（见下）。
-- [联合类型与 null 应期写错成必为 object] → 示例用 `["object","null"]`；fixture 覆盖 null 与对象两种。
-- [非法 `pattern` 与值不匹配混淆] → 沿用既有：编译失败=输入错误(2)，不匹配=失败(1)。
+- [调用方误以为本包内置 Yaomancy 阈值] → 帮助写明约束由 requirements 提供；Release 示例标注「下游示例，非共享规则」。
+- [码点与偶发组合字符「字」数不一致] → 文档写清；将来 grapheme 另开 change，不本期引入依赖。
+- [子路径 skip 被误当成通过] → skip 不计入必需通过集（既有汇总规则）；父项 optional 联合类型仍可拦住非法类型（如应期为字符串）。
+- [非法 `pattern` 与值不匹配混淆] → 编译失败=输入错误(2)，不匹配=失败(1)。
 
 ## Migration Plan
 
-1. 实现 `field` + 测试；旧 fixtures 不改仍通过。  
-2. 归档同步主规格 `run-result-check`；发版 0.8.31（bump + README CI 钉版本 + tag）。  
-3. Yaomancy 自行改 requirements 与钉版本（阈值待决）。  
-回滚：下游不升级或去掉 `field` 项即可；本包无数据迁移。
+1. 实现 `field`（含 `optional` 与 null/缺父 skip）+ 测试；旧 fixtures 不改仍通过。  
+2. 归档同步主规格；发版 0.8.31；Release 附 Yaomancy 示例片段。  
+3. Yaomancy 自行改 requirements 与钉版本。  
+回滚：下游不升级或去掉 `field` 项即可。
 
 ## 文件与估计行数（apply 时对照）
 
 | 文件 | 动作 | 估计行数 |
 |---|---|---|
-| `src/rulemason/result_check.py` | 修改 | +80–140 |
-| `src/rulemason/cli.py`（epilog） | 修改 | +5–15 |
-| `tests/test_result_check.py` + fixtures | 修改/新增 | +80–150 |
+| `src/rulemason/result_check.py` | 修改 | +100–160 |
+| `src/rulemason/cli.py`（epilog） | 修改 | +5–20 |
+| `tests/test_result_check.py` + fixtures | 修改/新增 | +100–160 |
 
-## Open Questions（待决，不挡本规划）
+## 已决事项（原 Open Questions）
 
-1. Yaomancy CI 签语长度是否严格用 prompt 的 8–14，还是放宽/只设上限？（产品 schema 无 min/maxLength）  
-2. 字符串长度是否永远用 Unicode 码点，还是未来要 grapheme？  
-3. `field` 是否允许一次声明多个 path（批量），还是坚持一项一路径？本期设计为一项一路径。  
-4. 是否在 0.8.31 Release 说明里附一份「Yaomancy 示例 requirements 片段」（仍不入库产品字段到 `rules/`）？
+1. **Yaomancy CI 签语长度**：`min_length: 6`，`max_length: 14`（上限 14，下限放宽到 6）。  
+2. **长度计量**：Unicode 码点；不引入 grapheme；将来可扩展另开 change。  
+3. **粒度**：一项一路径。  
+4. **Release**：附 Yaomancy 示例 requirements 片段；不入库 `rules/`。
+
+## Yaomancy 接入参考（写进 Release 示例；非本包默认）
+
+- `信心度`：`type: integer`，`minimum: 1`，`maximum: 5`。  
+- `签语`：`type: string`，`min_length: 6`，`max_length: 14`。  
+- `应期`：`type: ["object","null"]`，`optional: true`；另条 `应期.推测`：`type: string`，`min_length: 1`（父为 null/缺失时子项 skip）。  
+- 单事顶层键与抉择顶层键仍可用既有 `structured_keys`。
