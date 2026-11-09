@@ -35,6 +35,8 @@ COPIED_SHARED = (
     "rules/react.md",
     "rules/workflow-gates.md",
     "rules/copy-voice.md",
+    "rules/cjk-typography.md",
+    "rules/result-check-contracts.md",
     "lint/ruff-base.toml",
     "lint/eslint-base.mjs",
 )

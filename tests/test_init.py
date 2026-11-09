@@ -190,7 +190,14 @@ def test_generated_copies_match_shared_source_and_manifest(project):
 
     src = shared.shared_root()
     rules = check.copied_rules(project, shared.list_files(project))
-    assert rules == ["rules/code-style.md", "rules/python.md", "rules/workflow-gates.md", "lint/ruff-base.toml"]
+    assert rules == [
+        "rules/code-style.md",
+        "rules/python.md",
+        "rules/workflow-gates.md",
+        "rules/cjk-typography.md",
+        "rules/result-check-contracts.md",
+        "lint/ruff-base.toml",
+    ]
     for rel in rules:
         assert (project / ".rulemason" / rel).read_text(encoding="utf-8") == (src / rel).read_text(encoding="utf-8")
     assert not (project / ".rulemason/rules/react.md").exists() and not (project / ".rulemason/lint/eslint-base.mjs").exists()
@@ -1163,7 +1170,11 @@ def test_go_project_gets_only_generic_rules_and_update_adds_python_later(tmp_pat
     commit(root)
     assert _init(root) == 0
     assert sorted(p.relative_to(root / ".rulemason").as_posix() for p in (root / ".rulemason").rglob("*") if p.is_file()) == [
-        "README.md", "rules/code-style.md", "rules/workflow-gates.md",
+        "README.md",
+        "rules/cjk-typography.md",
+        "rules/code-style.md",
+        "rules/result-check-contracts.md",
+        "rules/workflow-gates.md",
     ]
     assert "- `rules/code-style.md`" in (root / ".rulemason/README.md").read_text(encoding="utf-8")
     assert check.run(root)[1] == 0

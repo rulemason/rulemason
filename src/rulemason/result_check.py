@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from rulemason import cjk_typography as _cjk
+
 SCHEMA = 1
 STATUS_PASS = "通过"
 STATUS_FAIL = "失败"
@@ -23,6 +25,7 @@ CHECK_MUST_NOT_CONTAIN = "must_not_contain"
 CHECK_PATTERN = "pattern"
 CHECK_STRUCTURED_KEYS = "structured_keys"
 CHECK_FIELD = "field"
+CHECK_CJK_TYPOGRAPHY = "cjk_typography"
 CHECK_SKILL = "skill_present"
 CHECK_SKIP = "skip"
 
@@ -632,6 +635,57 @@ def _eval_field(check: dict[str, Any], structured: Any, provided: bool) -> ItemR
     return _apply_field_constraints(check, path, value)
 
 
+def _cjk_body(
+    check: dict[str, Any], text: str | None, text_ok: bool, structured: Any, struct_ok: bool,
+) -> ItemResult | str:
+    """定位 cjk_typography 正文；需提前返回时给 ItemResult，否则正文 str。"""
+    cid = check["_id"]
+    err = _cjk.config_error(check)
+    if err:
+        return ItemResult(cid, STATUS_INPUT_ERROR, err)
+    path = check.get("path")
+    if path is not None:
+        if not struct_ok:
+            return ItemResult(cid, STATUS_UNKNOWN, "未提供结构化输出，无法判断中文排版")
+        if not isinstance(structured, dict):
+            return ItemResult(cid, STATUS_FAIL, "结构化输出不可解析为对象")
+        kind, value = _resolve_path(structured, path.strip())
+        if kind == "skip":
+            return ItemResult(cid, STATUS_SKIP, f"路径 {path} 的前缀为 null 或缺失，跳过")
+        if kind == "fail":
+            return ItemResult(cid, STATUS_FAIL, f"路径 {path} 的前缀不可下降为对象")
+        if _leaf_missing(structured, path.strip()):
+            return ItemResult(cid, STATUS_FAIL, f"缺少路径：{path}")
+        if not isinstance(value, str):
+            return ItemResult(cid, STATUS_FAIL, f"路径 {path} 的值不是字符串")
+        return value
+    if not text_ok:
+        return ItemResult(cid, STATUS_UNKNOWN, "未提供输出正文，无法判断中文排版")
+    return text or ""
+
+
+def _eval_cjk_typography(
+    check: dict[str, Any], text: str | None, text_ok: bool, structured: Any, struct_ok: bool,
+) -> ItemResult:
+    cid = check["_id"]
+    body = _cjk_body(check, text, text_ok, structured, struct_ok)
+    if isinstance(body, ItemResult):
+        return body
+    units = check.get("units")
+    unit_list = list(units) if isinstance(units, list) else None
+    allow = check.get("allowlist") if isinstance(check.get("allowlist"), list) else None
+    hits = _cjk.find_hits(body, list(check["rules"]), units=unit_list, allowlist=allow)
+    if not hits:
+        return ItemResult(cid, STATUS_PASS, "中文排版约束通过")
+    hit = hits[0]
+    where = f"码点偏移 {hit.offset}"
+    return ItemResult(
+        cid, STATUS_FAIL,
+        f"规则 {hit.rule} 未通过（{where}）",
+        evidence=f"{where}；规则 {hit.rule}；命中长度 {hit.length}",
+    )
+
+
 def _leaf_missing(structured: Any, path: str) -> bool:
     """末段键是否不存在（显式 null 不算缺失）。"""
     cursor: Any = structured
@@ -668,6 +722,8 @@ def _eval_one(check: dict[str, Any], record: dict[str, Any]) -> ItemResult:
         return _eval_structured_keys(check, structured, struct_ok)
     if ctype == CHECK_FIELD:
         return _eval_field(check, structured, struct_ok)
+    if ctype == CHECK_CJK_TYPOGRAPHY:
+        return _eval_cjk_typography(check, text, text_ok, structured, struct_ok)
     return ItemResult(cid, STATUS_INPUT_ERROR, f"未知检查类型：{ctype}")
 
 

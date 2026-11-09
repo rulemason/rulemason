@@ -65,7 +65,15 @@ def test_claude_block_imports_rules_and_maps_simplify_step():
     claude = (TEMPLATES / "claude.block.md").read_text(encoding="utf-8")
     imports, mapping = claude.split("\n\n", 1)
 
-    assert imports.splitlines() == ["@AGENTS.md", "@.rulemason/rules/code-style.md", "@.rulemason/rules/python.md", "@.rulemason/rules/react.md", "@.rulemason/rules/workflow-gates.md"]
+    assert imports.splitlines() == [
+        "@AGENTS.md",
+        "@.rulemason/rules/code-style.md",
+        "@.rulemason/rules/python.md",
+        "@.rulemason/rules/react.md",
+        "@.rulemason/rules/cjk-typography.md",
+        "@.rulemason/rules/result-check-contracts.md",
+        "@.rulemason/rules/workflow-gates.md",
+    ]
     assert "/simplify" in mapping and "代码逻辑" in mapping and "行为保持" in mapping
     assert ".rulemason/rules/workflow-gates.md" in mapping           # 不可用时的退路指向项目内副本
     assert "rules/python.md" not in mapping and "rules/react.md" not in mapping   # 没有该语言的项目会删掉含这些路径的行
@@ -82,7 +90,14 @@ def test_opencode_and_ruff_templates_point_to_copies():
     opencode = json.loads((TEMPLATES / "opencode.jsonc.tmpl").read_text(encoding="utf-8"))
     ruff = (TEMPLATES / "ruff.toml.tmpl").read_text(encoding="utf-8")
 
-    assert opencode["instructions"] == [".rulemason/rules/code-style.md", ".rulemason/rules/python.md", ".rulemason/rules/react.md", ".rulemason/rules/workflow-gates.md"]
+    assert opencode["instructions"] == [
+        ".rulemason/rules/code-style.md",
+        ".rulemason/rules/python.md",
+        ".rulemason/rules/react.md",
+        ".rulemason/rules/cjk-typography.md",
+        ".rulemason/rules/result-check-contracts.md",
+        ".rulemason/rules/workflow-gates.md",
+    ]
     assert 'extend = "$extend"' in ruff and "select" not in ruff
 
 

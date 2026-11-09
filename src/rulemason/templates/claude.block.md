@@ -2,6 +2,8 @@
 @.rulemason/rules/code-style.md
 @.rulemason/rules/python.md
 @.rulemason/rules/react.md
+@.rulemason/rules/cjk-typography.md
+@.rulemason/rules/result-check-contracts.md
 @.rulemason/rules/workflow-gates.md
 
 Claude Code 下，workflow gates 的「自动精简」一步用 `/simplify` 执行，替换手工精简：
