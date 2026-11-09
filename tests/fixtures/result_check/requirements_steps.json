@@ -1,0 +1,25 @@
+{
+  "checks": [
+    {
+      "id": "steps",
+      "type": "field",
+      "path": "可做的一步",
+      "value_type": "array",
+      "min_items": 1,
+      "items": { "value_type": "string", "min_length": 1 }
+    },
+    {
+      "id": "pending",
+      "type": "field",
+      "path": "待确认",
+      "value_type": "array",
+      "items": {
+        "value_type": "object",
+        "fields": {
+          "卦象所示": { "value_type": "string", "min_length": 1 },
+          "怎么确认": { "value_type": "string", "min_length": 1 }
+        }
+      }
+    }
+  ]
+}

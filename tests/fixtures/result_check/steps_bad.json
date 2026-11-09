@@ -1,0 +1,21 @@
+{
+  "text": "待确认缺怎么确认或空步骤",
+  "structured": {
+    "可做的一步": [
+      "先记下当前用神所在爻位",
+      ""
+    ],
+    "待确认": [
+      {
+        "卦象所示": "妻财逢月破",
+        "怎么确认": "看下一旬是否得生扶"
+      },
+      {
+        "卦象所示": "原神子孙得令"
+      }
+    ]
+  },
+  "source": { "id": "tests/fixtures/result_check/steps_bad.json", "kind": "fixture" },
+  "scope": "Yaomancy STEPS 负面样例",
+  "limits": "输入为离线 fixture，不等于真实模型会话或线上解读"
+}

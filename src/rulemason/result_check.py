@@ -31,11 +31,23 @@ SKILL_TYPES = frozenset({CHECK_SKILL, "skill", "skill_call", "skill_calls"})
 _FIELD_KEYS = frozenset({
     "id", "type", "path", "value_type", "optional",
     "minimum", "maximum", "min_length", "max_length",
-    "enum", "pattern", "min_items", "max_items",
+    "enum", "pattern", "min_items", "max_items", "items",
+})
+# items 子对象允许的键（可再嵌 items；fields 仅一层；optional 只在 fields 条目）
+_ITEMS_KEYS = frozenset({
+    "value_type", "minimum", "maximum",
+    "min_length", "max_length", "enum", "pattern",
+    "min_items", "max_items", "items", "fields",
+})
+# fields 条目：对象元素上的标量/类型约束（禁止再嵌 fields）
+_FIELD_PROP_KEYS = frozenset({
+    "value_type", "optional", "minimum", "maximum",
+    "min_length", "max_length", "enum", "pattern",
 })
 _VALUE_TYPES = frozenset({
     "string", "integer", "number", "boolean", "object", "array", "null",
 })
+_ITEMS_MAX_DEPTH = 4
 
 
 @dataclass
@@ -303,6 +315,58 @@ def _field_type_compat_error(check: dict[str, Any], value_types: list[str]) -> s
     return None
 
 
+def _constraint_block_error(
+    block: dict[str, Any], allowed: frozenset[str], label: str,
+) -> str | None:
+    """校验不含 path 的约束块（items / fields 条目）。"""
+    unknown = sorted(k for k in block if k not in allowed)
+    if unknown:
+        return f"{label} 未知约束字段：{', '.join(unknown)}"
+    value_types = _parse_value_types(block.get("value_type"))
+    if block.get("value_type") is not None and value_types is None:
+        return f"{label} 的 value_type 必须是合法类型名或其非空数组"
+    shape_err = _field_shape_error(block)
+    if shape_err:
+        return f"{label}：{shape_err}"
+    return _field_type_compat_error(block, value_types or [])
+
+
+def _fields_config_error(fields: Any, label: str) -> str | None:
+    if not isinstance(fields, dict) or not fields:
+        return f"{label} 的 fields 必须是非空对象"
+    for key, prop in fields.items():
+        if not isinstance(key, str) or not key:
+            return f"{label} 的 fields 键必须是非空字符串"
+        if not isinstance(prop, dict):
+            return f"{label}.fields.{key} 必须是对象"
+        err = _constraint_block_error(prop, _FIELD_PROP_KEYS, f"{label}.fields.{key}")
+        if err:
+            return err
+    return None
+
+
+def _items_config_error(items: Any, label: str, depth: int) -> str | None:
+    if depth > _ITEMS_MAX_DEPTH:
+        return f"{label} 嵌套 items 超过深度上限 {_ITEMS_MAX_DEPTH}"
+    if not isinstance(items, dict):
+        return f"{label} 必须是对象"
+    err = _constraint_block_error(items, _ITEMS_KEYS, label)
+    if err:
+        return err
+    value_types = _parse_value_types(items.get("value_type")) or []
+    if "fields" in items:
+        if value_types and "object" not in value_types:
+            return f"{label} 含 fields 时 value_type 须包含 object"
+        ferr = _fields_config_error(items.get("fields"), label)
+        if ferr:
+            return ferr
+    if "items" in items:
+        if value_types and "array" not in value_types:
+            return f"{label} 含嵌套 items 时 value_type 须包含 array"
+        return _items_config_error(items["items"], f"{label}.items", depth + 1)
+    return None
+
+
 def _field_config_error(check: dict[str, Any]) -> str | None:
     """校验 field 项配置；有错返回说明，否则 None。"""
     unknown = sorted(k for k in check if not k.startswith("_") and k not in _FIELD_KEYS)
@@ -317,7 +381,16 @@ def _field_config_error(check: dict[str, Any]) -> str | None:
     shape_err = _field_shape_error(check)
     if shape_err:
         return shape_err
-    return _field_type_compat_error(check, value_types or [])
+    compat = _field_type_compat_error(check, value_types or [])
+    if compat:
+        return compat
+    if "items" in check:
+        types = value_types or []
+        if types and "array" not in types:
+            return "含 items 时 value_type 须包含 array"
+        return _items_config_error(check["items"], "items", 1)
+    return None
+
 
 def _resolve_path(structured: Any, path: str) -> tuple[str, Any | None]:
     """解析路径。返回 (kind, value)：
@@ -380,7 +453,10 @@ def _field_runtime_type_error(check: dict[str, Any], path: str, value: Any) -> I
         isinstance(value, bool) or not isinstance(value, (int, float))
     ):
         return ItemResult(cid, STATUS_INPUT_ERROR, f"路径 {path} 的数值范围约束仅适用于数字")
+    # 有 items 时非数组由 items 步骤记失败；仅长度约束时仍为输入错误
     if any(k in check for k in ("min_items", "max_items")) and not isinstance(value, list):
+        if "items" in check:
+            return None
         return ItemResult(cid, STATUS_INPUT_ERROR, f"路径 {path} 的数组长度约束仅适用于数组")
     return None
 
@@ -426,14 +502,87 @@ def _constrain_array(check: dict[str, Any], path: str, value: Any) -> ItemResult
     return None
 
 
-def _apply_field_constraints(check: dict[str, Any], path: str, value: Any) -> ItemResult:
-    """对已定位的值施加数值/长度/模式/数组/枚举约束。"""
+def _apply_scalar_constraints(check: dict[str, Any], path: str, value: Any) -> ItemResult | None:
+    """标量/数组长度/枚举约束；通过返回 None，失败返回 ItemResult。"""
     for fn in (_constrain_number, _constrain_string, _constrain_array):
         hit = fn(check, path, value)
         if hit is not None:
             return hit
     if "enum" in check and value not in check["enum"]:
         return _fail_path(check["_id"], path, f"路径 {path} 不在枚举范围内", value)
+    return None
+
+
+def _typed_scalar_hit(cid: str, path: str, value: Any, constraints: dict[str, Any]) -> ItemResult | None:
+    """类型 + 运行时类型 + 标量约束；通过返回 None。"""
+    annotated = dict(constraints)
+    annotated["_id"] = cid
+    type_err = _field_value_type_error(annotated, path, value)
+    if type_err:
+        return type_err
+    runtime_err = _field_runtime_type_error(annotated, path, value)
+    if runtime_err:
+        return runtime_err
+    return _apply_scalar_constraints(annotated, path, value)
+
+
+def _apply_fields_on_object(
+    cid: str, path: str, obj: Any, fields: dict[str, Any],
+) -> ItemResult | None:
+    """对象元素的 fields；通过返回 None。"""
+    if not isinstance(obj, dict):
+        return ItemResult(
+            cid, STATUS_FAIL,
+            f"路径 {path} 期望 object 以核 fields，实际 {_json_type_name(obj)}",
+            evidence=f"路径 {path}；{_scalar_summary(obj)}",
+        )
+    for key, prop in fields.items():
+        child_path = f"{path}.{key}"
+        if key not in obj:
+            if bool(prop.get("optional")):
+                continue
+            return ItemResult(cid, STATUS_FAIL, f"缺少路径：{child_path}")
+        hit = _typed_scalar_hit(cid, child_path, obj[key], prop)
+        if hit is not None:
+            return hit
+    return None
+
+
+def _apply_items(
+    cid: str, path: str, value: Any, items: dict[str, Any],
+) -> ItemResult | None:
+    """数组元素约束；通过返回 None。空数组真空通过。"""
+    if not isinstance(value, list):
+        return ItemResult(
+            cid, STATUS_FAIL,
+            f"路径 {path} 声明了 items 但值不是数组（实际 {_json_type_name(value)}）",
+            evidence=f"路径 {path}；{_scalar_summary(value)}",
+        )
+    for i, elem in enumerate(value):
+        elem_path = f"{path}[{i}]"
+        hit = _typed_scalar_hit(cid, elem_path, elem, items)
+        if hit is not None:
+            return hit
+        if "fields" in items:
+            ferr = _apply_fields_on_object(cid, elem_path, elem, items["fields"])
+            if ferr is not None:
+                return ferr
+        if "items" in items:
+            nested = _apply_items(cid, elem_path, elem, items["items"])
+            if nested is not None:
+                return nested
+    return None
+
+
+def _apply_field_constraints(check: dict[str, Any], path: str, value: Any) -> ItemResult:
+    """对已定位的值施加标量/数组长度/枚举，以及可选的 items。"""
+    hit = _apply_scalar_constraints(check, path, value)
+    if hit is not None:
+        return hit
+    if "items" in check:
+        items_hit = _apply_items(check["_id"], path, value, check["items"])
+        if items_hit is not None:
+            return items_hit
     return ItemResult(
         check["_id"], STATUS_PASS, f"路径 {path} 约束通过",
         evidence=f"路径 {path}；{_scalar_summary(value)}",
