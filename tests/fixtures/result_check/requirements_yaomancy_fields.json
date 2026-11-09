@@ -1,0 +1,39 @@
+{
+  "checks": [
+    {
+      "id": "keys-single",
+      "type": "structured_keys",
+      "keys": ["结论", "信心度", "白话推理", "专业断卦", "签语"]
+    },
+    {
+      "id": "confidence",
+      "type": "field",
+      "path": "信心度",
+      "value_type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    {
+      "id": "qianyu-len",
+      "type": "field",
+      "path": "签语",
+      "value_type": "string",
+      "min_length": 6,
+      "max_length": 14
+    },
+    {
+      "id": "yingqi-type",
+      "type": "field",
+      "path": "应期",
+      "value_type": ["object", "null"],
+      "optional": true
+    },
+    {
+      "id": "yingqi-guess",
+      "type": "field",
+      "path": "应期.推测",
+      "value_type": "string",
+      "min_length": 1
+    }
+  ]
+}

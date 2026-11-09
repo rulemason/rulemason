@@ -35,16 +35,17 @@
    - 否决：本期就做数组通配或一项多 path — 无必要，组合用多条 `field` 即可。
 
 3. **「可为 null，非 null 时校验子字段」用两条 `field` + 路径穿越规则，不做 if-then DSL。**  
-   - 父路径项：如 `path: 应期`，`type: ["object","null"]`，并设 `optional: true`（键缺失与 `null` 同等视为类型通过；未设 `optional` 时键缺失仍为路径失败）。  
-   - 子路径项：如 `path: 应期.推测`，`type: string`，`min_length: 1`。  
+   - 父路径项：如 `path: 应期`，`value_type: ["object","null"]`，并设 `optional: true`（键缺失与 `null` 同等视为类型通过；未设 `optional` 时键缺失仍为路径失败）。  
+   - 子路径项：如 `path: 应期.推测`，`value_type: string`，`min_length: 1`。  
    - **穿越规则**：解析多段路径时，若某一前缀段的值是 JSON `null`，或该前缀键缺失 → 本项记「未检查/不适用」（skip），**不**失败；若前缀存在但不是可下降的 object → 失败；若前缀为 object 而末段键缺失或约束不符 → 失败。  
    - 这样：`应期: null` 或省略时，父项（optional+联合类型）通过、子项 skip；`应期: {推测: "…"}` 时子项强制非空字符串；`应期: {}` 或 `推测: ""` → 子项失败。  
    - 否决：引入 `if`/`then`/`anyOf` 组合引擎 — 投机扩展，且本期只需 null 与对象二选一。  
    - 否决：子路径在父为 null 时记失败 — 无法表达「允许 null」。
 
-4. **约束字段（可组合，缺省表示不检查该项）**：`type`（单值或联合数组）、`optional`（仅影响「键是否必须存在」）、`minimum`/`maximum`、`min_length`/`max_length`（字符串按 `len(s)`＝Unicode 码点；**不**引入 grapheme 依赖；将来若要字形簇计长另开 change）、`enum`、`pattern`、`min_items`/`max_items`。  
+4. **约束字段（可组合，缺省表示不检查该项）**：值类型键名为 **`value_type`**（单值或联合数组；避免与检查项 `type: field` 的 JSON 键冲突）、`optional`（仅影响「键是否必须存在」）、`minimum`/`maximum`、`min_length`/`max_length`（字符串按 `len(s)`＝Unicode 码点；**不**引入 grapheme 依赖；将来若要字形簇计长另开 change）、`enum`、`pattern`、`min_items`/`max_items`。未知约束键或约束与声明的 `value_type` 不自洽 → 输入错误。  
    - 否决：依赖 PyPI `jsonschema` — 重、且鼓励投机扩展。  
-   - 否决：按字形簇 / 显示宽度计长 — 无稳定标准库 API；本期固定码点。
+   - 否决：按字形簇 / 显示宽度计长 — 无稳定标准库 API；本期固定码点。  
+   - 否决：复用检查项键名 `type` 兼表值类型 — JSON 对象不能重复键。
 
 5. **错误信息**：指出 `path`、期望约束与实际类型/标量摘要；MUST NOT 回显完整字段字符串。  
    - 否决：失败时打印整段长文本字段 — 违反默认不回显全文。
@@ -83,7 +84,7 @@
 
 ## Yaomancy 接入参考（写进 Release 示例；非本包默认）
 
-- `信心度`：`type: integer`，`minimum: 1`，`maximum: 5`。  
-- `签语`：`type: string`，`min_length: 6`，`max_length: 14`。  
-- `应期`：`type: ["object","null"]`，`optional: true`；另条 `应期.推测`：`type: string`，`min_length: 1`（父为 null/缺失时子项 skip）。  
+- `信心度`：`value_type: integer`，`minimum: 1`，`maximum: 5`。  
+- `签语`：`value_type: string`，`min_length: 6`，`max_length: 14`。  
+- `应期`：`value_type: ["object","null"]`，`optional: true`；另条 `应期.推测`：`value_type: string`，`min_length: 1`（父为 null/缺失时子项 skip）。  
 - 单事顶层键与抉择顶层键仍可用既有 `structured_keys`。

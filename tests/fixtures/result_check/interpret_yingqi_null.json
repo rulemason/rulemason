@@ -1,0 +1,14 @@
+{
+  "text": "甲案较优。签语：守静待时，自有转机",
+  "structured": {
+    "结论": "甲案较优，乙案缓行。",
+    "信心度": 4,
+    "白话推理": "甲用神得生，乙用神受克。",
+    "专业断卦": "甲案用神旺相；乙案用神休囚。",
+    "签语": "择善而行，稳中求进",
+    "应期": null
+  },
+  "source": { "id": "tests/fixtures/result_check/interpret_yingqi_null.json", "kind": "fixture" },
+  "scope": "应期为 null 的合成样例",
+  "limits": "输入为离线 fixture，不等于真实模型会话或线上解读"
+}

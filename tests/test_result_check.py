@@ -161,7 +161,7 @@ def test_cli_help_mentions_scope_keywords(capsys):
         cli.main(["result-check", "--help"])
     assert e.value.code == 0
     text = capsys.readouterr().out
-    for key in ("fixture", "Skill", "解读", "check", "judge"):
+    for key in ("fixture", "Skill", "解读", "check", "judge", "field", "value_type", "码点", "optional"):
         assert key in text
     with pytest.raises(SystemExit) as e2:
         cli.main(["check", "--help"])
@@ -283,3 +283,163 @@ def test_default_output_never_contains_full_original_text():
     assert long_text not in long_human
     assert long_text not in long_ev
     assert len(long_ev) < len(long_text)
+
+
+def _struct(data: dict) -> dict:
+    return {"structured": data, "source": {"kind": "fixture"}, "limits": "fixture"}
+
+
+def test_field_number_range_pass_and_fail():
+    ok = run_check(_struct({"n": 3}), {"checks": [
+        {"id": "n", "type": "field", "path": "n", "value_type": "integer", "minimum": 1, "maximum": 5},
+    ]})
+    assert ok.items[0].status == STATUS_PASS
+    assert ok.exit_code == EXIT_OK
+    bad = run_check(_struct({"n": 9}), {"checks": [
+        {"id": "n", "type": "field", "path": "n", "value_type": "integer", "minimum": 1, "maximum": 5},
+    ]})
+    assert bad.items[0].status == STATUS_FAIL
+    assert "maximum" in bad.items[0].explanation
+    assert bad.exit_code == EXIT_NOT_PASS
+
+
+def test_field_string_length_codepoints_and_no_full_echo():
+    # 「守静待时自有转机」= 8 码点
+    text = "守静待时自有转机"
+    assert len(text) == 8
+    ok = run_check(_struct({"签语": text}), {"checks": [
+        {"id": "q", "type": "field", "path": "签语", "value_type": "string",
+         "min_length": 6, "max_length": 14},
+    ]})
+    assert ok.items[0].status == STATUS_PASS
+    long = "这是一段明显超过十四个汉字的签语内容啊"
+    assert len(long) > 14
+    bad = run_check(_struct({"签语": long}), {"checks": [
+        {"id": "q", "type": "field", "path": "签语", "value_type": "string",
+         "min_length": 6, "max_length": 14},
+    ]})
+    assert bad.items[0].status == STATUS_FAIL
+    human = render_human(bad)
+    assert long not in human
+    assert long not in (bad.items[0].evidence or "")
+
+
+def test_field_enum_pattern_array_items():
+    enum_ok = run_check(_struct({"色": "红"}), {"checks": [
+        {"id": "e", "type": "field", "path": "色", "value_type": "string", "enum": ["红", "蓝"]},
+    ]})
+    assert enum_ok.items[0].status == STATUS_PASS
+    enum_bad = run_check(_struct({"色": "绿"}), {"checks": [
+        {"id": "e", "type": "field", "path": "色", "value_type": "string", "enum": ["红", "蓝"]},
+    ]})
+    assert enum_bad.items[0].status == STATUS_FAIL
+
+    pat_ok = run_check(_struct({"码": "AB-12"}), {"checks": [
+        {"id": "p", "type": "field", "path": "码", "value_type": "string", "pattern": r"^[A-Z]+-\d+$"},
+    ]})
+    assert pat_ok.items[0].status == STATUS_PASS
+    pat_bad = run_check(_struct({"码": "??"}), {"checks": [
+        {"id": "p", "type": "field", "path": "码", "value_type": "string", "pattern": r"^[A-Z]+-\d+$"},
+    ]})
+    assert pat_bad.items[0].status == STATUS_FAIL
+
+    arr_ok = run_check(_struct({"xs": [1, 2]}), {"checks": [
+        {"id": "a", "type": "field", "path": "xs", "value_type": "array", "min_items": 1, "max_items": 3},
+    ]})
+    assert arr_ok.items[0].status == STATUS_PASS
+    arr_bad = run_check(_struct({"xs": []}), {"checks": [
+        {"id": "a", "type": "field", "path": "xs", "value_type": "array", "min_items": 1, "max_items": 3},
+    ]})
+    assert arr_bad.items[0].status == STATUS_FAIL
+
+
+def test_field_nested_null_missing_skip_and_undescendable():
+    # 父 null → 子 skip
+    null_parent = run_check(_struct({"应期": None}), {"checks": [
+        {"id": "g", "type": "field", "path": "应期.推测", "value_type": "string", "min_length": 1},
+    ]})
+    assert null_parent.items[0].status == STATUS_SKIP
+
+    # 父键缺失 → 子 skip
+    missing_parent = run_check(_struct({"结论": "x"}), {"checks": [
+        {"id": "g", "type": "field", "path": "应期.推测", "value_type": "string", "min_length": 1},
+    ]})
+    assert missing_parent.items[0].status == STATUS_SKIP
+
+    # 父为对象、子空串 → 失败
+    empty_child = run_check(_struct({"应期": {"推测": ""}}), {"checks": [
+        {"id": "g", "type": "field", "path": "应期.推测", "value_type": "string", "min_length": 1},
+    ]})
+    assert empty_child.items[0].status == STATUS_FAIL
+
+    # 父不可下降
+    bad_parent = run_check(_struct({"应期": "不是对象"}), {"checks": [
+        {"id": "g", "type": "field", "path": "应期.推测", "value_type": "string", "min_length": 1},
+    ]})
+    assert bad_parent.items[0].status == STATUS_FAIL
+    assert "不可下降" in bad_parent.items[0].explanation
+
+    # 末段在对象上缺失 → 失败
+    leaf_missing = run_check(_struct({"应期": {}}), {"checks": [
+        {"id": "g", "type": "field", "path": "应期.推测", "value_type": "string", "min_length": 1},
+    ]})
+    assert leaf_missing.items[0].status == STATUS_FAIL
+
+
+def test_field_optional_and_union_null():
+    opt = run_check(_struct({}), {"checks": [
+        {"id": "y", "type": "field", "path": "应期", "value_type": ["object", "null"], "optional": True},
+    ]})
+    assert opt.items[0].status == STATUS_PASS
+    null_ok = run_check(_struct({"应期": None}), {"checks": [
+        {"id": "y", "type": "field", "path": "应期", "value_type": ["object", "null"], "optional": True},
+    ]})
+    assert null_ok.items[0].status == STATUS_PASS
+    required_missing = run_check(_struct({}), {"checks": [
+        {"id": "y", "type": "field", "path": "应期", "value_type": ["object", "null"]},
+    ]})
+    assert required_missing.items[0].status == STATUS_FAIL
+
+
+def test_field_illegal_config_is_input_error():
+    unknown = run_check(_struct({"a": 1}), {"checks": [
+        {"id": "x", "type": "field", "path": "a", "value_type": "integer", "foo": 1},
+    ]})
+    assert unknown.exit_code == EXIT_INPUT_ERROR
+    mismatch = run_check(_struct({"a": 1}), {"checks": [
+        {"id": "x", "type": "field", "path": "a", "value_type": "integer", "min_length": 1},
+    ]})
+    assert mismatch.exit_code == EXIT_INPUT_ERROR
+    bad_pat = run_check(_struct({"a": "x"}), {"checks": [
+        {"id": "x", "type": "field", "path": "a", "value_type": "string", "pattern": "("},
+    ]})
+    assert bad_pat.exit_code == EXIT_INPUT_ERROR
+
+
+def test_field_no_structured_is_unknown():
+    report = run_check({"text": "x"}, {"checks": [
+        {"id": "x", "type": "field", "path": "a", "value_type": "string"},
+    ]})
+    assert report.items[0].status == STATUS_UNKNOWN
+    assert report.exit_code == EXIT_NOT_PASS
+
+
+def test_yaomancy_shaped_field_requirements_and_null_yingqi():
+    ok = run_files(FIX / "interpret_ok.json", FIX / "requirements_yaomancy_fields.json")
+    assert ok.overall_pass is True
+    assert ok.exit_code == EXIT_OK
+    # 应期.推测 有值 → 通过；应期 null 样例：子项 skip，其余通过
+    null_case = run_files(FIX / "interpret_yingqi_null.json", FIX / "requirements_yaomancy_fields.json")
+    by_id = {i.id: i for i in null_case.items}
+    assert by_id["yingqi-type"].status == STATUS_PASS
+    assert by_id["yingqi-guess"].status == STATUS_SKIP
+    assert by_id["confidence"].status == STATUS_PASS
+    assert by_id["qianyu-len"].status == STATUS_PASS
+    assert null_case.overall_pass is True
+    assert null_case.exit_code == EXIT_OK
+
+
+def test_old_requirements_still_pass_with_field_present():
+    report = run_files(FIX / "interpret_ok.json", FIX / "requirements_ok.json")
+    assert report.overall_pass is True
+    assert report.exit_code == EXIT_OK

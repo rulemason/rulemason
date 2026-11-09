@@ -22,7 +22,10 @@ from rulemason.shared import find_root
 _RESULT_CHECK_EPILOG = """\
 首个接入场景：产品解读结构化输出（调用方交已发生记录）。
 离线可用 fixture 验收；fixture 不等于真实模型会话。
-本期排除 Skill / 工具调用出现检查；不为日后 eval 报告写解析器（调用方可自行映射后再交进来）。
+支持 field：一项一路径（. 分隔）；值类型用 value_type（可联合数组）；
+optional、minimum/maximum、min_length/max_length（Unicode 码点）、enum、pattern、min_items/max_items。
+父路径为 null 或键缺失时，子路径项记未检查/不适用。约束由调用方 requirements 提供。
+旧 structured_keys 等类型语义不变。本期排除 Skill 出现检查。
 模式核对信任调用方提供的模式（本地确定性，无超时沙箱）。
 不改 check / update / judge 的既有语义。退出码：0 总体通过；1 失败或无法判断；2 输入错误。
 """
