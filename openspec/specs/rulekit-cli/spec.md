@@ -94,6 +94,21 @@
 - **WHEN** 上述项目新增 `pyproject.toml` 后运行 `rulemason update`
 - **THEN** 补上 `rules/python.md` 与 `lint/ruff-base.toml`，清单记录它们，入口块加上 python.md 的引用
 
+### Requirement: 中文排版与 result-check 契约规则必复制并被入口引用
+`init` 与 `update` SHALL 把 `rules/cjk-typography.md` 与 `rules/result-check-contracts.md` 复制进项目 `.rulemason/rules/`（所有接入项目，与 code-style 同级必复制），清单记录校验值。AGENTS / Claude / OpenCode 等入口中的 code-style 类标记块 SHALL 引用这两份副本（可注明阅读场合）。`check` MUST 在副本缺失或被手改时非 0 退出。既有检查项与无新规则时的项目行为 MUST 在 `update` 补齐后恢复一致。
+
+#### Scenario: 无前端项目也拿到两份规则
+- **WHEN** 仅有 Python、无前端的项目运行 `rulemason update`
+- **THEN** `.rulemason/rules/` 含 `cjk-typography.md` 与 `result-check-contracts.md`，入口块出现对二者的引用
+
+#### Scenario: 手改排版规则副本被查出
+- **WHEN** 项目手改 `.rulemason/rules/cjk-typography.md` 后运行 `rulemason check`
+- **THEN** 以非 0 退出并报告该副本不一致
+
+#### Scenario: 升级补齐不破坏旧命令表
+- **WHEN** 已接入项目从无这两份规则的版本升级并 `rulemason update --yes`
+- **THEN** 补上两份副本与入口引用，项目命令表与红线正文不被改写
+
 ### Requirement: init 只写 rulekit 标记块
 
 `init` 与 `update` 在 `AGENTS.md`、`CLAUDE.md` 等用户也会编辑的文件中，SHALL 只写 rulemason 标记块（`<!-- rulemason:NAME -->` 与 `<!-- /rulemason:NAME -->` 之间）内的内容；标记块以外的内容 MUST NOT 被修改。`AGENTS.md` SHALL 保留 `## Code style` 与 `## Workflow gates` 标题，并在标记块内引用 `.rulemason/rules/` 下的副本。选了 Claude Code 时，`CLAUDE.md` 的标记块 SHALL 导入 `AGENTS.md` 与适用的共享正文副本，使会话开始即加载九条。该标记块还 SHALL 写明 Claude Code 下自动精简一步使用 `/simplify` 的映射（调用条件、只采纳行为保持的修改、不可用时退回手工精简）；其他工具的入口不写这条映射。
