@@ -19,7 +19,7 @@
 
 ## 4. 本仓样例、CI 与发版
 
-- [ ] 4.1 对本仓 `README.md` 与 `rules/**/*.md` 跑首批规则；结果写入 `verification.md`。按 Decision 9：默认修好违规；有意例外进 allowlist；若 >20 处非平凡违规则停下记入 Open Question。验证：verification 含命令、结论表、allowlist（若有）。
-- [ ] 4.2 在 pytest（现有 `test` job）内按文件喂 `record.text` 覆盖上述路径，失败含路径与短名；不改 job 名；不覆盖 `README.en.md` 与 archive。验证：故意弄坏一处本地可红；修回后全绿；CI 工作流仍只依赖 `test`。
+- [ ] 4.1 对本仓 `README.md` 与 `rules/**/*.md` 跑首批规则；结果写入 `verification.md`。非平凡违规 ≤20：本 change 内修好；>20：停下只交清单、等用户确认后再修。CI `allowlist` 初始为空，仅样例后按需填并注明理由。验证：verification 含命令、结论表、违规计数；超额时无未授权的文档大改。
+- [ ] 4.2 在 pytest（现有 `test` job）内按文件喂 `record.text` 覆盖上述路径（requirements 初始无 allowlist 或空数组）；失败含路径与短名；不改 job 名；不覆盖 `README.en.md` 与 archive。验证：故意弄坏一处本地可红；修回后全绿；CI 工作流仍只依赖 `test`。
 - [ ] 4.3 版本 bump **0.8.32**（`__init__.py` + README 中英文 CI 钉）。验证：`--version` 与钉版本均为 0.8.32。
 - [ ] 4.4 全量 ruff + pytest + `rulemason check`；完成 `verification.md`。验证：汇报含测试数字；tasks 无提前勾选。

@@ -37,7 +37,7 @@
    - 对既有项目影响：多两个只读副本与入口引用行；无新强制 lint；`check` 在 `update` 前可能报缺副本（与加 `copy-voice` 同类），升级路径为 `rulemason update`。
 
 7. **已决本仓 CI 喂数方式：在现有 `test` job 的 pytest 内跑，不另开 job 名。**  
-   - 实现：测试（或测试调用的小助手）按文件读入 UTF-8 正文，构造 `record={"text": <正文>, "source": {"kind": "fixture", "id": <路径>}}` 与固定 requirements（首批七条、默认 units、无 allowlist 或仅列已决品牌例外），调用库/`run_check`；**一文件一项或一文件一次 run**，失败信息含路径。  
+   - 实现：测试（或测试调用的小助手）按文件读入 UTF-8 正文，构造 `record={"text": <正文>, "source": {"kind": "fixture", "id": <路径>}}` 与固定 requirements（首批七条、默认 units），调用库/`run_check`；**一文件一项或一文件一次 run**，失败信息含路径。  
    - 否决：CI 里 shell 拼巨型单 record 合并全书 — 定位差。  
    - 否决：改 job 名为非 `test` — 破坏分支保护（repo-ci 规格）。  
    - 否决：CI 调外部模型。
@@ -45,19 +45,24 @@
 8. **已决 CI 覆盖文件（本仓）：** `README.md`；`rules/**/*.md`（含新建两份）。**不覆盖** `README.en.md`、`openspec/` 历史归档、代码与 JSON 夹具。  
    - 否决：扫全部 Markdown — 归档英文/引文噪声大。
 
-9. **已决既有违规处理（与样例任务衔接）：** apply 时先跑样例（原 3.1）；**默认在本 change 内修好**覆盖文件中的违规，使 CI 门禁可绿；仅对有意保留的品牌/专名写法写入该次检查的 `allowlist`（写进本仓 requirements 夹具并在 verification 注明）。  
-   - 若样例揭示改动量过大（经验阈值：覆盖文件合计 >20 处非平凡修改），停下列为 Open Question，不静默扩大文档重写。  
-   - 否决：CI 只 warn 不失败 — 用户要自动强制。  
-   - 否决：无 allowlist 能力时硬改品牌官方写法。
+9. **已决既有违规处理（与样例任务衔接）：** apply 时先跑样例。  
+   - 非平凡违规 **≤20 处**：在本 change 内修好，使 CI 门禁可绿。  
+   - 非平凡违规 **>20 处**：**停下**，把完整清单（路径、规则短名、位置）写入 `verification.md` 并报告用户，**未经用户确认不得开修**；不静默扩大文档重写、不擅自改 CI 为 warn。  
+   - 否决：无论多少处都强行修完 — 用户确认超额时先看清单。  
+   - 否决：CI 只 warn 不失败 — 门禁在清单处理完后仍为失败即红。
 
-10. **已决版本：本 change bump `0.8.32` 并合入后打 tag。** 否决 0.9.0 / 攒批。
+10. **已决本仓 CI `allowlist`：初始为空数组（或不写该键）；仅在样例跑完后，对有意保留的例外按需填入**，并在 `verification.md` 注明每条理由。  
+    - 否决：实现前预置品牌白名单 — 无样例证据。  
+    - 否决：无 allowlist 能力时硬改品牌官方写法。
+
+11. **已决版本：本 change bump `0.8.32` 并合入后打 tag。** 否决 0.9.0 / 攒批。
 
 ## Risks / Trade-offs
 
 - [既有项目 `check` 在 update 前报缺新副本] → README/升级说明写明先 `rulemason update`；与加规则文件的既有模式一致。  
 - [入口块多两行，非中文项目略吵] → 标注「写中文…时读」；文件短。  
-- [本仓历史中文文档大量违规] → 先样例计数；默认修；过大则升 Open Question。  
-- [链接可见文案误报品牌] → allowlist。  
+- [本仓历史中文文档大量违规] → 先样例计数；≤20 处本 change 修；>20 处停下列清单等确认。  
+- [链接可见文案误报品牌] → 样例后按需填 allowlist。  
 - [契约规则无机械强制] → 靠 AI 读规则 + 人工/审查；本期不做「diff schema 对 requirements」静态分析。
 
 ## Migration Plan
@@ -81,8 +86,3 @@
 | `src/rulemason/__init__.py` + README CI 钉 | 修改 | ~3 |
 | `.github/workflows/ci.yml` | 通常不改（并入 pytest） | 0–5 |
 | `verification.md` | 新增 | +40–80 |
-
-## Open Questions
-
-1. （条件）样例若发现覆盖文件 **>20 处**非平凡违规：本 change 是否仍强行修完，还是分批并把 CI 暂改为允许名单文件？默认按 Decision 9 先停下问用户。  
-2. 本仓 CI requirements 是否预置空 `allowlist`，还是样例后再填？
