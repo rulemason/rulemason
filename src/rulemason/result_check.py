@@ -22,10 +22,20 @@ CHECK_MUST_CONTAIN = "must_contain"
 CHECK_MUST_NOT_CONTAIN = "must_not_contain"
 CHECK_PATTERN = "pattern"
 CHECK_STRUCTURED_KEYS = "structured_keys"
+CHECK_FIELD = "field"
 CHECK_SKILL = "skill_present"
 CHECK_SKIP = "skip"
 
 SKILL_TYPES = frozenset({CHECK_SKILL, "skill", "skill_call", "skill_calls"})
+# field 项允许的键：检查项 type 与值类型 value_type 分开，避免 JSON 键冲突
+_FIELD_KEYS = frozenset({
+    "id", "type", "path", "value_type", "optional",
+    "minimum", "maximum", "min_length", "max_length",
+    "enum", "pattern", "min_items", "max_items",
+})
+_VALUE_TYPES = frozenset({
+    "string", "integer", "number", "boolean", "object", "array", "null",
+})
 
 
 @dataclass
@@ -201,6 +211,291 @@ def _eval_structured_keys(check: dict[str, Any], structured: Any, provided: bool
     return ItemResult(cid, STATUS_PASS, "结构化可解析且必填字段齐全")
 
 
+def _json_type_name(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return type(value).__name__
+
+
+def _matches_value_type(value: Any, expected: str) -> bool:
+    if expected == "null":
+        return value is None
+    if expected == "boolean":
+        return isinstance(value, bool)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "number":
+        return (isinstance(value, int) or isinstance(value, float)) and not isinstance(value, bool)
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "array":
+        return isinstance(value, list)
+    if expected == "object":
+        return isinstance(value, dict)
+    return False
+
+
+def _parse_value_types(raw: Any) -> list[str] | None:
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list) or not raw or any(not isinstance(t, str) or t not in _VALUE_TYPES for t in raw):
+        return None
+    return list(raw)
+
+
+def _field_path_error(path: Any) -> str | None:
+    if not isinstance(path, str) or not path.strip():
+        return "field 要求缺少有效 path"
+    if ".." in path or path.strip() != path or path.startswith(".") or path.endswith("."):
+        return f"path 非法：{path}"
+    if any(not seg for seg in path.split(".")):
+        return f"path 非法：{path}"
+    return None
+
+
+def _field_shape_error(check: dict[str, Any]) -> str | None:
+    if "optional" in check and not isinstance(check["optional"], bool):
+        return "optional 必须是布尔值"
+    for key in ("minimum", "maximum"):
+        if key in check and (isinstance(check[key], bool) or not isinstance(check[key], (int, float))):
+            return f"{key} 必须是数字"
+    for key in ("min_length", "max_length", "min_items", "max_items"):
+        if key in check and (not isinstance(check[key], int) or isinstance(check[key], bool) or check[key] < 0):
+            return f"{key} 必须是非负整数"
+    if "enum" in check and (not isinstance(check["enum"], list) or not check["enum"]):
+        return "enum 必须是非空数组"
+    if "pattern" in check and (not isinstance(check["pattern"], str) or not check["pattern"]):
+        return "pattern 必须是非空字符串"
+    if "pattern" in check:
+        try:
+            re.compile(check["pattern"])
+        except re.error as exc:
+            return f"字段模式非法：{exc}"
+    return None
+
+
+def _field_type_compat_error(check: dict[str, Any], value_types: list[str]) -> str | None:
+    if not value_types:
+        return None
+    allows_string = bool(set(value_types) & {"string"})
+    allows_number = bool(set(value_types) & {"integer", "number"})
+    allows_array = "array" in value_types
+    if any(k in check for k in ("min_length", "max_length", "pattern")) and not allows_string:
+        return "长度/模式约束只能与 string 类型一起使用"
+    if any(k in check for k in ("minimum", "maximum")) and not allows_number:
+        return "数值范围约束只能与 integer/number 类型一起使用"
+    if any(k in check for k in ("min_items", "max_items")) and not allows_array:
+        return "数组长度约束只能与 array 类型一起使用"
+    return None
+
+
+def _field_config_error(check: dict[str, Any]) -> str | None:
+    """校验 field 项配置；有错返回说明，否则 None。"""
+    unknown = sorted(k for k in check if not k.startswith("_") and k not in _FIELD_KEYS)
+    if unknown:
+        return f"未知约束字段：{', '.join(unknown)}"
+    path_err = _field_path_error(check.get("path"))
+    if path_err:
+        return path_err
+    value_types = _parse_value_types(check.get("value_type"))
+    if check.get("value_type") is not None and value_types is None:
+        return "value_type 必须是合法类型名或其非空数组"
+    shape_err = _field_shape_error(check)
+    if shape_err:
+        return shape_err
+    return _field_type_compat_error(check, value_types or [])
+
+def _resolve_path(structured: Any, path: str) -> tuple[str, Any | None]:
+    """解析路径。返回 (kind, value)：
+    ok — 取到末段值；skip — 前缀 null 或键缺失；fail — 前缀不可下降。
+    """
+    cursor: Any = structured
+    segments = path.split(".")
+    for i, seg in enumerate(segments):
+        is_last = i == len(segments) - 1
+        if cursor is None:
+            return "skip", None
+        if not isinstance(cursor, dict):
+            return "fail", None
+        if seg not in cursor:
+            return ("ok", None) if is_last else ("skip", None)
+        if is_last:
+            return "ok", cursor[seg]
+        cursor = cursor[seg]
+        if cursor is None:
+            return "skip", None
+        if not isinstance(cursor, dict):
+            return "fail", None
+    return "fail", None
+
+
+def _scalar_summary(value: Any) -> str:
+    """短摘要，不回显长字符串全文。"""
+    name = _json_type_name(value)
+    if value is None or isinstance(value, bool):
+        return name
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f"{name}={value}"
+    if isinstance(value, str):
+        return f"string 长度 {len(value)}"
+    if isinstance(value, list):
+        return f"array 长度 {len(value)}"
+    if isinstance(value, dict):
+        return f"object 键数 {len(value)}"
+    return name
+
+
+def _field_value_type_error(check: dict[str, Any], path: str, value: Any) -> ItemResult | None:
+    """类型不符时返回失败项；通过则 None。"""
+    value_types = _parse_value_types(check.get("value_type")) or []
+    if not value_types or any(_matches_value_type(value, t) for t in value_types):
+        return None
+    return ItemResult(
+        check["_id"], STATUS_FAIL,
+        f"路径 {path} 类型不符：期望 {value_types}，实际 {_json_type_name(value)}",
+        evidence=f"路径 {path}；{_scalar_summary(value)}",
+    )
+
+
+def _field_runtime_type_error(check: dict[str, Any], path: str, value: Any) -> ItemResult | None:
+    """无/弱 value_type 时，约束与实际值类型不匹配 → 输入错误。"""
+    cid = check["_id"]
+    if any(k in check for k in ("min_length", "max_length", "pattern")) and not isinstance(value, str):
+        return ItemResult(cid, STATUS_INPUT_ERROR, f"路径 {path} 的长度/模式约束仅适用于字符串")
+    if any(k in check for k in ("minimum", "maximum")) and (
+        isinstance(value, bool) or not isinstance(value, (int, float))
+    ):
+        return ItemResult(cid, STATUS_INPUT_ERROR, f"路径 {path} 的数值范围约束仅适用于数字")
+    if any(k in check for k in ("min_items", "max_items")) and not isinstance(value, list):
+        return ItemResult(cid, STATUS_INPUT_ERROR, f"路径 {path} 的数组长度约束仅适用于数组")
+    return None
+
+
+def _fail_path(cid: str, path: str, msg: str, value: Any) -> ItemResult:
+    return ItemResult(cid, STATUS_FAIL, msg, evidence=f"路径 {path}；{_scalar_summary(value)}")
+
+
+def _constrain_number(check: dict[str, Any], path: str, value: Any) -> ItemResult | None:
+    cid = check["_id"]
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    if "minimum" in check and value < check["minimum"]:
+        return _fail_path(cid, path, f"路径 {path} 小于 minimum={check['minimum']}", value)
+    if "maximum" in check and value > check["maximum"]:
+        return _fail_path(cid, path, f"路径 {path} 大于 maximum={check['maximum']}", value)
+    return None
+
+
+def _constrain_string(check: dict[str, Any], path: str, value: Any) -> ItemResult | None:
+    cid = check["_id"]
+    if not isinstance(value, str):
+        return None
+    n = len(value)  # Unicode 码点
+    if "min_length" in check and n < check["min_length"]:
+        return _fail_path(cid, path, f"路径 {path} 长度 {n} 小于 min_length={check['min_length']}", value)
+    if "max_length" in check and n > check["max_length"]:
+        return _fail_path(cid, path, f"路径 {path} 长度 {n} 大于 max_length={check['max_length']}", value)
+    if "pattern" in check and re.search(check["pattern"], value) is None:
+        return _fail_path(cid, path, f"路径 {path} 不匹配给定模式", value)
+    return None
+
+
+def _constrain_array(check: dict[str, Any], path: str, value: Any) -> ItemResult | None:
+    cid = check["_id"]
+    if not isinstance(value, list):
+        return None
+    n = len(value)
+    if "min_items" in check and n < check["min_items"]:
+        return _fail_path(cid, path, f"路径 {path} 数组长度 {n} 小于 min_items={check['min_items']}", value)
+    if "max_items" in check and n > check["max_items"]:
+        return _fail_path(cid, path, f"路径 {path} 数组长度 {n} 大于 max_items={check['max_items']}", value)
+    return None
+
+
+def _apply_field_constraints(check: dict[str, Any], path: str, value: Any) -> ItemResult:
+    """对已定位的值施加数值/长度/模式/数组/枚举约束。"""
+    for fn in (_constrain_number, _constrain_string, _constrain_array):
+        hit = fn(check, path, value)
+        if hit is not None:
+            return hit
+    if "enum" in check and value not in check["enum"]:
+        return _fail_path(check["_id"], path, f"路径 {path} 不在枚举范围内", value)
+    return ItemResult(
+        check["_id"], STATUS_PASS, f"路径 {path} 约束通过",
+        evidence=f"路径 {path}；{_scalar_summary(value)}",
+    )
+
+
+def _locate_field_value(
+    check: dict[str, Any], structured: dict[str, Any],
+) -> ItemResult | tuple[str, Any]:
+    """定位字段值；需提前返回时给出 ItemResult，否则 (path, value)。"""
+    cid = check["_id"]
+    path = check["path"].strip()
+    kind, value = _resolve_path(structured, path)
+    if kind == "skip":
+        return ItemResult(cid, STATUS_SKIP, f"路径 {path} 的前缀为 null 或缺失，跳过")
+    if kind == "fail":
+        return ItemResult(cid, STATUS_FAIL, f"路径 {path} 的前缀不可下降为对象")
+    optional = bool(check.get("optional"))
+    if _leaf_missing(structured, path):
+        if optional:
+            return ItemResult(cid, STATUS_PASS, f"路径 {path} 可选且键缺失")
+        return ItemResult(cid, STATUS_FAIL, f"缺少路径：{path}")
+    if value is None and optional and "value_type" not in check:
+        return ItemResult(cid, STATUS_PASS, f"路径 {path} 可选且为 null")
+    return path, value
+
+
+def _eval_field(check: dict[str, Any], structured: Any, provided: bool) -> ItemResult:
+    cid = check["_id"]
+    err = _field_config_error(check)
+    if err:
+        return ItemResult(cid, STATUS_INPUT_ERROR, err)
+    if not provided:
+        return ItemResult(cid, STATUS_UNKNOWN, "未提供结构化输出，无法判断字段约束")
+    if not isinstance(structured, dict):
+        return ItemResult(cid, STATUS_FAIL, "结构化输出不可解析为对象")
+    located = _locate_field_value(check, structured)
+    if isinstance(located, ItemResult):
+        return located
+    path, value = located
+    type_err = _field_value_type_error(check, path, value)
+    if type_err:
+        return type_err
+    runtime_err = _field_runtime_type_error(check, path, value)
+    if runtime_err:
+        return runtime_err
+    return _apply_field_constraints(check, path, value)
+
+
+def _leaf_missing(structured: Any, path: str) -> bool:
+    """末段键是否不存在（显式 null 不算缺失）。"""
+    cursor: Any = structured
+    segments = path.split(".")
+    for i, seg in enumerate(segments):
+        if not isinstance(cursor, dict):
+            return False
+        if seg not in cursor:
+            return i == len(segments) - 1
+        cursor = cursor[seg]
+    return False
+
+
 def _eval_one(check: dict[str, Any], record: dict[str, Any]) -> ItemResult:
     ctype = check.get("type")
     cid = check["_id"]
@@ -222,6 +517,8 @@ def _eval_one(check: dict[str, Any], record: dict[str, Any]) -> ItemResult:
         return _eval_pattern(check, text, text_ok)
     if ctype == CHECK_STRUCTURED_KEYS:
         return _eval_structured_keys(check, structured, struct_ok)
+    if ctype == CHECK_FIELD:
+        return _eval_field(check, structured, struct_ok)
     return ItemResult(cid, STATUS_INPUT_ERROR, f"未知检查类型：{ctype}")
 
 
