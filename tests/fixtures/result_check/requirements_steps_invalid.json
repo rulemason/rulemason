@@ -1,0 +1,16 @@
+{
+  "checks": [
+    {
+      "id": "pending",
+      "type": "field",
+      "path": "待确认",
+      "value_type": "array",
+      "items": {
+        "value_type": "object",
+        "fields": {
+          "卦象所示": { "value_type": "string", "min_length": 1, "unknown_key": true }
+        }
+      }
+    }
+  ]
+}

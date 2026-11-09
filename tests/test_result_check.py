@@ -161,7 +161,10 @@ def test_cli_help_mentions_scope_keywords(capsys):
         cli.main(["result-check", "--help"])
     assert e.value.code == 0
     text = capsys.readouterr().out
-    for key in ("fixture", "Skill", "解读", "check", "judge", "field", "value_type", "码点", "optional"):
+    for key in (
+        "fixture", "Skill", "解读", "check", "judge", "field", "value_type",
+        "码点", "optional", "items", "真空",
+    ):
         assert key in text
     with pytest.raises(SystemExit) as e2:
         cli.main(["check", "--help"])
@@ -443,3 +446,140 @@ def test_old_requirements_still_pass_with_field_present():
     report = run_files(FIX / "interpret_ok.json", FIX / "requirements_ok.json")
     assert report.overall_pass is True
     assert report.exit_code == EXIT_OK
+
+
+def test_field_items_string_elements_pass_and_indexed_fail():
+    ok = run_check(_struct({"可做的一步": ["记下用神", "核对月破"]}), {"checks": [
+        {"id": "s", "type": "field", "path": "可做的一步", "value_type": "array",
+         "items": {"value_type": "string", "min_length": 1}},
+    ]})
+    assert ok.items[0].status == STATUS_PASS
+    assert ok.exit_code == EXIT_OK
+
+    bad = run_check(_struct({"可做的一步": ["记下用神", ""]}), {"checks": [
+        {"id": "s", "type": "field", "path": "可做的一步", "value_type": "array",
+         "items": {"value_type": "string", "min_length": 1}},
+    ]})
+    assert bad.items[0].status == STATUS_FAIL
+    assert "可做的一步[1]" in bad.items[0].explanation
+    assert bad.exit_code == EXIT_NOT_PASS
+
+
+def test_field_items_object_required_and_optional_fields():
+    missing = run_check(_struct({"待确认": [
+        {"卦象所示": "妻财逢月破", "怎么确认": "看生扶"},
+        {"卦象所示": "子孙得令"},
+    ]}), {"checks": [
+        {"id": "p", "type": "field", "path": "待确认", "value_type": "array",
+         "items": {"value_type": "object", "fields": {
+             "卦象所示": {"value_type": "string", "min_length": 1},
+             "怎么确认": {"value_type": "string", "min_length": 1},
+         }}},
+    ]})
+    assert missing.items[0].status == STATUS_FAIL
+    assert "待确认[1].怎么确认" in missing.items[0].explanation
+
+    opt_ok = run_check(_struct({"待确认": [
+        {"卦象所示": "妻财逢月破"},
+    ]}), {"checks": [
+        {"id": "p", "type": "field", "path": "待确认", "value_type": "array",
+         "items": {"value_type": "object", "fields": {
+             "卦象所示": {"value_type": "string", "min_length": 1},
+             "备注": {"value_type": "string", "min_length": 1, "optional": True},
+         }}},
+    ]})
+    assert opt_ok.items[0].status == STATUS_PASS
+    assert opt_ok.exit_code == EXIT_OK
+
+
+def test_field_items_empty_array_non_array_and_parent_skip():
+    empty = run_check(_struct({"可做的一步": []}), {"checks": [
+        {"id": "s", "type": "field", "path": "可做的一步", "value_type": "array",
+         "items": {"value_type": "string", "min_length": 1}},
+    ]})
+    assert empty.items[0].status == STATUS_PASS
+    assert empty.exit_code == EXIT_OK
+
+    not_arr = run_check(_struct({"可做的一步": "不是数组"}), {"checks": [
+        {"id": "s", "type": "field", "path": "可做的一步",
+         "items": {"value_type": "string", "min_length": 1}},
+    ]})
+    assert not_arr.items[0].status == STATUS_FAIL
+    assert "不是数组" in not_arr.items[0].explanation
+    assert not_arr.exit_code == EXIT_NOT_PASS
+
+    skip = run_check(_struct({"结论": "x"}), {"checks": [
+        {"id": "s", "type": "field", "path": "步骤.可做的一步", "value_type": "array",
+         "items": {"value_type": "string", "min_length": 1}},
+    ]})
+    assert skip.items[0].status == STATUS_SKIP
+
+
+def test_field_items_illegal_config_is_input_error():
+    unknown = run_check(_struct({"xs": [1]}), {"checks": [
+        {"id": "a", "type": "field", "path": "xs", "value_type": "array",
+         "items": {"value_type": "integer", "foo": 1}},
+    ]})
+    assert unknown.exit_code == EXIT_INPUT_ERROR
+    assert unknown.items[0].status == STATUS_INPUT_ERROR
+
+    fields_on_string = run_check(_struct({"xs": ["a"]}), {"checks": [
+        {"id": "a", "type": "field", "path": "xs", "value_type": "array",
+         "items": {"value_type": "string", "fields": {"k": {"value_type": "string"}}}},
+    ]})
+    assert fields_on_string.exit_code == EXIT_INPUT_ERROR
+
+    nested_fields = run_check(_struct({"xs": [{}]}), {"checks": [
+        {"id": "a", "type": "field", "path": "xs", "value_type": "array",
+         "items": {"value_type": "object", "fields": {
+             "k": {"value_type": "object", "fields": {"n": {"value_type": "string"}}},
+         }}},
+    ]})
+    assert nested_fields.exit_code == EXIT_INPUT_ERROR
+
+    # items 上写 optional → 未知键（optional 只在 fields 条目）
+    items_optional = run_check(_struct({"xs": ["a"]}), {"checks": [
+        {"id": "a", "type": "field", "path": "xs", "value_type": "array",
+         "items": {"value_type": "string", "optional": True}},
+    ]})
+    assert items_optional.exit_code == EXIT_INPUT_ERROR
+
+    # 嵌套 items 超深度 → 输入错误
+    deep = {"value_type": "array", "items": {"value_type": "array"}}
+    cur = deep["items"]
+    for _ in range(5):
+        cur["items"] = {"value_type": "array"}
+        cur = cur["items"]
+    over_depth = run_check(_struct({"xs": []}), {"checks": [
+        {"id": "a", "type": "field", "path": "xs", "value_type": "array", "items": deep},
+    ]})
+    assert over_depth.exit_code == EXIT_INPUT_ERROR
+    assert "深度" in over_depth.items[0].explanation
+
+
+def test_field_items_with_min_items_non_array_is_fail_not_input_error():
+    # 无 value_type，同时有 min_items 与 items：非数组须失败而非输入错误
+    report = run_check(_struct({"可做的一步": "不是数组"}), {"checks": [
+        {"id": "s", "type": "field", "path": "可做的一步",
+         "min_items": 1, "items": {"value_type": "string", "min_length": 1}},
+    ]})
+    assert report.items[0].status == STATUS_FAIL
+    assert report.exit_code == EXIT_NOT_PASS
+    assert report.items[0].status != STATUS_INPUT_ERROR
+
+
+def test_yaomancy_steps_fixtures_exit_codes():
+    ok = run_files(FIX / "steps_ok.json", FIX / "requirements_steps.json")
+    assert ok.overall_pass is True
+    assert ok.exit_code == EXIT_OK
+
+    bad = run_files(FIX / "steps_bad.json", FIX / "requirements_steps.json")
+    assert bad.overall_pass is False
+    assert bad.exit_code == EXIT_NOT_PASS
+    by_id = {i.id: i for i in bad.items}
+    assert by_id["steps"].status == STATUS_FAIL
+    assert "可做的一步[1]" in by_id["steps"].explanation
+
+    invalid = run_files(FIX / "steps_ok.json", FIX / "requirements_steps_invalid.json")
+    assert invalid.overall_pass is False
+    assert invalid.exit_code == EXIT_INPUT_ERROR
