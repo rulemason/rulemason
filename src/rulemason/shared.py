@@ -39,6 +39,7 @@ COPIED_SHARED = (
     "rules/result-check-contracts.md",
     "rules/prose-hygiene.md",
     "rules/agent-coding-caution.md",
+    "rules/product-artifact-caution.md",
     "lint/ruff-base.toml",
     "lint/eslint-base.mjs",
 )
@@ -202,25 +203,46 @@ def copy_record(files: dict[str, str]) -> dict[str, str]:
 
 # result-check 预设：仅首次种入，不进清单覆盖集
 RESULT_CHECK_PRESET_DIR = f"{COPY_DIR}/result-check"
-RESULT_CHECK_PRESETS = ("prose-hygiene.hint.json", "prose-hygiene.strict.json")
+RESULT_CHECK_PRESETS = (
+    "prose-hygiene.hint.json",
+    "prose-hygiene.strict.json",
+    "product-artifact.hint.json",
+    "product-artifact.strict.json",
+)
+# --preset 取值 → 包内文件名（无 .json）。hint/strict 仍是 prose-hygiene 短别名，不得偷换成产物结构预设
+RESULT_CHECK_PRESET_IDS: dict[str, str] = {
+    "hint": "prose-hygiene.hint",
+    "strict": "prose-hygiene.strict",
+    "prose-hygiene.hint": "prose-hygiene.hint",
+    "prose-hygiene.strict": "prose-hygiene.strict",
+    "product-artifact.hint": "product-artifact.hint",
+    "product-artifact.strict": "product-artifact.strict",
+}
+
+
+def normalize_result_check_preset(name: str) -> str:
+    """把 CLI --preset 取值归一成包内文件名（无 .json）；非法则 ValueError。"""
+    key = RESULT_CHECK_PRESET_IDS.get(name)
+    if key is None:
+        raise ValueError(
+            "preset 必须是 hint、strict、prose-hygiene.hint、prose-hygiene.strict、"
+            "product-artifact.hint 或 product-artifact.strict"
+        )
+    return key
 
 
 def packaged_result_check_preset(name: str) -> str:
-    """读取包内预设正文；name 为 hint 或 strict。"""
-    key = "hint" if name == "hint" else "strict" if name == "strict" else ""
-    if not key:
-        raise ValueError("preset 必须是 hint 或 strict")
-    path = Path(__file__).parent / "templates" / "result-check" / f"prose-hygiene.{key}.json"
+    """读取包内预设正文；name 为短别名或完整 id（见 RESULT_CHECK_PRESET_IDS）。"""
+    key = normalize_result_check_preset(name)
+    path = Path(__file__).parent / "templates" / "result-check" / f"{key}.json"
     return path.read_text(encoding="utf-8")
 
 
 def resolve_result_check_preset(root: Path | None, name: str) -> Path | str:
     """项目种子优先，否则返回包内正文字符串。"""
-    key = "hint" if name == "hint" else "strict" if name == "strict" else ""
-    if not key:
-        raise ValueError("preset 必须是 hint 或 strict")
+    key = normalize_result_check_preset(name)
     if root is not None:
-        seeded = root / RESULT_CHECK_PRESET_DIR / f"prose-hygiene.{key}.json"
+        seeded = root / RESULT_CHECK_PRESET_DIR / f"{key}.json"
         if seeded.is_file():
             return seeded
     return packaged_result_check_preset(key)
@@ -230,12 +252,12 @@ def seed_result_check_presets(root: Path) -> list[str]:
     """若目标不存在则写入预设；已存在则跳过。返回新写入的相对路径列表。"""
     written: list[str] = []
     for filename in RESULT_CHECK_PRESETS:
-        key = "hint" if filename.endswith(".hint.json") else "strict"
         rel = f"{RESULT_CHECK_PRESET_DIR}/{filename}"
         dest = root / rel
         if dest.is_file() or dest.is_symlink():
             continue
-        write_text(dest, packaged_result_check_preset(key))
+        stem = filename.removesuffix(".json")
+        write_text(dest, packaged_result_check_preset(stem))
         written.append(rel)
     return written
 

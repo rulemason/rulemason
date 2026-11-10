@@ -1,0 +1,117 @@
+{
+  "pm-skills": {
+    "command": "node scripts/rea.mjs analyze-javascript-application /workspace/repos/pm-skills --json",
+    "subject": {
+      "name": "pm-skills",
+      "digest": {
+        "sha256": "0c8cd077a805079cc8333e81715791ec709478d77fc2e15e335c938df32b55e3"
+      },
+      "local_path": "/workspace/repos/pm-skills",
+      "format": "directory",
+      "architecture": null
+    },
+    "provider": {
+      "id": "rea-javascript-application",
+      "name": "REA JavaScript application analyzer",
+      "version": "1"
+    },
+    "operation": "analyze_javascript_application",
+    "statistics": {
+      "relevant_files": 20,
+      "nested_asar_containers": 0,
+      "text_bytes_read": 16615,
+      "invalid_utf8_files": 0,
+      "parsed_javascript_files": 0,
+      "skipped_javascript_files": 0,
+      "visited_ast_nodes": 0,
+      "findings": 0,
+      "modules": 0,
+      "parse_failures": 0
+    },
+    "summary_excerpt": {
+      "browser_windows": 0,
+      "explicit_web_preferences": 0,
+      "preload_entrypoints": 0,
+      "context_bridge_apis": 0,
+      "exposed_api_members": 0,
+      "ipc": {
+        "operations": 0,
+        "literal_channels": 0,
+        "dynamic_channel_operations": 0,
+        "renderer_transmissions": 0,
+        "renderer_listeners": 0,
+        "main_handlers": 0,
+        "paired_renderer_transmissions": 0,
+        "ambiguous_renderer_transmissions": 0,
+        "unpaired_literal_renderer_transmissions": 0
+      },
+      "sender_validation_observations": 0,
+      "utility_processes": 0
+    },
+    "limitations": [
+      "CommonJS and ESM binding relationships were recovered from inert syntax and resolved only within the inventoried artifact container.",
+      "JavaScript and HTML were parsed as inert text; bundle bootstrap code was never executed.",
+      "Static imports, entrypoints, workers, endpoints, and storage relationships do not prove runtime execution.",
+      "Static paths and relationships may remain unresolved when expressions are dynamic or obfuscated.",
+      "Webpack/Rspack factories were recovered from AST literals; REA did not invoke push handlers or bundle bootstrap code."
+    ]
+  },
+  "Product-Manager-Skills": {
+    "command": "node scripts/rea.mjs analyze-javascript-application /workspace/repos/Product-Manager-Skills --json",
+    "subject": {
+      "name": "Product-Manager-Skills",
+      "digest": {
+        "sha256": "5286f6219cb0ef698dab526013a316c4686ef11d92f2f7303d92078f0c8674a8"
+      },
+      "local_path": "/workspace/repos/Product-Manager-Skills",
+      "format": "directory",
+      "architecture": null
+    },
+    "provider": {
+      "id": "rea-javascript-application",
+      "name": "REA JavaScript application analyzer",
+      "version": "1"
+    },
+    "operation": "analyze_javascript_application",
+    "statistics": {
+      "relevant_files": 3,
+      "nested_asar_containers": 0,
+      "text_bytes_read": 87225,
+      "invalid_utf8_files": 0,
+      "parsed_javascript_files": 1,
+      "skipped_javascript_files": 0,
+      "visited_ast_nodes": 4891,
+      "findings": 8,
+      "modules": 0,
+      "parse_failures": 0
+    },
+    "summary_excerpt": {
+      "browser_windows": 0,
+      "explicit_web_preferences": 0,
+      "preload_entrypoints": 0,
+      "context_bridge_apis": 0,
+      "exposed_api_members": 0,
+      "ipc": {
+        "operations": 0,
+        "literal_channels": 0,
+        "dynamic_channel_operations": 0,
+        "renderer_transmissions": 0,
+        "renderer_listeners": 0,
+        "main_handlers": 0,
+        "paired_renderer_transmissions": 0,
+        "ambiguous_renderer_transmissions": 0,
+        "unpaired_literal_renderer_transmissions": 0
+      },
+      "sender_validation_observations": 0,
+      "utility_processes": 0
+    },
+    "limitations": [
+      "CommonJS and ESM binding relationships were recovered from inert syntax and resolved only within the inventoried artifact container.",
+      "Graph coverage is incomplete; unavailable facts remain explicit and must not be read as absence.",
+      "JavaScript and HTML were parsed as inert text; bundle bootstrap code was never executed.",
+      "Static imports, entrypoints, workers, endpoints, and storage relationships do not prove runtime execution.",
+      "Static paths and relationships may remain unresolved when expressions are dynamic or obfuscated.",
+      "Webpack/Rspack factories were recovered from AST literals; REA did not invoke push handlers or bundle bootstrap code."
+    ]
+  }
+}

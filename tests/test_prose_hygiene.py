@@ -104,7 +104,7 @@ def test_disable_and_allowlist() -> None:
 
 def test_seed_presets_idempotent(tmp_path: Path) -> None:
     first = seed_result_check_presets(tmp_path)
-    assert len(first) == 2
+    assert len(first) == 4
     hint = tmp_path / ".rulemason/result-check/prose-hygiene.hint.json"
     original = hint.read_text(encoding="utf-8")
     hint.write_text(original.replace("chatbot_closer", "em_dash"), encoding="utf-8")
@@ -263,9 +263,10 @@ def test_remove_deletes_seed_presets(tmp_path: Path) -> None:
     assert init.run(root, "claude", True) == 0
     hint = root / ".rulemason/result-check/prose-hygiene.hint.json"
     strict = root / ".rulemason/result-check/prose-hygiene.strict.json"
-    assert hint.is_file() and strict.is_file()
+    pa = root / ".rulemason/result-check/product-artifact.hint.json"
+    assert hint.is_file() and strict.is_file() and pa.is_file()
     assert remove.run(root, yes=True) == 0
-    assert not hint.exists() and not strict.exists()
+    assert not hint.exists() and not strict.exists() and not pa.exists()
     assert not (root / ".rulemason").exists()
 
 
@@ -284,7 +285,9 @@ def test_init_seeds_not_in_manifest_and_survive_update(tmp_path: Path) -> None:
     seed = ".rulemason/result-check/prose-hygiene.hint.json"
     assert ".rulemason/rules/prose-hygiene.md" in files
     assert ".rulemason/rules/agent-coding-caution.md" in files
+    assert ".rulemason/rules/product-artifact-caution.md" in files
     assert seed not in files
+    assert ".rulemason/result-check/product-artifact.hint.json" not in files
     path = root / seed
     custom = path.read_text(encoding="utf-8").replace("chatbot_closer", "em_dash")
     path.write_text(custom, encoding="utf-8")

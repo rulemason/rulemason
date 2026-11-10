@@ -6,7 +6,7 @@
 
 ## 目录
 
-- `rules/`：给 AI 与人读的规矩：`code-style.md`、`python.md`、`react.md`、`workflow-gates.md`、`copy-voice.md`、`cjk-typography.md`、`result-check-contracts.md`、`prose-hygiene.md`、`agent-coding-caution.md`。
+- `rules/`：给 AI 与人读的规矩：`code-style.md`、`python.md`、`react.md`、`workflow-gates.md`、`copy-voice.md`、`cjk-typography.md`、`result-check-contracts.md`、`prose-hygiene.md`、`agent-coding-caution.md`、`product-artifact-caution.md`。
 - `lint/`：给工具读的基础配置：`ruff-base.toml`、`eslint-base.mjs`。
 - `openspec-base/`：项目照写进 `openspec/config.yaml` 的产物规则基础版。
 - `src/rulemason/`：`rulemason` 命令行（`init`、`update`、`check`、`judge`）、init 用的模板（根目录 `pyproject.toml`）。
@@ -34,6 +34,7 @@
 - `rules/result-check-contracts.md`：改结构化输出或 result-check 要求时阅读
 - `rules/prose-hygiene.md`：写给人读的文案时阅读；`result-check --preset hint`（默认提示）/ `strict`
 - `rules/agent-coding-caution.md`：写码/改码时阅读
+- `rules/product-artifact-caution.md`：写工程交接用产品产物时阅读；结构检查 `--preset product-artifact.hint` / `product-artifact.strict`
 
 本仓库 Python 样板为 `src/rulemason/judge/judge.py` 与 `src/rulemason/check.py`。ruff 豁免见根目录 `pyproject.toml`。
 

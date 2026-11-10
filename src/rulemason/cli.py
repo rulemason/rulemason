@@ -32,9 +32,13 @@ optional、minimum/maximum、min_length/max_length（Unicode 码点）、enum、
 enable 可临时关闭规则；可选 allowlist、units、max_hits（默认 50，截断时标明总数）。
 支持 prose_hygiene：推荐短名 chatbot_closer / signpost_opener / not_just_contrast；
 em_dash 高级可选（默认关闭）。severity=hint（默认）命中为「提示」且单独不导致非零；
-severity=strict 命中失败。提示不吞掉其他失败或输入错误。可用 --preset hint|strict
-（项目 .rulemason/result-check 种子优先，否则包内模板）。init/update 自动分发规则正文，
-并仅在缺失时种入预设；不会自动扫仓或改 check 退出码。
+severity=strict 命中失败。提示不吞掉其他失败或输入错误。
+must_contain / pattern 可选 severity：缺省 strict（缺失仍失败，与 0.8.34 前一致）；
+显式 severity=hint 时缺失记「提示」且单独不导致非零。field / cjk 等不因本能力改语义。
+--preset：hint|strict（及 prose-hygiene.*）仍为文案卫生预设；product-artifact.hint|
+product-artifact.strict 为产物结构小节标题提示（结构存在 ≠ 质量合格）。项目
+.rulemason/result-check 种子优先，否则包内模板。init/update 自动分发规则正文，
+并仅在缺失时种入预设；不会自动扫仓或改 check 退出码，也不声称 init/update 检查文档。
 父路径为 null 或键缺失时，子路径项记未检查/不适用。约束由调用方 requirements 提供。
 旧 structured_keys 等类型语义不变。本期排除 Skill 出现检查。
 模式核对信任调用方提供的模式（本地确定性，无超时沙箱）。
@@ -74,8 +78,18 @@ def main(argv: list[str] | None = None) -> None:
     p_result.add_argument("--requirements", help="检查要求 JSON 路径（与 --preset 二选一）")
     p_result.add_argument(
         "--preset",
-        choices=("hint", "strict"),
-        help="使用 prose_hygiene 预设（hint 默认提示不阻断；strict 阻断）；与 --requirements 二选一",
+        choices=(
+            "hint",
+            "strict",
+            "prose-hygiene.hint",
+            "prose-hygiene.strict",
+            "product-artifact.hint",
+            "product-artifact.strict",
+        ),
+        help=(
+            "预设：hint|strict|prose-hygiene.* 为文案卫生；"
+            "product-artifact.* 为产物结构小节提示；与 --requirements 二选一"
+        ),
     )
     p_result.add_argument("--json", action="store_true", help="只输出机器可读 JSON（schema 自有，不改 check --json）")
     argv = sys.argv[1:] if argv is None else argv

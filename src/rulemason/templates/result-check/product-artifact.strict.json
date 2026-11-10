@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "checks": [
+    {
+      "id": "non-goals-heading",
+      "type": "pattern",
+      "pattern": "(?im)^#{1,6}\\s*(非目标|不在范围内|Out of [Ss]cope|Non-?goals?)\\b",
+      "severity": "strict"
+    },
+    {
+      "id": "success-or-acceptance-heading",
+      "type": "pattern",
+      "pattern": "(?im)^#{1,6}\\s*(成功标准|验收(?:标准)?|Success [Cc]riteria|Acceptance)\\b",
+      "severity": "strict"
+    }
+  ]
+}
