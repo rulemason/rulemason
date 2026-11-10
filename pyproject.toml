@@ -64,6 +64,7 @@ packages = ["src/rulemason"]
 "openspec-base" = "rulemason/_shared/openspec-base"
 
 # sdist 只收发布需要的内容：仓库里的工具入口是指向 skills/ 的符号链接，按目录收会把正文收成链接路径、漏掉 skills/rulemason
+# website/ 是 rulemason.com 的静态页，不在 packages 里，也不在下面的 only-include 里，所以不进 wheel / sdist
 [tool.hatch.build.targets.sdist]
 only-include = ["src", "rules", "lint", "skills", "openspec-base", "tests", "scripts", "README.md", "LICENSE", "NOTICE"]
 

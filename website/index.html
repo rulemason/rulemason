@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<!-- rulemason.com 落地页，中文。文案与 README 一致，不写未测量的数字。 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>rulemason：让 AI 写的代码，读起来像人写的</title>
+  <meta name="description" content="让 AI 写的代码，读起来像人写的。给 AI 编码工具的一套规矩，外加每次改动都要过的关卡。支持 Claude Code、Cursor、Codex、OpenCode。">
+  <link rel="canonical" href="https://rulemason.com/">
+  <link rel="alternate" hreflang="zh-CN" href="https://rulemason.com/">
+  <link rel="alternate" hreflang="en" href="https://rulemason.com/en/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta property="og:site_name" content="rulemason">
+  <meta property="og:title" content="rulemason：让 AI 写的代码，读起来像人写的">
+  <meta property="og:description" content="让 AI 写的代码，读起来像人写的。给 AI 编码工具的一套规矩，外加每次改动都要过的关卡。">
+  <meta property="og:url" content="https://rulemason.com/">
+  <meta property="og:image" content="https://rulemason.com/assets/banner.png">
+  <meta property="og:image:width" content="1920">
+  <meta property="og:image:height" content="960">
+  <meta property="og:image:alt" content="rulemason：让 AI 写的代码，读起来像人写的">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="rulemason：让 AI 写的代码，读起来像人写的">
+  <meta name="twitter:description" content="让 AI 写的代码，读起来像人写的。给 AI 编码工具的一套规矩，外加每次改动都要过的关卡。">
+  <meta name="twitter:image" content="https://rulemason.com/assets/banner.png">
+  <meta name="theme-color" content="#f7f6f3">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/">
+        <img src="/assets/logo.svg" alt="" width="52" height="56">
+        <span>
+          <span class="brand-name">rulemason</span>
+          <span class="brand-sub">RULES FOR AI CODING</span>
+        </span>
+      </a>
+      <nav class="nav-links" aria-label="页内">
+        <a href="#steps">三步</a>
+        <a href="#flow">怎么工作</a>
+        <a href="#compare">对比</a>
+        <a href="#tools">工具</a>
+        <a href="#faq">问答</a>
+      </nav>
+      <a class="nav-github" href="https://github.com/rulemason/rulemason" aria-label="GitHub">
+        <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      </a>
+      <a class="lang" href="/en/" hreflang="en" lang="en">EN</a>
+    </div>
+  </header>
+
+  <main id="content">
+    <div class="wrap hero">
+      <div class="hero-copy">
+        <p class="eyebrow">rulemason · RULES FOR AI CODING</p>
+        <p class="tagline">AI CODING, WITH RULES</p>
+        <!-- 标题只写在这个 h1 -->
+        <h1 id="hero-title">让 AI 写的代码，读起来像人写的。</h1>
+        <p class="support">用 AI 写代码很快，难的是几个月以后。功能一个个加上去，代码越堆越多：同一段逻辑复制了好几份，没人调用的函数和参数留在原处，读起来完全不像人写的代码。</p>
+        <div class="actions">
+          <a class="btn btn-solid" href="https://github.com/rulemason/rulemason">GitHub</a>
+          <a class="btn btn-text" href="https://pypi.org/project/rulemason/">PyPI</a>
+        </div>
+        <ul class="chips">
+          <li><a href="#read"><b>读</b> 先读项目规则</a></li>
+          <li><a href="#keep"><b>守</b> 方案与代码守约定</a></li>
+          <li><a href="#check"><b>查</b> lint、测试、审查</a></li>
+        </ul>
+      </div>
+      <div class="hero-stage">
+        <div class="hero-logo">
+          <img src="/assets/logo.svg" width="416" height="448" alt="像素标志：粉色的小兔子骑着一匹浅蓝色的飞马">
+        </div>
+        <div class="term" data-term>
+          <div class="term-bar">
+            <span class="term-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="term-name">terminal</span>
+          </div>
+          <div class="term-screen" role="log" aria-label="rulemason init --tools cursor --yes 的真实输出">
+            <p class="term-line term-cmd"><span class="tok-prompt">$</span> <span class="cmd-text">rulemason init --tools cursor --yes</span><span class="caret" aria-hidden="true"></span></p>
+            <p class="term-line">项目没有 openspec/，本机也没有 openspec 命令（安装：npm install -g @fission-ai/openspec@latest）；先只接入规则与 lint。</p>
+            <p class="term-line tok-head">## 文件计划</p>
+            <p class="term-line">新增 14 个文件：规则副本 9、配置 2、skill 1、入口 2</p>
+            <p class="term-line tok-dim">已种入 result-check 预设（仅首次）：.rulemason/result-check/prose-hygiene.hint.json、.rulemason/result-check/prose-hygiene.strict.json、.rulemason/result-check/product-artifact.hint.json、.rulemason/result-check/product-artifact.strict.json、.rulemason/result-check/verification-walkthrough.hint.json、.rulemason/result-check/verification-walkthrough.strict.json</p>
+            <p class="term-line tok-key">补项目信息：在 AI 工具中运行 /rulemason</p>
+            <p class="term-line">本次改动的文件：.rulemason/rules/code-style.md、.rulemason/rules/python.md、.rulemason/rules/workflow-gates.md、.rulemason/rules/cjk-typography.md、.rulemason/rules/result-check-contracts.md、.rulemason/rules/prose-hygiene.md、.rulemason/rules/agent-coding-caution.md、.rulemason/rules/product-artifact-caution.md、.rulemason/lint/ruff-base.toml、.rulemason/README.md、.agents/skills/rulemason/SKILL.md、AGENTS.md、ruff.toml、.rulemason.yaml</p>
+            <p class="term-line">检查点与方案写法需要 OpenSpec：安装后在项目根运行 openspec init，再运行 rulemason update 补齐</p>
+            <p class="term-line tok-key">下一步：在 AI 工具中运行 /rulemason，补项目简介、红线并确认命令表。</p>
+          </div>
+          <p class="term-note">一次真实运行：新仓库里只有 main.py，命令是 <code>rulemason init --tools cursor --yes</code>。</p>
+        </div>
+        <div class="install">
+          <div class="install-bar">
+            <pre id="install-cmd"><code><span class="tok-cmd">uv</span> <span class="tok-fn">tool install</span> <span class="tok-str">rulemason</span>
+<span class="tok-cmd">rulemason</span> <span class="tok-fn">init</span></code></pre>
+            <button type="button" class="copy" hidden data-for="install-cmd" data-done="已复制" data-fail="没复制上，请选中上面的命令">复制</button>
+          </div>
+          <p id="copy-status" class="copy-status" role="status"></p>
+          <p class="fine">需要 <a href="https://docs.astral.sh/uv/">uv</a>，Python 3.11 或更高。在项目根目录运行 <code>rulemason init</code>：勾选你用的 AI 工具，看一眼计划，确认后写入。终端不能提问时：<code>rulemason init --tools claude,cursor --yes</code>。工具 id 是 <code>opencode</code>、<code>claude</code>、<code>cursor</code>、<code>codex</code>。</p>
+        </div>
+      </div>
+    </div>
+
+    <section id="pain" class="reveal">
+      <div class="wrap">
+        <p class="kicker">01</p>
+        <h2>项目一大，代码就难读</h2>
+        <p class="section-lead">rulemason 是给 AI 编码工具定的一套规矩，外加每次改动都要过的关卡。支持 Claude Code、Cursor、Codex、OpenCode。规矩写在项目里，AI 写方案、写代码、写文档时照着做。</p>
+        <ul class="cards">
+          <li>
+            <h3><span class="index">01</span>重复</h3>
+            <p>同一段逻辑复制了好几份。每次写完，AI 先把这次改动里的重复精简掉，需求和对外行为保持不变。</p>
+          </li>
+          <li>
+            <h3><span class="index">02</span>死代码</h3>
+            <p>没人调用的函数和参数留在原处，为了「以后可能用到」套了一层又一层抽象。同一段逻辑出现第二次就抽成函数，不留没人调用的参数和函数。</p>
+          </li>
+          <li>
+            <h3><span class="index">03</span>难读</h3>
+            <p>功能加上去以后，语法越来越复杂，连工程师自己都很难看懂。出了问题不好查，想整理成材料拿出去也拿不出手。</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="steps" class="reveal">
+      <div class="wrap">
+        <p class="kicker">02</p>
+        <h2>读、守、查</h2>
+        <p class="section-lead">先把规矩放进项目，写的时候照着守，写完再过关卡。方案和代码的关卡需要 <a href="https://github.com/Fission-AI/OpenSpec">OpenSpec</a>（<code>npm install -g @fission-ai/openspec@latest</code>）。没装也能先接入规矩和 lint，装好后运行 <code>rulemason update</code> 补齐。</p>
+
+        <article class="step" id="read">
+          <h3><span class="mark">读</span> 先读项目规则</h3>
+          <p><code>rulemason init</code> 只写计划里列出的文件，不提交、不推送。结尾会给出 <code>check</code> 的结论、这次改了哪些文件，以及下一步。然后在 AI 工具里运行一次 <code>/rulemason</code>，核对项目简介、确认红线和命令表。</p>
+          <p>规矩只在一处维护。每个工具读同一份只读副本，副本随项目提交。同事、云端 agent 和 CI 不装 rulemason 也能读到。</p>
+          <figure>
+            <img class="shot live" src="/assets/r1-init.gif" width="1200" height="700" alt="rulemason init：勾选工具、查看计划、确认后写入，并列出改动的文件和下一步" loading="lazy">
+            <img class="shot still" src="/assets/stills/r1-init.png" width="1200" height="700" alt="rulemason init：勾选工具、查看计划、确认后写入，并列出改动的文件和下一步" loading="lazy">
+            <figcaption>rulemason init</figcaption>
+          </figure>
+        </article>
+
+        <article class="step" id="keep">
+          <h3><span class="mark">守</span> 方案与代码守约定</h3>
+          <p>走 OpenSpec 时，关卡由 AI 按规矩执行。方案写完、写代码前各查一次。有 key 才把方案交给 Jev；没有 key 时不调用 Jev，设计文档的格式在本机检查，其余规则记为待人工。<code>rulemason judge --change 功能名 --lint-only</code> 只查格式，不联网。</p>
+          <p>九条写法规矩全程生效。例如每个文件第一行写它是干什么的，主流程按步骤写注释，错误不在内部被悄悄吞掉。Python 由 ruff 检查，React 由 ESLint 检查。PRD、方案、规格要写「这次不做什么」，每个决策要写被否决的备选，风险要写对策，上线要写回滚方式。</p>
+          <figure>
+            <img class="shot live" src="/assets/r7-judge.gif" width="1200" height="700" alt="judge --lint-only 查出 3 条设计文档格式问题，补上否决理由、风险对策和回滚说明后通过" loading="lazy">
+            <img class="shot still" src="/assets/stills/r7-judge.png" width="1200" height="700" alt="judge --lint-only 查出 3 条设计文档格式问题，补上否决理由、风险对策和回滚说明后通过" loading="lazy">
+            <figcaption>rulemason judge --lint-only</figcaption>
+          </figure>
+          <p>改了界面文案、并且已经开启判断时，才检查套话和中文排版。禁词和短标签在本机查；较长的文案有 key 才交给 Jev。没开判断就跳过，汇报里写明「判断层未装」。</p>
+          <figure>
+            <img class="shot live" src="/assets/r8-result-check.gif" width="1200" height="700" alt="result-check 标出套话收尾和中文排版问题，改完文字后通过" loading="lazy">
+            <img class="shot still" src="/assets/stills/r8-result-check.png" width="1200" height="700" alt="result-check 标出套话收尾和中文排版问题，改完文字后通过" loading="lazy">
+            <figcaption>rulemason result-check</figcaption>
+          </figure>
+        </article>
+
+        <article class="step" id="check">
+          <h3><span class="mark">查</span> lint、测试、审查</h3>
+          <p>写完代码，关卡会让 AI 先精简这次改动里的重复、死代码、多余的抽象和绕弯的逻辑，再请一个独立的审查者看一遍，然后跑 ruff 和测试。必须修的问题，以及改动范围内能安全修的意见，会自动修好再审，最多两轮。两轮后还有必须修的，就停下来说明。</p>
+          <p>审查者拿不到文件和命令，只看交给它的改动和方案，从需求符合、正确性、安全、代码质量、测试、改动是否干净六个方面给出结论。只修这次改动新引入的问题；改动前就有的问题列出数量，不顺手乱改。Claude Code 里精简这一步用它自带的 <code>/simplify</code>。</p>
+          <p>规矩副本被改、工具入口缺失、lint 没继承基础规则时，<code>rulemason check</code> 以非 0 退出，放进 CI 就能拦住。只有记录的版本号更旧、副本内容相同时，仍以 0 退出。</p>
+          <figure>
+            <img class="shot live" src="/assets/r4-check.gif" width="1200" height="700" alt="手改规矩副本后 rulemason check 退出码为 1，update 恢复后退出码为 0" loading="lazy">
+            <img class="shot still" src="/assets/stills/r4-check.png" width="1200" height="700" alt="手改规矩副本后 rulemason check 退出码为 1，update 恢复后退出码为 0" loading="lazy">
+            <figcaption>rulemason check</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="flow" class="reveal">
+      <div class="wrap">
+        <p class="kicker">03</p>
+        <h2>怎么工作</h2>
+        <p class="section-lead">内置规则全程生效。有 key 才用 Jev；没有 key 时不调用 Jev。</p>
+        <ol class="flow">
+          <li class="band">
+            <div class="band-head">
+              <h3>内置规则</h3>
+              <p class="always">全程生效</p>
+            </div>
+            <ul class="nodes">
+              <li class="node">九条写法<br>外部操作与密钥</li>
+              <li class="node">Python / React 落法<br>界面文案三档，按项目复制</li>
+              <li class="node">方案写法、编码审慎<br>产品产物审慎、文案卫生<br>中文排版</li>
+            </ul>
+          </li>
+          <li class="band plan">
+            <div class="band-head">
+              <h3>方案</h3>
+            </div>
+            <ol class="chain">
+              <li><p class="node"><code>/opsx:propose</code><br>写方案</p></li>
+              <li><p class="node decision">判断方案<br>有 key 才用 Jev</p></li>
+            </ol>
+            <ul class="branches">
+              <li><span class="tag">格式问题</span><span>回到写方案。格式在本机检查，不调用 Jev。</span></li>
+              <li><span class="tag stop">碰到红线</span><span>停下问你。</span></li>
+              <li><span class="tag">通过</span><span><code>/opsx:apply</code> 写代码前再查一次，有 key 才用 Jev。</span></li>
+              <li><span class="tag">无 key</span><span>不调用 Jev。格式在本机，其余待人工。<code>--lint-only</code> 只查格式。</span></li>
+            </ul>
+          </li>
+          <li class="band">
+            <div class="band-head">
+              <h3>写代码与自动检查</h3>
+            </div>
+            <ol class="chain">
+              <li><p class="node">写代码</p></li>
+              <li><p class="node">自动精简</p></li>
+              <li><p class="node">独立审查</p></li>
+              <li><p class="node">ruff</p></li>
+              <li><p class="node">测试</p></li>
+            </ol>
+          </li>
+          <li class="band">
+            <div class="band-head">
+              <h3>收尾归档</h3>
+            </div>
+            <ol class="chain">
+              <li><p class="node">前端 lint</p></li>
+              <li><p class="node">文案检查<br>需开启判断；长文案有 key 才用 Jev</p></li>
+              <li><p class="node">写检查记录<br><code>verification.md</code></p></li>
+              <li><p class="node"><code>/opsx:archive</code><br>归档</p></li>
+            </ol>
+          </li>
+        </ol>
+        <ul class="notes">
+          <li>自动精简只动这次改动，需求、对外行为和接口保持不变。</li>
+          <li>独立审查最多两轮。两轮后还有必须修的，就停下来说明。不把逐条审代码交给你。</li>
+          <li>不走 OpenSpec 的小改动：项目有 <code>openspec/</code> 时先读已写好的规格。会破坏已承诺的行为就先停下问你；不会就直接改，改完跑 ruff 和测试。这两种情况都不做自动精简和独立审查，也不写 <code>verification.md</code>。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="compare" class="reveal">
+      <div class="wrap">
+        <p class="kicker">04</p>
+        <h2>用和不用，差在哪</h2>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="用和不用的对比，可以横向滚动">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col"></th>
+                <th scope="col">不用 rulemason</th>
+                <th scope="col">用 rulemason</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">代码越写越多</th>
+                <td>重复、死代码、多余抽象慢慢堆积</td>
+                <td>每次写完先精简这次的改动，再交给独立审查者</td>
+              </tr>
+              <tr>
+                <th scope="row">规矩放在哪</th>
+                <td><code>CLAUDE.md</code>、<code>AGENTS.md</code> 各写一份，手动同步</td>
+                <td>只在一处维护；每个工具读同一份只读副本，随项目提交</td>
+              </tr>
+              <tr>
+                <th scope="row">AI 说「写完了」</th>
+                <td>你自己跑 lint、跑测试、逐行审</td>
+                <td>ruff、测试、前端 lint 自动跑完，必须修的问题修好再审一遍</td>
+              </tr>
+              <tr>
+                <th scope="row">写代码之前</th>
+                <td>方案好不好全靠你看</td>
+                <td>开启判断后，方案写完、写代码前各查一次，碰到红线就停下等你</td>
+              </tr>
+              <tr>
+                <th scope="row">规矩被改了</th>
+                <td>没人发现</td>
+                <td><code>rulemason check</code> 以非 0 退出，放进 CI 就能拦住</td>
+              </tr>
+              <tr>
+                <th scope="row">老项目接入</th>
+                <td>lint 一片红，无从下手</td>
+                <td>先建基线，之后只修每次改动新引入的问题</td>
+              </tr>
+              <tr>
+                <th scope="row">换工具或账号</th>
+                <td>规矩重写一遍</td>
+                <td><code>rulemason init</code> 加上新工具，规矩和关卡原样带过去</td>
+              </tr>
+              <tr>
+                <th scope="row">密钥与线上操作</th>
+                <td>看 AI 自觉</td>
+                <td>读可以直接做；改东西每次都要你同意；删除只给入口，由人操作；密钥不进对话</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tools" class="reveal">
+      <div class="wrap">
+        <p class="kicker">05</p>
+        <h2>支持的工具</h2>
+        <p class="section-lead">OpenSpec 的命令由 <code>openspec init</code> 生成，不同版本的文件名以它写出的为准。Claude Code 用冒号，Cursor 和 OpenCode 用连字符。Codex 只生成 skill，用 <code>$</code> 加上 skill 名。</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="支持的工具，可以横向滚动">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">工具</th>
+                <th scope="col">读规矩的入口</th>
+                <th scope="col"><code>/rulemason</code> skill</th>
+                <th scope="col">OpenSpec 命令</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Claude Code</th>
+                <td><code>CLAUDE.md</code>（引用 <code>AGENTS.md</code> 和规矩副本）</td>
+                <td><code>.claude/skills/rulemason/</code></td>
+                <td><code>/opsx:propose</code>、<code>/opsx:apply</code>、<code>/opsx:archive</code></td>
+              </tr>
+              <tr>
+                <th scope="row">Cursor</th>
+                <td><code>AGENTS.md</code></td>
+                <td><code>.agents/skills/rulemason/</code></td>
+                <td><code>/opsx-propose</code>、<code>/opsx-apply</code>、<code>/opsx-archive</code></td>
+              </tr>
+              <tr>
+                <th scope="row">Codex</th>
+                <td><code>AGENTS.md</code></td>
+                <td><code>.agents/skills/rulemason/</code></td>
+                <td><code>$openspec-propose</code>、<code>$openspec-apply-change</code>、<code>$openspec-archive-change</code></td>
+              </tr>
+              <tr>
+                <th scope="row">OpenCode</th>
+                <td><code>opencode.jsonc</code> 的 <code>instructions</code></td>
+                <td><code>.agents/skills/rulemason/</code>（不在 <code>/</code> 列表里时，对它说「用 rulemason skill」）</td>
+                <td><code>/opsx-propose</code>、<code>/opsx-apply</code>、<code>/opsx-archive</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="safety" class="reveal">
+      <div class="wrap">
+        <p class="kicker">06</p>
+        <h2>让你放心的设计</h2>
+        <ul class="safety">
+          <li><strong>先看清楚再写。</strong><code>init</code> 和 <code>remove</code> 先列出要改哪些文件，确认后才写。<code>update</code> 会直接刷新它自己管的副本和入口；你的文件（ruff、ESLint、<code>openspec/config.yaml</code> 等）缺了配置时，先列出补齐计划，确认后才写。<code>--plan</code> 和 <code>--dry-run</code> 只看计划，什么都不写。</li>
+          <li><strong>不替你提交，不替你推送。</strong>写完的改动留在工作区，由你检查后提交。</li>
+          <li><strong>你的配置它不硬改。</strong>ruff 配置里写了 <code>select</code>、继承了项目外的配置、ESLint 写法认不出来时，只报告文件、行号、原文和改法。</li>
+          <li><strong>老项目不会一接入就炸。</strong>运行 <code>/rulemason</code> 先建基线，等你确认才写。之后关卡只修新引入的问题。不整条关掉规则，也不提高全局复杂度上限。</li>
+          <li><strong>CI 能拦。</strong>规矩副本被改、工具入口缺失、lint 没继承基础规则时，<code>rulemason check</code> 以非 0 退出。只有记录的版本号更旧、副本内容相同时，仍以 0 退出。</li>
+          <li><strong>密钥不经过对话。</strong><code>rulemason key</code> 在你自己的终端里输入，不显示，也不进命令历史，写在本机的 <code>~/.config/rulemason/env</code>（POSIX 上权限 600），不进任何仓库。环境变量 <code>TYPESAFE_API_KEY</code> 优先于这个文件。</li>
+          <li><strong>随时能卸。</strong><code>rulemason remove --plan</code> 先看会删什么，确认后再卸。你手改过、已经对不上记录的副本会留下并写在计划里。项目简介、红线和命令表留在 <code>AGENTS.md</code> 里。</li>
+        </ul>
+        <figure>
+          <img class="shot live" src="/assets/r6-remove-plan.gif" width="1200" height="980" alt="rulemason remove --plan 只列出卸载计划，工作区没有改动" loading="lazy">
+          <img class="shot still" src="/assets/stills/r6-remove-plan.png" width="1200" height="980" alt="rulemason remove --plan 只列出卸载计划，工作区没有改动" loading="lazy">
+          <figcaption>rulemason remove --plan</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="faq" class="faq reveal">
+      <div class="wrap">
+        <p class="kicker">07</p>
+        <h2>常见问题</h2>
+        <details>
+          <summary>和自己手写一份 AGENTS.md 或 CLAUDE.md 有什么区别？</summary>
+          <p>手写的规矩是一份提示词，AI 可能照做，也可能不照做；改了也没人知道。rulemason 多做了三件事：规矩在一处维护，每个工具读同一份副本；写完代码有固定的关卡；<code>rulemason check</code> 能在 CI 里发现副本被改或入口缺失。你自己的内容照样写在标记块外面。</p>
+        </details>
+        <details>
+          <summary>和 OpenSpec 是什么关系？</summary>
+          <p>OpenSpec 管「方案怎么写、怎么一步步落地」，rulemason 管「写的时候守什么规矩、写完要过哪些关」。rulemason 把方案写法规则补进 <code>openspec/config.yaml</code>，把关卡挂到 apply 和 archive 上。没有 OpenSpec 时，只接入规矩和 lint。</p>
+        </details>
+        <details>
+          <summary>和 superpowers、get-shit-done（GSD）这类工作流插件冲突吗？</summary>
+          <p>侧重点不同。它们主要管 AI 怎么规划和执行任务；rulemason 主要管代码和文档写成什么样、写完怎么检查，而且规矩随项目提交，CI 能查。</p>
+        </details>
+        <details>
+          <summary>会不会改坏我的项目？</summary>
+          <p><code>init</code> 只写计划里列出的文件，不提交、不推送；改不了的 lint 配置只报告，不硬改。想先看看，用 <code>rulemason init --plan</code>。不想用了，用 <code>rulemason remove --plan</code> 先看会删什么。</p>
+        </details>
+        <details>
+          <summary>要联网吗？要付费吗？</summary>
+          <p>规矩、关卡、<code>check</code>、<code>result-check</code> 和 <code>judge --lint-only</code> 都在本机运行。只有开启 Jev 判断时才会联网调用 TypeSafe，key 在 <a href="https://typesafe.ai/">typesafe.ai</a> 申请。收费以该网站当时的说明为准。</p>
+        </details>
+        <details>
+          <summary>不懂中文能用吗？</summary>
+          <p>命令行输出、生成的规矩和 skill 都是中文。<a href="/en/">English</a> 是这份说明的英文版；用的时候仍会看到中文输出。</p>
+        </details>
+        <details>
+          <summary>能帮我申请软著或专利吗？</summary>
+          <p>不能，它也不保证任何申请能通过。它能做的是让代码更精简、结构更清楚、注释到位，每次改动留有检查记录；整理申请材料时，这些都能省事。</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>© 2026 jincheng-xie</p>
+      <p><a href="https://github.com/rulemason/rulemason/blob/main/LICENSE">Apache-2.0</a></p>
+      <p><a href="https://github.com/rulemason/rulemason">GitHub</a></p>
+      <p><a href="https://pypi.org/project/rulemason/">PyPI</a></p>
+      <p><a href="/en/" hreflang="en" lang="en">English</a></p>
+    </div>
+  </footer>
+  <script src="/js/site.js"></script>
+</body>
+</html>
