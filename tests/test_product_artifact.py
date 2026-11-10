@@ -173,9 +173,9 @@ def test_keyword_in_prose_without_heading_is_miss() -> None:
 
 # ---------- 种子 / 分发 / remove ----------
 
-def test_seed_four_presets_idempotent(tmp_path: Path) -> None:
+def test_seed_presets_idempotent(tmp_path: Path) -> None:
     first = seed_result_check_presets(tmp_path)
-    assert len(first) == 4
+    assert len(first) == 6
     hint = tmp_path / ".rulemason/result-check/product-artifact.hint.json"
     original = hint.read_text(encoding="utf-8")
     hint.write_text(original.replace("非目标", "范围外"), encoding="utf-8")
@@ -195,22 +195,31 @@ def test_init_distributes_rule_and_seeds(tmp_path: Path) -> None:
     assert init.run(root, "claude", True) == 0
     rule = root / ".rulemason/rules/product-artifact-caution.md"
     assert rule.is_file()
-    assert "可检验" in rule.read_text(encoding="utf-8")
-    assert "未再分发" in rule.read_text(encoding="utf-8") or "未" in rule.read_text(encoding="utf-8")
+    body = rule.read_text(encoding="utf-8")
+    assert "可检验" in body
+    assert "验证走查" in body
+    assert "aa3bf0e986379d46c6e23c50bfa30ad812f5aa55" in body
+    assert "未" in body
     assert (root / ".rulemason/result-check/product-artifact.hint.json").is_file()
+    assert (root / ".rulemason/result-check/verification-walkthrough.hint.json").is_file()
     agents = (root / "AGENTS.md").read_text(encoding="utf-8")
     assert "product-artifact-caution.md" in agents
     files = shared.read_manifest(root)["files"]
     assert ".rulemason/rules/product-artifact-caution.md" in files
     assert ".rulemason/result-check/product-artifact.hint.json" not in files
+    assert ".rulemason/result-check/verification-walkthrough.hint.json" not in files
     path = root / ".rulemason/result-check/product-artifact.hint.json"
     custom = path.read_text(encoding="utf-8").replace("Non-?goals?", "OutOfScopeX")
     path.write_text(custom, encoding="utf-8")
+    walk = root / ".rulemason/result-check/verification-walkthrough.hint.json"
+    walk_custom = walk.read_text(encoding="utf-8").replace("验证走查", "走查占位")
+    walk.write_text(walk_custom, encoding="utf-8")
     assert update.run(root, yes=True) == 0
     assert path.read_text(encoding="utf-8") == custom
+    assert walk.read_text(encoding="utf-8") == walk_custom
 
 
-def test_remove_deletes_product_seeds(tmp_path: Path) -> None:
+def test_remove_deletes_product_and_walkthrough_seeds(tmp_path: Path) -> None:
     from conftest import commit, git_init, write
 
     root = tmp_path / "proj"
@@ -219,11 +228,15 @@ def test_remove_deletes_product_seeds(tmp_path: Path) -> None:
     write(root, "openspec/config.yaml", "schema: spec-driven\n")
     commit(root)
     assert init.run(root, "claude", True) == 0
-    pa_h = root / ".rulemason/result-check/product-artifact.hint.json"
-    pa_s = root / ".rulemason/result-check/product-artifact.strict.json"
-    assert pa_h.is_file() and pa_s.is_file()
+    seeds = [
+        root / ".rulemason/result-check/product-artifact.hint.json",
+        root / ".rulemason/result-check/product-artifact.strict.json",
+        root / ".rulemason/result-check/verification-walkthrough.hint.json",
+        root / ".rulemason/result-check/verification-walkthrough.strict.json",
+    ]
+    assert all(p.is_file() for p in seeds)
     assert remove.run(root, yes=True) == 0
-    assert not pa_h.exists() and not pa_s.exists()
+    assert all(not p.exists() for p in seeds)
 
 
 def test_wheel_and_sdist_include_resources(tmp_path: Path) -> None:
@@ -246,10 +259,13 @@ def test_wheel_and_sdist_include_resources(tmp_path: Path) -> None:
         assert any(n.endswith("rules/product-artifact-caution.md") for n in names)
         assert any(n.endswith("templates/result-check/product-artifact.hint.json") for n in names)
         assert any(n.endswith("templates/result-check/product-artifact.strict.json") for n in names)
+        assert any(n.endswith("templates/result-check/verification-walkthrough.hint.json") for n in names)
+        assert any(n.endswith("templates/result-check/verification-walkthrough.strict.json") for n in names)
     with tarfile.open(sdists[0], "r:gz") as tf:
         snames = tf.getnames()
         assert any(n.endswith("rules/product-artifact-caution.md") for n in snames)
         assert any("product-artifact.hint.json" in n for n in snames)
+        assert any("verification-walkthrough.hint.json" in n for n in snames)
 
 
 def test_clean_install_preset_runs(tmp_path: Path, monkeypatch) -> None:

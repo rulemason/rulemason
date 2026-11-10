@@ -36,8 +36,9 @@ severity=strict 命中失败。提示不吞掉其他失败或输入错误。
 must_contain / pattern 可选 severity：缺省 strict（缺失仍失败，与 0.8.34 前一致）；
 显式 severity=hint 时缺失记「提示」且单独不导致非零。field / cjk 等不因本能力改语义。
 --preset：hint|strict（及 prose-hygiene.*）仍为文案卫生预设；product-artifact.hint|
-product-artifact.strict 为产物结构小节标题提示（结构存在 ≠ 质量合格）。项目
-.rulemason/result-check 种子优先，否则包内模板。init/update 自动分发规则正文，
+product-artifact.strict 为产物结构小节标题提示；verification-walkthrough.hint|
+verification-walkthrough.strict 为验证走查小节标题提示（结构存在 ≠ 质量合格）。
+项目 .rulemason/result-check 种子优先，否则包内模板。init/update 自动分发规则正文，
 并仅在缺失时种入预设；不会自动扫仓或改 check 退出码，也不声称 init/update 检查文档。
 父路径为 null 或键缺失时，子路径项记未检查/不适用。约束由调用方 requirements 提供。
 旧 structured_keys 等类型语义不变。本期排除 Skill 出现检查。
@@ -85,10 +86,13 @@ def main(argv: list[str] | None = None) -> None:
             "prose-hygiene.strict",
             "product-artifact.hint",
             "product-artifact.strict",
+            "verification-walkthrough.hint",
+            "verification-walkthrough.strict",
         ),
         help=(
             "预设：hint|strict|prose-hygiene.* 为文案卫生；"
-            "product-artifact.* 为产物结构小节提示；与 --requirements 二选一"
+            "product-artifact.* 为产物结构小节提示；"
+            "verification-walkthrough.* 为验证走查小节提示；与 --requirements 二选一"
         ),
     )
     p_result.add_argument("--json", action="store_true", help="只输出机器可读 JSON（schema 自有，不改 check --json）")

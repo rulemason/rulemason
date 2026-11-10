@@ -208,8 +208,11 @@ RESULT_CHECK_PRESETS = (
     "prose-hygiene.strict.json",
     "product-artifact.hint.json",
     "product-artifact.strict.json",
+    "verification-walkthrough.hint.json",
+    "verification-walkthrough.strict.json",
 )
-# --preset 取值 → 包内文件名（无 .json）。hint/strict 仍是 prose-hygiene 短别名，不得偷换成产物结构预设
+# --preset 取值 → 包内文件名（无 .json）。hint/strict 仍是 prose-hygiene 短别名，
+# 不得偷换成产物结构或走查结构预设
 RESULT_CHECK_PRESET_IDS: dict[str, str] = {
     "hint": "prose-hygiene.hint",
     "strict": "prose-hygiene.strict",
@@ -217,6 +220,8 @@ RESULT_CHECK_PRESET_IDS: dict[str, str] = {
     "prose-hygiene.strict": "prose-hygiene.strict",
     "product-artifact.hint": "product-artifact.hint",
     "product-artifact.strict": "product-artifact.strict",
+    "verification-walkthrough.hint": "verification-walkthrough.hint",
+    "verification-walkthrough.strict": "verification-walkthrough.strict",
 }
 
 
@@ -226,7 +231,8 @@ def normalize_result_check_preset(name: str) -> str:
     if key is None:
         raise ValueError(
             "preset 必须是 hint、strict、prose-hygiene.hint、prose-hygiene.strict、"
-            "product-artifact.hint 或 product-artifact.strict"
+            "product-artifact.hint、product-artifact.strict、"
+            "verification-walkthrough.hint 或 verification-walkthrough.strict"
         )
     return key
 
