@@ -1,3 +1,7 @@
+<p align="center">
+<img alt="rulemason banner: a pixel rabbit riding a horse, with the slogan AI 写代码，也讲章法" src="https://raw.githubusercontent.com/rulemason/rulemason/main/docs/assets/banner.png" width="100%">
+</p>
+
 # rulemason
 
 **AI-written code that reads like a person wrote it.**
@@ -82,20 +86,35 @@ After that, develop as usual. On the OpenSpec path the AI runs the checkpoints f
 ## How it works
 
 ```mermaid
-flowchart LR
-  A["/opsx:propose<br/>write the plan"] --> B{"judge the plan<br/>(optional)"}
-  B -- format issue --> A
-  B -- red line --> U["stop and ask you"]
-  B -- pass --> C["/opsx:apply<br/>check again before code"]
-  C --> D["write code"]
-  D --> E["simplify"]
-  E --> F["independent review"]
-  F --> G["ruff"]
-  G --> H["tests"]
-  H --> I["frontend lint"]
-  I --> J["copy check (needs judgment)"]
-  J --> K["write verification.md"]
-  K --> L["/opsx:archive"]
+flowchart TB
+  subgraph rules["Built-in rules (apply throughout)"]
+    direction LR
+    R1["nine writing rules<br/>external ops and secrets"]
+    R2["Python / React guides<br/>three copy tiers<br/>copied per project"]
+    R3["plan-writing rules · coding caution<br/>product-artifact caution · prose hygiene<br/>CJK typography"]
+    R1 ~~~ R2 ~~~ R3
+  end
+  subgraph plan["Plan"]
+    direction LR
+    A["/opsx:propose<br/>write the plan"] --> B{"judge the plan<br/>Jev only with a key"}
+    B -- format issue --> A
+    B -- red line --> U["stop and ask you"]
+    B -- pass --> C["/opsx:apply<br/>check again before code<br/>Jev only with a key"]
+    B -- no key --> N["Jev is not called<br/>local format check; rest is manual<br/>--lint-only is format only"]
+  end
+  subgraph build["Write code and check it"]
+    direction LR
+    D["write code"] --> E["simplify"] --> F["independent review"] --> G["ruff"] --> H["tests"]
+  end
+  subgraph finish["Finish and archive"]
+    direction LR
+    I["frontend lint"] --> J["copy check (needs judgment)<br/>long copy: Jev (needs a key)"] --> K["write verification.md"] --> L["/opsx:archive"]
+  end
+  rules --> plan
+  rules --> build
+  rules --> finish
+  plan --> build
+  build --> finish
 ```
 
 <!-- TODO R3: recording of /opsx:apply running simplify, review, ruff, and tests, plus verification.md. -->
@@ -103,7 +122,8 @@ flowchart LR
 - **Simplify.** Only duplication, dead code, extra abstraction, and overly complex logic in this change. Requirements, observable behavior, and APIs stay the same. On Claude Code this step uses its built-in `/simplify`.
 - **Independent review.** The reviewer gets no files and no commands. It only sees the change and the plan it was given, and it reports on six points: requirements, correctness, security, code quality, tests, and whether the diff is clean. Must-fix issues, and comments that can be fixed safely inside the change, are fixed and reviewed again, for at most two rounds. If a must-fix issue is still there after that, the work stops and the remaining items are reported. You are not asked to review the code line by line.
 - **Lint and tests.** Only problems introduced by this change are fixed. Problems that were already there are counted and left alone.
-- **Copy check.** This runs when UI copy changed and judgment is enabled. Without judgment it is skipped, and the report says the judgment layer is not installed (`判断层未装`).
+- **Judgment.** It runs after the plan is written and again before code, and it is optional. The plan is sent to Jev only when a key is set. The design-doc format check (a rejected alternative, a mitigation for each risk, and a rollback note) always runs locally and does not call Jev; `--lint-only` does only that part. With no key, Jev is not called, and the remaining rules are left for a person.
+- **Copy check.** This runs when UI copy changed and judgment is enabled. Banned phrases and short labels are checked locally. Longer copy is sent to Jev only when a key is set. Without judgment it is skipped, and the report says the judgment layer is not installed (`判断层未装`). With no key, Jev is not called.
 - **Small edits outside OpenSpec.** If the project has `openspec/`, the AI reads the main specs first. A change that would break a promised behavior stops and asks you. Anything else is edited directly, then ruff and tests run. Without OpenSpec there is no plan judgment; the edit is made and ruff and tests still run. Neither path simplifies, runs the independent review, or writes `verification.md`.
 
 ## Files it adds
