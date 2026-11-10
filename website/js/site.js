@@ -1,19 +1,10 @@
-// 落地页上的两件小事：复制安装命令，以及在减少动效时把演示 GIF 换成静帧。
+// 落地页上的一件小事：复制安装命令。减少动效时的静帧由样式表切换，不改图片地址。
 
 (function () {
-  // 1. 复制按钮默认藏着，脚本跑起来再显示，没开脚本时只留下可选中的命令
+  // 复制按钮默认藏着，脚本跑起来再显示，没开脚本时只留下可选中的命令
   var buttons = document.querySelectorAll(".copy");
   for (var i = 0; i < buttons.length; i++) {
     bindCopy(buttons[i]);
-  }
-
-  // 2. 用户要求减少动效时，循环 GIF 换成各自的第一帧
-  var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  applyMotion(motion.matches);
-  if (motion.addEventListener) {
-    motion.addEventListener("change", function (event) {
-      applyMotion(event.matches);
-    });
   }
 })();
 
@@ -66,15 +57,4 @@ function copyFromSelection(pre, button, status) {
     return;
   }
   status.textContent = button.getAttribute("data-fail");
-}
-
-function applyMotion(reduce) {
-  var shots = document.querySelectorAll("img[data-still]");
-  for (var i = 0; i < shots.length; i++) {
-    var img = shots[i];
-    if (!img.getAttribute("data-live")) {
-      img.setAttribute("data-live", img.getAttribute("src"));
-    }
-    img.setAttribute("src", reduce ? img.getAttribute("data-still") : img.getAttribute("data-live"));
-  }
 }

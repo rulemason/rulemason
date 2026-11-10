@@ -116,7 +116,8 @@ rulemason init</code></pre>
           <p><code>rulemason init</code> writes only the files in the plan. It does not commit or push. At the end it prints the <code>check</code> result, the files it changed, and the next step. Then run <code>/rulemason</code> once inside the AI tool: check the project summary, and confirm the red lines and the command table.</p>
           <p>The rules are maintained in one place. Every tool reads the same read-only copy, committed with the project. Teammates, cloud agents, and CI can read them without installing rulemason.</p>
           <figure>
-            <img src="/assets/r1-init.gif" data-still="/assets/stills/r1-init.png" width="1200" height="700" alt="rulemason init: pick tools, read the plan, confirm the write, then list the changed files and the next step" loading="lazy">
+            <img class="shot live" src="/assets/r1-init.gif" width="1200" height="700" alt="rulemason init: pick tools, read the plan, confirm the write, then list the changed files and the next step" loading="lazy">
+            <img class="shot still" src="/assets/stills/r1-init.png" width="1200" height="700" alt="rulemason init: pick tools, read the plan, confirm the write, then list the changed files and the next step" loading="lazy">
             <figcaption>rulemason init</figcaption>
           </figure>
         </article>
@@ -126,12 +127,14 @@ rulemason init</code></pre>
           <p>On the OpenSpec path the AI runs the checkpoints from the rules. The plan is checked when it is written and again before code. The plan is sent to Jev only when a key is set. With no key, Jev is not called. The design-doc format check runs locally, and the remaining rules are left for a person. <code>rulemason judge --change &lt;name&gt; --lint-only</code> checks format only and does not use the network.</p>
           <p>The nine writing rules apply throughout. Examples: the first line of each file says what the file is for, the main flow is commented step by step, and errors are not swallowed inside the program. Python is checked with ruff. React is checked with ESLint. PRDs, plans, and specs state what this change will not do, write down the rejected alternative for each decision, pair each risk with a mitigation, and say how a rollout rolls back.</p>
           <figure>
-            <img src="/assets/r7-judge.gif" data-still="/assets/stills/r7-judge.png" width="1200" height="700" alt="judge --lint-only reports 3 design-doc format issues, then passes after the rejected alternative, risk mitigation, and rollback note are added" loading="lazy">
+            <img class="shot live" src="/assets/r7-judge.gif" width="1200" height="700" alt="judge --lint-only reports 3 design-doc format issues, then passes after the rejected alternative, risk mitigation, and rollback note are added" loading="lazy">
+            <img class="shot still" src="/assets/stills/r7-judge.png" width="1200" height="700" alt="judge --lint-only reports 3 design-doc format issues, then passes after the rejected alternative, risk mitigation, and rollback note are added" loading="lazy">
             <figcaption>rulemason judge --lint-only</figcaption>
           </figure>
           <p>The copy check runs when UI copy changed and judgment is enabled. Banned phrases and short labels are checked locally. Longer copy is sent to Jev only when a key is set. Without judgment it is skipped, and the report says the judgment layer is not installed (判断层未装).</p>
           <figure>
-            <img src="/assets/r8-result-check.gif" data-still="/assets/stills/r8-result-check.png" width="1200" height="700" alt="result-check flags a stock closing line and Chinese typography, then passes after the text is fixed" loading="lazy">
+            <img class="shot live" src="/assets/r8-result-check.gif" width="1200" height="700" alt="result-check flags a stock closing line and Chinese typography, then passes after the text is fixed" loading="lazy">
+            <img class="shot still" src="/assets/stills/r8-result-check.png" width="1200" height="700" alt="result-check flags a stock closing line and Chinese typography, then passes after the text is fixed" loading="lazy">
             <figcaption>rulemason result-check</figcaption>
           </figure>
         </article>
@@ -142,7 +145,8 @@ rulemason init</code></pre>
           <p>The reviewer gets no files and no commands. It only sees the change and the plan it was given, and it reports on six points: requirements, correctness, security, code quality, tests, and whether the diff is clean. Only problems introduced by this change are fixed. Problems that were already there are counted and left alone. On Claude Code, simplify uses its built-in <code>/simplify</code>.</p>
           <p>If a rule copy is edited, a tool entry point is missing, or lint does not extend the base rules, <code>rulemason check</code> exits non-zero, so CI can block it. If the recorded version is older and the copy contents match, the exit code stays 0.</p>
           <figure>
-            <img src="/assets/r4-check.gif" data-still="/assets/stills/r4-check.png" width="1200" height="700" alt="After a rule copy is edited, rulemason check exits 1; after update it exits 0" loading="lazy">
+            <img class="shot live" src="/assets/r4-check.gif" width="1200" height="700" alt="After a rule copy is edited, rulemason check exits 1; after update it exits 0" loading="lazy">
+            <img class="shot still" src="/assets/stills/r4-check.png" width="1200" height="700" alt="After a rule copy is edited, rulemason check exits 1; after update it exits 0" loading="lazy">
             <figcaption>rulemason check</figcaption>
           </figure>
         </article>
@@ -329,7 +333,8 @@ rulemason init</code></pre>
           <li><strong>You can remove it.</strong> <code>rulemason remove --plan</code> shows what would be deleted and changes nothing. A copy you edited, so it no longer matches the recorded checksum, is kept and listed. The project summary, red lines, and command table stay in <code>AGENTS.md</code>.</li>
         </ul>
         <figure>
-          <img src="/assets/r6-remove-plan.gif" data-still="/assets/stills/r6-remove-plan.png" width="1200" height="980" alt="rulemason remove --plan lists the removal plan and leaves the worktree unchanged" loading="lazy">
+          <img class="shot live" src="/assets/r6-remove-plan.gif" width="1200" height="980" alt="rulemason remove --plan lists the removal plan and leaves the worktree unchanged" loading="lazy">
+          <img class="shot still" src="/assets/stills/r6-remove-plan.png" width="1200" height="980" alt="rulemason remove --plan lists the removal plan and leaves the worktree unchanged" loading="lazy">
           <figcaption>rulemason remove --plan</figcaption>
         </figure>
       </div>

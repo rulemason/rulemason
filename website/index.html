@@ -115,7 +115,8 @@ rulemason init</code></pre>
           <p><code>rulemason init</code> 只写计划里列出的文件，不提交、不推送。结尾会给出 <code>check</code> 的结论、这次改了哪些文件，以及下一步。然后在 AI 工具里运行一次 <code>/rulemason</code>，核对项目简介、确认红线和命令表。</p>
           <p>规矩只在一处维护。每个工具读同一份只读副本，副本随项目提交。同事、云端 agent 和 CI 不装 rulemason 也能读到。</p>
           <figure>
-            <img src="/assets/r1-init.gif" data-still="/assets/stills/r1-init.png" width="1200" height="700" alt="rulemason init：勾选工具、查看计划、确认后写入，并列出改动的文件和下一步" loading="lazy">
+            <img class="shot live" src="/assets/r1-init.gif" width="1200" height="700" alt="rulemason init：勾选工具、查看计划、确认后写入，并列出改动的文件和下一步" loading="lazy">
+            <img class="shot still" src="/assets/stills/r1-init.png" width="1200" height="700" alt="rulemason init：勾选工具、查看计划、确认后写入，并列出改动的文件和下一步" loading="lazy">
             <figcaption>rulemason init</figcaption>
           </figure>
         </article>
@@ -125,12 +126,14 @@ rulemason init</code></pre>
           <p>走 OpenSpec 时，关卡由 AI 按规矩执行。方案写完、写代码前各查一次。有 key 才把方案交给 Jev；没有 key 时不调用 Jev，设计文档的格式在本机检查，其余规则记为待人工。<code>rulemason judge --change 功能名 --lint-only</code> 只查格式，不联网。</p>
           <p>九条写法规矩全程生效。例如每个文件第一行写它是干什么的，主流程按步骤写注释，错误不在内部被悄悄吞掉。Python 由 ruff 检查，React 由 ESLint 检查。PRD、方案、规格要写「这次不做什么」，每个决策要写被否决的备选，风险要写对策，上线要写回滚方式。</p>
           <figure>
-            <img src="/assets/r7-judge.gif" data-still="/assets/stills/r7-judge.png" width="1200" height="700" alt="judge --lint-only 查出 3 条设计文档格式问题，补上否决理由、风险对策和回滚说明后通过" loading="lazy">
+            <img class="shot live" src="/assets/r7-judge.gif" width="1200" height="700" alt="judge --lint-only 查出 3 条设计文档格式问题，补上否决理由、风险对策和回滚说明后通过" loading="lazy">
+            <img class="shot still" src="/assets/stills/r7-judge.png" width="1200" height="700" alt="judge --lint-only 查出 3 条设计文档格式问题，补上否决理由、风险对策和回滚说明后通过" loading="lazy">
             <figcaption>rulemason judge --lint-only</figcaption>
           </figure>
           <p>改了界面文案、并且已经开启判断时，才检查套话和中文排版。禁词和短标签在本机查；较长的文案有 key 才交给 Jev。没开判断就跳过，汇报里写明「判断层未装」。</p>
           <figure>
-            <img src="/assets/r8-result-check.gif" data-still="/assets/stills/r8-result-check.png" width="1200" height="700" alt="result-check 标出套话收尾和中文排版问题，改完文字后通过" loading="lazy">
+            <img class="shot live" src="/assets/r8-result-check.gif" width="1200" height="700" alt="result-check 标出套话收尾和中文排版问题，改完文字后通过" loading="lazy">
+            <img class="shot still" src="/assets/stills/r8-result-check.png" width="1200" height="700" alt="result-check 标出套话收尾和中文排版问题，改完文字后通过" loading="lazy">
             <figcaption>rulemason result-check</figcaption>
           </figure>
         </article>
@@ -141,7 +144,8 @@ rulemason init</code></pre>
           <p>审查者拿不到文件和命令，只看交给它的改动和方案，从需求符合、正确性、安全、代码质量、测试、改动是否干净六个方面给出结论。只修这次改动新引入的问题；改动前就有的问题列出数量，不顺手乱改。Claude Code 里精简这一步用它自带的 <code>/simplify</code>。</p>
           <p>规矩副本被改、工具入口缺失、lint 没继承基础规则时，<code>rulemason check</code> 以非 0 退出，放进 CI 就能拦住。只有记录的版本号更旧、副本内容相同时，仍以 0 退出。</p>
           <figure>
-            <img src="/assets/r4-check.gif" data-still="/assets/stills/r4-check.png" width="1200" height="700" alt="手改规矩副本后 rulemason check 退出码为 1，update 恢复后退出码为 0" loading="lazy">
+            <img class="shot live" src="/assets/r4-check.gif" width="1200" height="700" alt="手改规矩副本后 rulemason check 退出码为 1，update 恢复后退出码为 0" loading="lazy">
+            <img class="shot still" src="/assets/stills/r4-check.png" width="1200" height="700" alt="手改规矩副本后 rulemason check 退出码为 1，update 恢复后退出码为 0" loading="lazy">
             <figcaption>rulemason check</figcaption>
           </figure>
         </article>
@@ -328,7 +332,8 @@ rulemason init</code></pre>
           <li><strong>随时能卸。</strong><code>rulemason remove --plan</code> 先看会删什么，确认后再卸。你手改过、已经对不上记录的副本会留下并写在计划里。项目简介、红线和命令表留在 <code>AGENTS.md</code> 里。</li>
         </ul>
         <figure>
-          <img src="/assets/r6-remove-plan.gif" data-still="/assets/stills/r6-remove-plan.png" width="1200" height="980" alt="rulemason remove --plan 只列出卸载计划，工作区没有改动" loading="lazy">
+          <img class="shot live" src="/assets/r6-remove-plan.gif" width="1200" height="980" alt="rulemason remove --plan 只列出卸载计划，工作区没有改动" loading="lazy">
+          <img class="shot still" src="/assets/stills/r6-remove-plan.png" width="1200" height="980" alt="rulemason remove --plan 只列出卸载计划，工作区没有改动" loading="lazy">
           <figcaption>rulemason remove --plan</figcaption>
         </figure>
       </div>

@@ -477,6 +477,10 @@ figure img {
   background: #041018;
 }
 
+.shot.still {
+  display: none;
+}
+
 figcaption {
   margin-top: 0.4rem;
   color: var(--muted);
@@ -783,5 +787,13 @@ th:last-child {
 @media (prefers-reduced-motion: reduce) {
   .hero-logo img {
     animation: none;
+  }
+
+  .shot.live {
+    display: none;
+  }
+
+  .shot.still {
+    display: block;
   }
 }
