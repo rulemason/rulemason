@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<!-- English landing page for rulemason.com. Wording follows README.en.md. No unpublished numbers. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>rulemason: AI writes code, and it follows the rules</title>
+  <meta name="description" content="AI-written code that reads like a person wrote it. Rules for AI coding tools, plus a checkpoint after every change. Supports Claude Code, Cursor, Codex, and OpenCode.">
+  <link rel="canonical" href="https://rulemason.com/en/">
+  <link rel="alternate" hreflang="en" href="https://rulemason.com/en/">
+  <link rel="alternate" hreflang="zh-CN" href="https://rulemason.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="zh_CN">
+  <meta property="og:site_name" content="rulemason">
+  <meta property="og:title" content="rulemason: AI writes code, and it follows the rules">
+  <meta property="og:description" content="AI-written code that reads like a person wrote it. Rules for AI coding tools, plus a checkpoint after every change.">
+  <meta property="og:url" content="https://rulemason.com/en/">
+  <meta property="og:image" content="https://rulemason.com/assets/banner.png">
+  <meta property="og:image:width" content="1920">
+  <meta property="og:image:height" content="960">
+  <meta property="og:image:alt" content="rulemason: AI writes code, and it follows the rules">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="rulemason: AI writes code, and it follows the rules">
+  <meta name="twitter:description" content="AI-written code that reads like a person wrote it. Rules for AI coding tools, plus a checkpoint after every change.">
+  <meta name="twitter:image" content="https://rulemason.com/assets/banner.png">
+  <meta name="theme-color" content="#071421">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/en/">
+        <img src="/assets/logo.svg" alt="" width="52" height="42">
+        <span>
+          <span class="brand-name">rulemason</span>
+          <span class="brand-sub">RULES FOR AI CODING</span>
+        </span>
+      </a>
+      <nav class="nav-links" aria-label="On this page">
+        <a href="#steps">Steps</a>
+        <a href="#flow">How it works</a>
+        <a href="#compare">Compare</a>
+        <a href="#tools">Tools</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <a class="lang" href="/" hreflang="zh-CN" lang="zh-CN">中文</a>
+    </div>
+  </header>
+
+  <main id="content">
+    <div class="wrap hero">
+      <div class="hero-copy">
+        <p class="eyebrow">rulemason · RULES FOR AI CODING</p>
+        <p class="tagline">AI CODING, WITH RULES</p>
+        <h1>AI writes code,<br><span class="accent">and it follows the rules.</span></h1>
+        <p class="lede">AI-written code that reads like a person wrote it.</p>
+        <p class="support">Writing code with AI is fast. The hard part comes months later. Features pile up, the same logic is copied several times, and functions nobody calls stay where they are. It no longer looks like code a person wrote.</p>
+        <p class="lang-note">Command-line output, the generated rules, and the skill are written in Chinese. This page translates the Chinese docs. The output you see while using rulemason is still Chinese.</p>
+        <ul class="chips">
+          <li><a href="#read"><b>Read</b> project rules first</a></li>
+          <li><a href="#keep"><b>Keep</b> plans and code follow the rules</a></li>
+          <li><a href="#check"><b>Check</b> lint, tests, review</a></li>
+        </ul>
+        <div class="install">
+          <div class="install-bar">
+            <pre id="install-cmd"><code>uv tool install rulemason
+rulemason init</code></pre>
+            <button type="button" class="copy" hidden data-for="install-cmd" data-done="Copied" data-fail="Could not copy. Select the commands above.">Copy</button>
+          </div>
+          <p id="copy-status" class="copy-status" role="status"></p>
+          <p class="fine">You need <a href="https://docs.astral.sh/uv/">uv</a> and Python 3.11 or newer. Run <code>rulemason init</code> in the project root: pick your AI tools, read the plan, confirm, then write. A non-interactive terminal must pass both the tools and the confirmation: <code>rulemason init --tools claude,cursor --yes</code>. The tool ids are <code>opencode</code>, <code>claude</code>, <code>cursor</code>, and <code>codex</code>.</p>
+        </div>
+        <div class="actions">
+          <a class="btn btn-pink" href="https://github.com/rulemason/rulemason">GitHub</a>
+          <a class="btn btn-line" href="https://pypi.org/project/rulemason/">PyPI</a>
+        </div>
+      </div>
+      <div class="hero-logo">
+        <img src="/assets/logo.svg" width="416" height="336" alt="Pixel mark: a pink rabbit riding a light-blue winged horse">
+      </div>
+    </div>
+
+    <section id="pain">
+      <div class="wrap">
+        <h2>The code gets hard to read</h2>
+        <p class="section-lead">rulemason is a set of rules for AI coding tools, plus a checkpoint after every change. It supports Claude Code, Cursor, Codex, and OpenCode. The rules live in the project. The AI follows them when it writes plans, code, and docs.</p>
+        <ul class="cards">
+          <li>
+            <h3><span class="index">01</span>Duplication</h3>
+            <p>The same logic is copied several times. After each change, the AI first removes duplication in that change. The requirements and the observable behavior stay the same.</p>
+          </li>
+          <li>
+            <h3><span class="index">02</span>Dead code</h3>
+            <p>Functions and parameters nobody calls stay where they are, and “we might need this later” adds another layer of abstraction. Logic that appears a second time is extracted into a function. Unused parameters and functions are not left behind.</p>
+          </li>
+          <li>
+            <h3><span class="index">03</span>Hard to read</h3>
+            <p>As features pile up, the syntax gets more complicated, and even the engineers struggle to read it. Bugs are hard to trace, and the result is awkward to turn into material you would show someone else.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="steps">
+      <div class="wrap">
+        <h2>Read, keep, check</h2>
+        <p class="section-lead">Put the rules in the project, follow them while writing, then pass the checkpoints. Checkpoints that involve plans and code need <a href="https://github.com/Fission-AI/OpenSpec">OpenSpec</a> (<code>npm install -g @fission-ai/openspec@latest</code>). Without it, rulemason still installs the rules and lint setup. Run <code>rulemason update</code> after OpenSpec is installed to fill in the checkpoints.</p>
+
+        <article class="step" id="read">
+          <h3><span class="mark">Read</span> the project rules first</h3>
+          <p><code>rulemason init</code> writes only the files in the plan. It does not commit or push. At the end it prints the <code>check</code> result, the files it changed, and the next step. Then run <code>/rulemason</code> once inside the AI tool: check the project summary, and confirm the red lines and the command table.</p>
+          <p>The rules are maintained in one place. Every tool reads the same read-only copy, committed with the project. Teammates, cloud agents, and CI can read them without installing rulemason.</p>
+          <figure>
+            <img src="/assets/r1-init.gif" data-still="/assets/stills/r1-init.png" width="1200" height="700" alt="rulemason init: pick tools, read the plan, confirm the write, then list the changed files and the next step" loading="lazy">
+            <figcaption>rulemason init</figcaption>
+          </figure>
+        </article>
+
+        <article class="step" id="keep">
+          <h3><span class="mark">Keep</span> plans and code to the rules</h3>
+          <p>On the OpenSpec path the AI runs the checkpoints from the rules. The plan is checked when it is written and again before code. The plan is sent to Jev only when a key is set. With no key, Jev is not called. The design-doc format check runs locally, and the remaining rules are left for a person. <code>rulemason judge --change &lt;name&gt; --lint-only</code> checks format only and does not use the network.</p>
+          <p>The nine writing rules apply throughout. Examples: the first line of each file says what the file is for, the main flow is commented step by step, and errors are not swallowed inside the program. Python is checked with ruff. React is checked with ESLint. PRDs, plans, and specs state what this change will not do, write down the rejected alternative for each decision, pair each risk with a mitigation, and say how a rollout rolls back.</p>
+          <figure>
+            <img src="/assets/r7-judge.gif" data-still="/assets/stills/r7-judge.png" width="1200" height="700" alt="judge --lint-only reports 3 design-doc format issues, then passes after the rejected alternative, risk mitigation, and rollback note are added" loading="lazy">
+            <figcaption>rulemason judge --lint-only</figcaption>
+          </figure>
+          <p>The copy check runs when UI copy changed and judgment is enabled. Banned phrases and short labels are checked locally. Longer copy is sent to Jev only when a key is set. Without judgment it is skipped, and the report says the judgment layer is not installed (判断层未装).</p>
+          <figure>
+            <img src="/assets/r8-result-check.gif" data-still="/assets/stills/r8-result-check.png" width="1200" height="700" alt="result-check flags a stock closing line and Chinese typography, then passes after the text is fixed" loading="lazy">
+            <figcaption>rulemason result-check</figcaption>
+          </figure>
+        </article>
+
+        <article class="step" id="check">
+          <h3><span class="mark">Check</span> lint, tests, and review</h3>
+          <p>After the code is written, the checkpoints have the AI simplify duplication, dead code, extra abstraction, and roundabout logic in that change, ask an independent reviewer to read it, then run ruff and tests. Must-fix issues, and comments that can be fixed safely inside the change, are fixed and reviewed again, for at most two rounds. If a must-fix issue is still there after that, the work stops and the remaining items are reported.</p>
+          <p>The reviewer gets no files and no commands. It only sees the change and the plan it was given, and it reports on six points: requirements, correctness, security, code quality, tests, and whether the diff is clean. Only problems introduced by this change are fixed. Problems that were already there are counted and left alone. On Claude Code, simplify uses its built-in <code>/simplify</code>.</p>
+          <p>If a rule copy is edited, a tool entry point is missing, or lint does not extend the base rules, <code>rulemason check</code> exits non-zero, so CI can block it. If the recorded version is older and the copy contents match, the exit code stays 0.</p>
+          <figure>
+            <img src="/assets/r4-check.gif" data-still="/assets/stills/r4-check.png" width="1200" height="700" alt="After a rule copy is edited, rulemason check exits 1; after update it exits 0" loading="lazy">
+            <figcaption>rulemason check</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="flow">
+      <div class="wrap">
+        <h2>How it works</h2>
+        <p class="section-lead">Built-in rules apply throughout. Jev runs only when a key is set. With no key, Jev is not called.</p>
+        <ol class="flow">
+          <li class="band">
+            <div class="band-head">
+              <h3>Built-in rules</h3>
+              <p class="always">APPLY THROUGHOUT</p>
+            </div>
+            <ul class="nodes">
+              <li class="node">Nine writing rules<br>External ops and secrets</li>
+              <li class="node">Python / React guides<br>Three copy tiers, copied per project</li>
+              <li class="node">Plan-writing rules, coding caution<br>Product-artifact caution, prose hygiene<br>CJK typography</li>
+            </ul>
+          </li>
+          <li class="band plan">
+            <div class="band-head">
+              <h3>Plan</h3>
+            </div>
+            <ol class="chain">
+              <li><p class="node"><code>/opsx:propose</code><br>Write the plan</p></li>
+              <li><p class="node decision">Judge the plan<br>Jev only with a key</p></li>
+            </ol>
+            <ul class="branches">
+              <li><span class="tag">Format issue</span><span>Back to the plan. The format check is local and does not call Jev.</span></li>
+              <li><span class="tag stop">Red line</span><span>Stop and ask you.</span></li>
+              <li><span class="tag">Pass</span><span><code>/opsx:apply</code> checks again before code. Jev only with a key.</span></li>
+              <li><span class="tag">No key</span><span>Jev is not called. Local format check; the rest is manual. <code>--lint-only</code> is format only.</span></li>
+            </ul>
+          </li>
+          <li class="band">
+            <div class="band-head">
+              <h3>Write code and check it</h3>
+            </div>
+            <ol class="chain">
+              <li><p class="node">Write code</p></li>
+              <li><p class="node">Simplify</p></li>
+              <li><p class="node">Independent review</p></li>
+              <li><p class="node">ruff</p></li>
+              <li><p class="node">Tests</p></li>
+            </ol>
+          </li>
+          <li class="band">
+            <div class="band-head">
+              <h3>Finish and archive</h3>
+            </div>
+            <ol class="chain">
+              <li><p class="node">Frontend lint</p></li>
+              <li><p class="node">Copy check<br>Needs judgment. Long copy uses Jev only with a key.</p></li>
+              <li><p class="node">Write <code>verification.md</code></p></li>
+              <li><p class="node"><code>/opsx:archive</code></p></li>
+            </ol>
+          </li>
+        </ol>
+        <ul class="notes">
+          <li>Simplify touches only this change. Requirements, observable behavior, and APIs stay the same.</li>
+          <li>Independent review runs for at most two rounds. If a must-fix issue remains, the work stops and the remaining items are reported. You are not asked to review the code line by line.</li>
+          <li>Small edits outside OpenSpec: if the project has <code>openspec/</code>, the AI reads the main specs first. A change that would break a promised behavior stops and asks you. Anything else is edited directly, then ruff and tests run. Neither path simplifies, runs the independent review, or writes <code>verification.md</code>.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="compare">
+      <div class="wrap">
+        <h2>With and without</h2>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="With and without rulemason. Scroll sideways if needed.">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col"></th>
+                <th scope="col">Without rulemason</th>
+                <th scope="col">With rulemason</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Code keeps growing</th>
+                <td>Duplication, dead code, and extra abstraction accumulate</td>
+                <td>Each change is simplified, then handed to an independent reviewer</td>
+              </tr>
+              <tr>
+                <th scope="row">Where the rules live</th>
+                <td>Separate copies in <code>CLAUDE.md</code> and <code>AGENTS.md</code>, synced by hand</td>
+                <td>Maintained in one place. Every tool reads the same read-only copy, committed with the project</td>
+              </tr>
+              <tr>
+                <th scope="row">The AI says it is done</th>
+                <td>You run lint, tests, and a line-by-line review yourself</td>
+                <td>ruff, tests, and frontend lint run, must-fix issues are fixed, then the review runs again</td>
+              </tr>
+              <tr>
+                <th scope="row">Before any code</th>
+                <td>Whether the plan is good is up to you</td>
+                <td>With judgment on, the plan is checked when it is written and again before code. A red line stops and waits for you</td>
+              </tr>
+              <tr>
+                <th scope="row">Someone edits a rule</th>
+                <td>Nobody notices</td>
+                <td><code>rulemason check</code> exits non-zero, so CI can block it</td>
+              </tr>
+              <tr>
+                <th scope="row">An existing project</th>
+                <td>Lint is red and there is no place to start</td>
+                <td>Set a baseline first. Later checkpoints fix only problems the new change introduces</td>
+              </tr>
+              <tr>
+                <th scope="row">Switching tools or accounts</th>
+                <td>The rules are rewritten</td>
+                <td><code>rulemason init</code> adds the new tool. The rules and checkpoints come along</td>
+              </tr>
+              <tr>
+                <th scope="row">Secrets and live systems</th>
+                <td>Left to the AI</td>
+                <td>Reads go ahead. Each write needs your approval. Deletion is handed to a person. Secrets stay out of the chat</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tools">
+      <div class="wrap">
+        <h2>Supported tools</h2>
+        <p class="section-lead"><code>openspec init</code> generates these commands, and the filenames it writes win if a version differs. Claude Code uses a colon. Cursor and OpenCode use a hyphen. Codex only gets skills, invoked with <code>$</code> plus the skill name.</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Supported tools. Scroll sideways if needed.">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Tool</th>
+                <th scope="col">Where it reads the rules</th>
+                <th scope="col"><code>/rulemason</code> skill</th>
+                <th scope="col">OpenSpec commands</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Claude Code</th>
+                <td><code>CLAUDE.md</code> (which points at <code>AGENTS.md</code> and the rule copies)</td>
+                <td><code>.claude/skills/rulemason/</code></td>
+                <td><code>/opsx:propose</code>, <code>/opsx:apply</code>, <code>/opsx:archive</code></td>
+              </tr>
+              <tr>
+                <th scope="row">Cursor</th>
+                <td><code>AGENTS.md</code></td>
+                <td><code>.agents/skills/rulemason/</code></td>
+                <td><code>/opsx-propose</code>, <code>/opsx-apply</code>, <code>/opsx-archive</code></td>
+              </tr>
+              <tr>
+                <th scope="row">Codex</th>
+                <td><code>AGENTS.md</code></td>
+                <td><code>.agents/skills/rulemason/</code></td>
+                <td><code>$openspec-propose</code>, <code>$openspec-apply-change</code>, <code>$openspec-archive-change</code></td>
+              </tr>
+              <tr>
+                <th scope="row">OpenCode</th>
+                <td><code>instructions</code> in <code>opencode.jsonc</code></td>
+                <td><code>.agents/skills/rulemason/</code> (if it is not in the <code>/</code> list, say “use the rulemason skill”)</td>
+                <td><code>/opsx-propose</code>, <code>/opsx-apply</code>, <code>/opsx-archive</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="safety">
+      <div class="wrap">
+        <h2>Designed so you can trust it</h2>
+        <ul class="safety">
+          <li><strong>Look before it writes.</strong> <code>init</code> and <code>remove</code> list the files first and write only after you confirm. <code>update</code> refreshes the copies and entry points it owns immediately. For your own files (ruff, ESLint, <code>openspec/config.yaml</code>, and the like), a missing setting is listed in a fill-in plan and written only after you confirm. <code>--plan</code> and <code>--dry-run</code> only print the plan.</li>
+          <li><strong>It does not commit or push.</strong> The changes stay in the worktree for you to review.</li>
+          <li><strong>It does not force your config.</strong> If a ruff config sets <code>select</code>, extends a file outside the project, or the ESLint config is in a form it cannot read, it reports the file, the line, the original text, and what to change.</li>
+          <li><strong>An existing project does not go red on day one.</strong> Run <code>/rulemason</code> to set a baseline. Nothing is written until you confirm. After that, checkpoints fix only problems the new change introduces. No rule is switched off globally, and the global complexity cap is not raised.</li>
+          <li><strong>CI can block it.</strong> If a rule copy is edited, a tool entry point is missing, or lint does not extend the base rules, <code>rulemason check</code> exits non-zero. If the recorded version is older and the copy contents match, the exit code stays 0.</li>
+          <li><strong>Secrets stay out of the chat.</strong> <code>rulemason key</code> reads the key in your own terminal, does not echo it, and does not put it in shell history. It is stored in <code>~/.config/rulemason/env</code> on this machine (mode 600 on POSIX) and is never committed. The environment variable <code>TYPESAFE_API_KEY</code> takes priority over that file.</li>
+          <li><strong>You can remove it.</strong> <code>rulemason remove --plan</code> shows what would be deleted and changes nothing. A copy you edited, so it no longer matches the recorded checksum, is kept and listed. The project summary, red lines, and command table stay in <code>AGENTS.md</code>.</li>
+        </ul>
+        <figure>
+          <img src="/assets/r6-remove-plan.gif" data-still="/assets/stills/r6-remove-plan.png" width="1200" height="980" alt="rulemason remove --plan lists the removal plan and leaves the worktree unchanged" loading="lazy">
+          <figcaption>rulemason remove --plan</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="faq" class="faq">
+      <div class="wrap">
+        <h2>FAQ</h2>
+        <details>
+          <summary>How is this different from writing AGENTS.md or CLAUDE.md myself?</summary>
+          <p>A hand-written rule file is a prompt. The AI might follow it, and it might not, and nobody notices if it is edited. rulemason adds three things: the rules are maintained in one place and every tool reads the same copy; finished code goes through a fixed set of checkpoints; <code>rulemason check</code> can fail CI when a copy is edited or an entry point is missing. Your own text still lives outside the markers.</p>
+        </details>
+        <details>
+          <summary>How does it relate to OpenSpec?</summary>
+          <p>OpenSpec is how a plan is written and carried out step by step. rulemason is which rules to follow while writing, and which checkpoints to pass when the writing is done. rulemason adds the plan-writing rules to <code>openspec/config.yaml</code> and attaches the checkpoints to apply and archive. Without OpenSpec, you get the rules and lint setup only.</p>
+        </details>
+        <details>
+          <summary>Does it conflict with workflow plugins such as superpowers or get-shit-done (GSD)?</summary>
+          <p>They focus on different things. Those plugins mainly tell the AI how to plan and carry out a task. rulemason mainly says what the code and docs should look like, and how to check them after they are written. The rules are committed with the project, so CI can check them.</p>
+        </details>
+        <details>
+          <summary>Will it damage my project?</summary>
+          <p><code>init</code> writes only the files in the plan, and it does not commit or push. Lint config it cannot rewrite is reported, not forced. To look first, run <code>rulemason init --plan</code>. To leave, run <code>rulemason remove --plan</code> and read what would be deleted.</p>
+        </details>
+        <details>
+          <summary>Does it need a network? Does it cost money?</summary>
+          <p>The rules, the checkpoints, <code>check</code>, <code>result-check</code>, and <code>judge --lint-only</code> all run on your machine. Only Jev judgment calls TypeSafe over the network, and the key comes from <a href="https://typesafe.ai/">typesafe.ai</a>. Pricing is whatever that site says at the time.</p>
+        </details>
+        <details>
+          <summary>Can I use it if I do not read Chinese?</summary>
+          <p>The command-line output, the generated rules, and the skill are written in Chinese. This page is the English version of the <a href="/" hreflang="zh-CN" lang="zh-CN">Chinese page</a>. The output you see while using it is still Chinese.</p>
+        </details>
+        <details>
+          <summary>Can it file a software copyright or a patent for me?</summary>
+          <p>No, and it does not guarantee that any application will be approved. What it can do is keep the code concise, the structure clear, and the comments in place, with a check record for each change. Those make the filing materials easier to prepare.</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>© 2026 jincheng-xie</p>
+      <p><a href="https://github.com/rulemason/rulemason/blob/main/LICENSE">Apache-2.0</a></p>
+      <p><a href="https://github.com/rulemason/rulemason">GitHub</a></p>
+      <p><a href="https://pypi.org/project/rulemason/">PyPI</a></p>
+      <p><a href="/" hreflang="zh-CN" lang="zh-CN">中文</a></p>
+    </div>
+  </footer>
+  <script src="/js/site.js"></script>
+</body>
+</html>
