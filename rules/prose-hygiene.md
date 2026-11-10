@@ -12,7 +12,3 @@
 反例可放行内代码，或 `<!-- rulemason-disable -->` / `<!-- rulemason-disable 短名 -->` 配对 enable。可选 allowlist、path、max_hits。
 
 **不是作者判别**；不自动改字或改事实。种子预设：`.rulemason/result-check/prose-hygiene.hint.json` 与 `.strict.json`（仅首次写入，不覆盖已有）。
-
-## 归因
-
-文案行为启发自 [miqdadbadjuber/anti-slop](https://github.com/miqdadbadjuber/anti-slop)（MIT，`3b75daa`）。短名与检测自研，不复制其代码/词表。

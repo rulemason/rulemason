@@ -17,7 +17,7 @@
 - 不做：引入完整 JSON Schema 校验引擎或 `jsonschema` 依赖；不做 `$ref` / `allOf` / `anyOf` 组合语法的通用实现。
 - 不做：RR-05 / Skill 出现检查、采集器、Hook、改 `check`/`update`/`judge`。
 - 不做：改 Yaomancy 代码或 CI；不把产品字段名写进共享规则正文。
-- 不做：借用 Promptfoo / Rea / Cedar / Ruler 源码或测试文档。
+- 不做：借用 第三方测试或分析框架 源码或测试文档。
 - 不做：自动秘密脱敏产品；不为「日后万能断言 DSL」预留插件点。
 
 ## Capabilities

@@ -2,7 +2,7 @@
 
 ## Context
 
-- See `proposal.md`。分析报告：指北 MIT、`2c2d89c8`；七条首批已人工分类。REA 未入库。
+- See `proposal.md`。分析报告：指北 MIT、`2c2d89c8`；七条首批已人工分类。静态分析工具 未入库。
 - `result-check`：`src/rulemason/result_check.py`；退出 0/1/2。
 - 规则分发：`shared.COPIED_SHARED`（`src/rulemason/shared.py` L32–40）；`check.copied_rules`（`check.py` L169–182）；入口 `templates/code-style.block.md`、`claude.block.md`、`opencode.jsonc.tmpl`。
 - 本仓 CI：`.github/workflows/ci.yml` 仅 `uv run ruff` + `pytest`；job 名 `test`（`openspec/specs/repo-ci/spec.md`）。

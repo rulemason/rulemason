@@ -60,9 +60,7 @@ rulemason result-check --record record.json --preset strict
 |---|---|
 | 非作者判别 | 不判断「是否 AI 写的」；只匹配显式短名模式 |
 | 非自动改写 | 不 `--fix`、不改事实 |
-| anti-slop | 启发来源 miqdadbadjuber/anti-slop MIT `3b75daa`；短名与检测自研，不复制词表/代码 |
-| Karpathy skills | multica-ai/andrej-karpathy-skills 声明 MIT `2c60614`；**非**官方；社区仓库无 LICENSE 文件；仅行为启发，不嵌 skill 正文 |
-| REA | 付费/代理路径不引入；免费静态启发式仅作背景，本期不依赖 |
+| 静态分析工具 | 付费/代理路径不引入；免费静态启发式仅作背景，本期不依赖 |
 | 付费 Jev | 本 change 验证未跑 |
 | 误报 | 尤其 `em_dash`；故默认关闭 |
 | 退出码 | 0 通过（可含提示）；1 失败/无法判断；2 输入错误。提示不吞掉 1/2 |

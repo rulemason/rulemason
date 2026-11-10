@@ -19,7 +19,7 @@
 **Non-Goals:**
 
 - 不实现 Skill / harness / 采集器；不改 Yaomancy；不跑付费 eval；不接产品 HTTP API。
-- 不引入 Promptfoo / Rea / Cedar / Ruler 依赖；不做自动脱敏产品。
+- 不引入 第三方测试或分析框架 依赖；不做自动脱敏产品。
 - 不为「日后 eval 报告」预留解析模块、插件点、配置开关或 CI 步骤；帮助里若出现字段对照，只是给调用方的说明，不是本 change 的实现范围。
 
 ## Decisions

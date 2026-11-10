@@ -198,8 +198,12 @@ def test_init_distributes_rule_and_seeds(tmp_path: Path) -> None:
     body = rule.read_text(encoding="utf-8")
     assert "可检验" in body
     assert "验证走查" in body
-    assert "aa3bf0e986379d46c6e23c50bfa30ad812f5aa55" in body
-    assert "未" in body
+    # 规矩正文不得含第三方仓库名、URL 或 commit
+    for needle in (
+        "aa3bf0e", "gsd-core", "pm-skills", "Product-Manager", "github.com/",
+        "anti-slop", "karpathy", "autocorrect", "get-shit-done",
+    ):
+        assert needle not in body, needle
     assert (root / ".rulemason/result-check/product-artifact.hint.json").is_file()
     assert (root / ".rulemason/result-check/verification-walkthrough.hint.json").is_file()
     agents = (root / "AGENTS.md").read_text(encoding="utf-8")

@@ -2,14 +2,14 @@
 
 ## Why
 
-GSD（get-shit-done / gsd-core）里有可检验验收与验证走查的有用原则，但整套编排器与 rulemason「共享规矩 + 检查点」定位冲突。需要在不搬入 GSD 运行时的前提下，把可增益点改造成自研指导与可选检查。
+外部调研材料（外部归档调研对象 / 外部验证走查调研对象）里有可检验验收与验证走查的有用原则，但整套编排器与 rulemason「共享规矩 + 检查点」定位冲突。需要在不搬入 外部调研材料 运行时的前提下，把可增益点改造成自研指导与可选检查。
 
 ## What Changes
 
-- 自研增补产品产物规矩中的「验证走查」原则（期望可观察 → 确认 → 记录差距；禁止编造已测），并归因上游 URL+commit。
+- 自研增补产品产物规矩中的「验证走查」原则（期望可观察 → 确认 → 记录差距；禁止编造已测），（规矩正文不写外部来源）。
 - 新增可选 `result-check` 预设 `verification-walkthrough.hint|strict`（默认宣传 hint）；复用既有 severity/hint/strict，不新子命令。
 - `init`/`update` 只分发规矩与（缺失时）种子，**不**自动扫仓、不改因缺走查小节而单独失败的 `check` 行为。
-- 不做：GSD 命令套件、多代理编排、Claude Agent SDK、MCP、安装器写 IDE home、`.planning/` 状态机、autonomous 自动推进、复制第三方正文/模板/代码。
+- 不做：外部调研材料 命令套件、多代理编排、Claude Agent SDK、MCP、安装器写 IDE home、`.planning/` 状态机、autonomous 自动推进、复制第三方正文/模板/代码。
 - 不做：对本期以外的 REQ-ID 强制图式（待决，默认推迟）。
 - **BREAKING**：无。保持 0.8.35 兼容；新能力为加法。
 

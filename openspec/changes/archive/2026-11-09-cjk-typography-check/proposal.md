@@ -11,7 +11,7 @@
 - 新增共享规则 `rules/result-check-contracts.md`：改被 result-check 覆盖的结构化输出 schema/prompt 时，同 change 更新 requirements JSON 与夹具并跑 `rulemason result-check`；项目约束仍只住各项目 requirements。
 - 两份规则经 `init`/`update` 复制进 `.rulemason/`，入口块引用；`check` 校验副本；不破坏无此需求的既有项目（多几个只读文件/引用行）。
 - 本仓 CI（`test` job）对约定中文文件跑 `cjk_typography`；本仓样例 + bump **0.8.32**。
-- **不做**：照抄指北长文；依赖 Promptfoo/Rea/Cedar/Ruler/pangu/autocorrect；专名大小写/生造缩写/半角标点/争议链接引号；改 `copy-voice`/`judge`；把排版检查默认塞进 `rulemason check` 巡检命令。
+- **不做**：照抄指北长文；依赖 第三方测试或分析框架/pangu/外部中文排版调研对象；专名大小写/生造缩写/半角标点/争议链接引号；改 `copy-voice`/`judge`；把排版检查默认塞进 `rulemason check` 巡检命令。
 
 ## Capabilities
 
