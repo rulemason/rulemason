@@ -25,11 +25,10 @@
    - 被关闭区间用现有 U+E000 遮罩，保持偏移。  
    - 否决：仿上游注释语法文件；否决仅支持「必须带规则名」（反例段落常需整段关）。
 
-4. **推荐 · 全量命中报告与兼容（待决 OQ-2）：**  
-   - 失败时 `explanation` 含总数与首条摘要；`evidence`（及 `--json` 的 item 字段）含 `hits` 数组：`{rule, line, column, offset, length}`（1-based 行列），可截断前 N 条（推荐默认 N=50，配置键 `max_hits` 可选；省略=50）。  
-   - **退出码不变**：有命中 → 1；非法配置 → 2；全过 → 0。  
-   - 旧调用方若只解析 `status`/`exit_code`/`explanation` 子串「规则 X」仍可用；依赖「仅一条命中」的解析可能看到更长 evidence → 文档标明扩展。  
-   - 否决：为多命中改 exit 语义；否决默认回显正文片段。
+4. **已决 · 全量命中报告与兼容：**  
+   - 失败时 `explanation` 含**真实总数**；若截断则明确写「显示前 N / 共 T」；`evidence` 为 JSON 对象字符串，含 `hit_total`、`hits_truncated`、`hits`（每项 `rule,line,column,offset,length`，1-based 行列，原文偏移）。可选配置 `max_hits`（正整数，默认 50）。  
+   - **退出码不变**：有命中 → 1；非法配置 → 2；全过 → 0；既有 item 字段名保留。  
+   - 否决：为多命中改 exit 语义；否决默认回显正文片段；否决把截断列表表述成「全部」。
 
 5. **推荐 · B5 半角标点集（待决 OQ-3）：**  
    - 短名 `halfwidth_punct_cjk`：匹配「汉字 + 下列半角之一 + 汉字」：`, ; : ! ?`（不含 `.`、不含 `,` 的全角形式）。  
@@ -43,22 +42,22 @@
 
 8. **已决 B11：** `_CJK` 扩为 U+3400–4DBF ∪ U+4E00–9FFF ∪ U+F900–FAFF；假名/谚文不加。
 
-9. **已决 B4 顺序：** 在现有链上追加：`~~~` 围栏 → 缩进代码块（行首 ≥4 空格或 tab 的连续行）→ 引用式链接定义 → `<https?://…>`；仍先于规则与 allowlist。HTML 注释中的 disable 在遮罩代码/URL **之后**、跑规则 **之前** 解析，以免注释本身被当正文。
+9. **已决 B4 顺序：** 在现有链上追加：`~~~` 围栏 → 缩进代码块（CommonMark：前空行或文首后，连续行首 ≥4 空格或 tab）→ 引用式链接定义 → `<https?://…>`；仍先于规则与 allowlist。HTML 注释中的 disable 在遮罩代码/URL **之后**、跑规则 **之前** 解析（注释在已遮代码块内不生效）。
 
 10. **已决生效方式：** 新短名写入 `KNOWN_RULES` 与 `rules/cjk-typography.md`；调用方 `rules` 显式列出才启用。本仓 CI requirements **打开**新短名。Yaomancy 同步**本期不做**，另开 change。
 
 11. **已决致谢：** README（中）加一句：行为参考 [autocorrect](https://github.com/huacnlee/autocorrect)（MIT），未复制代码；PR 说明同句。
 
-## Open Questions（待决）
+## Open Questions（已确认 2026-11-10）
 
-| ID | 问题 | 推荐 |
-|---|---|---|
-| OQ-1 | 关闭注释是否允许不带规则名、整段关闭全部？具体分隔符？ | 允许裸 disable/enable；带名用逗号或空白分隔短名 |
-| OQ-2 | 全量 hits 对 JSON/退出码兼容？是否要 `max_hits`？ | 退出码不变；JSON 增 `hits`；默认 max_hits=50 |
-| OQ-3 | B5 含哪些半角标点？ | `,;:!?`，不含 `.` |
-| OQ-4 | 缩进代码块是否要求「前空行」才识别（CommonMark）？ | 推荐：宽松——任意连续缩进行即遮，降低漏遮 |
-| OQ-5 | `rulemason-enable` 不带名时：恢复全部，还是仅撤销最近一次裸 disable？ | 推荐：裸 enable = 恢复全部当前关闭项 |
-| OQ-6 | B1 的 line/column 按预处理前原文还是遮罩后？ | 推荐：原文码点偏移映射到行/列（与现 offset 同坐标系） |
+| ID | 决定 |
+|---|---|
+| OQ-1 | 允许裸 disable 关全部；带名用**逗号**分隔短名 |
+| OQ-2 | 退出码不变；报告含 hits；默认 max_hits=50；**必须保留真实总数并标明截断**，不得把截断列表说成全部 |
+| OQ-3 | B5 仅 `,;:!?`，不含 `.` |
+| OQ-4 | 缩进代码按 **CommonMark：前空行**（或文首）后连续缩进行才识别 |
+| OQ-5 | 裸 enable = **恢复全部**当前关闭项 |
+| OQ-6 | 行列始终按**原文**码点偏移映射 |
 
 ## Risks / Trade-offs
 

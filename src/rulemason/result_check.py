@@ -664,6 +664,36 @@ def _cjk_body(
     return text or ""
 
 
+def _cjk_hit_payload(body: str, hits: list[Any], max_hits: int) -> tuple[str, str]:
+    """生成 explanation 与 evidence（JSON 字符串）；标明真实总数与是否截断。"""
+    total = len(hits)
+    shown = hits[:max_hits]
+    truncated = total > max_hits
+    rows = []
+    for h in shown:
+        line, col = _cjk.offset_to_line_col(body, h.offset)
+        rows.append({
+            "rule": h.rule, "line": line, "column": col,
+            "offset": h.offset, "length": h.length,
+        })
+    first = rows[0]
+    if truncated:
+        expl = (
+            f"中文排版未通过：共 {total} 处，显示前 {len(rows)} 处"
+            f"（首条 {first['rule']} @ {first['line']}:{first['column']}）"
+        )
+    else:
+        expl = (
+            f"中文排版未通过：共 {total} 处"
+            f"（首条 {first['rule']} @ {first['line']}:{first['column']}）"
+        )
+    evidence = json.dumps(
+        {"hit_total": total, "hits_truncated": truncated, "hits": rows},
+        ensure_ascii=False, separators=(",", ":"),
+    )
+    return expl, evidence
+
+
 def _eval_cjk_typography(
     check: dict[str, Any], text: str | None, text_ok: bool, structured: Any, struct_ok: bool,
 ) -> ItemResult:
@@ -671,19 +701,19 @@ def _eval_cjk_typography(
     body = _cjk_body(check, text, text_ok, structured, struct_ok)
     if isinstance(body, ItemResult):
         return body
+    if err := _cjk.directive_error(body):
+        return ItemResult(cid, STATUS_INPUT_ERROR, err)
     units = check.get("units")
     unit_list = list(units) if isinstance(units, list) else None
     allow = check.get("allowlist") if isinstance(check.get("allowlist"), list) else None
+    max_hits = check.get("max_hits", _cjk.DEFAULT_MAX_HITS)
+    if not isinstance(max_hits, int) or isinstance(max_hits, bool) or max_hits < 1:
+        max_hits = _cjk.DEFAULT_MAX_HITS
     hits = _cjk.find_hits(body, list(check["rules"]), units=unit_list, allowlist=allow)
     if not hits:
         return ItemResult(cid, STATUS_PASS, "中文排版约束通过")
-    hit = hits[0]
-    where = f"码点偏移 {hit.offset}"
-    return ItemResult(
-        cid, STATUS_FAIL,
-        f"规则 {hit.rule} 未通过（{where}）",
-        evidence=f"{where}；规则 {hit.rule}；命中长度 {hit.length}",
-    )
+    expl, evidence = _cjk_hit_payload(body, hits, max_hits)
+    return ItemResult(cid, STATUS_FAIL, expl, evidence=evidence)
 
 
 def _leaf_missing(structured: Any, path: str) -> bool:
