@@ -26,8 +26,10 @@ _RESULT_CHECK_EPILOG = """\
 optional、minimum/maximum、min_length/max_length（Unicode 码点）、enum、pattern、min_items/max_items。
 数组可用 items 约束每个元素；对象元素用 fields（列出的键默认必填，可 optional: true）。
 空数组 + items 真空通过；非空靠 min_items。失败解释含下标路径（如 待确认[1].怎么确认）。
-支持 cjk_typography：可开关中文排版规则（全角数字、叠标点、中英/中数空格、单位空格、度百分号、全角标点旁空格）；
-检查前剥离围栏/行内代码、链接目标 URL、裸 URL、行内 HTML（可见链接文案仍参检）；可选 allowlist 与 units。
+支持 cjk_typography：可开关中文排版规则（全角数字/字母、叠标点、中英/中数空格、单位空格、
+度百分号、全角标点旁空格、半角标点夹汉字、表意空格等）；检查前剥离围栏（含 ~~~）/缩进代码/
+行内代码、链接目标与自动链接、引用式定义、裸 URL、行内 HTML；HTML 注释 rulemason-disable/
+enable 可临时关闭规则；可选 allowlist、units、max_hits（默认 50，截断时标明总数）。
 父路径为 null 或键缺失时，子路径项记未检查/不适用。约束由调用方 requirements 提供。
 旧 structured_keys 等类型语义不变。本期排除 Skill 出现检查。
 模式核对信任调用方提供的模式（本地确定性，无超时沙箱）。
