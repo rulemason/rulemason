@@ -24,7 +24,7 @@
   <meta name="twitter:title" content="rulemason：AI 写代码，也讲章法">
   <meta name="twitter:description" content="让 AI 写的代码，读起来像人写的。给 AI 编码工具的一套规矩，外加每次改动都要过的关卡。">
   <meta name="twitter:image" content="https://rulemason.com/assets/banner.png">
-  <meta name="theme-color" content="#071421">
+  <meta name="theme-color" content="#f7f6f3">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -35,7 +35,7 @@
   <header class="site-header">
     <div class="wrap">
       <a class="brand" href="/">
-        <img src="/assets/logo.svg" alt="" width="52" height="42">
+        <img src="/assets/logo.svg" alt="" width="52" height="56">
         <span>
           <span class="brand-name">rulemason</span>
           <span class="brand-sub">RULES FOR AI CODING</span>
@@ -60,11 +60,20 @@
         <h1>AI 写代码，<br><span class="accent">也讲章法。</span></h1>
         <p class="lede">让 AI 写的代码，读起来像人写的。</p>
         <p class="support">用 AI 写代码很快，难的是几个月以后。功能一个个加上去，代码越堆越多：同一段逻辑复制了好几份，没人调用的函数和参数留在原处，读起来完全不像人写的代码。</p>
+        <div class="actions">
+          <a class="btn btn-solid" href="https://github.com/rulemason/rulemason">GitHub</a>
+          <a class="btn btn-text" href="https://pypi.org/project/rulemason/">PyPI</a>
+        </div>
         <ul class="chips">
           <li><a href="#read"><b>读</b> 先读项目规则</a></li>
           <li><a href="#keep"><b>守</b> 方案与代码守约定</a></li>
           <li><a href="#check"><b>查</b> lint、测试、审查</a></li>
         </ul>
+      </div>
+      <div class="hero-stage">
+        <div class="hero-logo">
+          <img src="/assets/logo.svg" width="416" height="448" alt="像素标志：粉色的小兔子骑着一匹浅蓝色的飞马">
+        </div>
         <div class="install">
           <div class="install-bar">
             <pre id="install-cmd"><code>uv tool install rulemason
@@ -74,13 +83,6 @@ rulemason init</code></pre>
           <p id="copy-status" class="copy-status" role="status"></p>
           <p class="fine">需要 <a href="https://docs.astral.sh/uv/">uv</a>，Python 3.11 或更高。在项目根目录运行 <code>rulemason init</code>：勾选你用的 AI 工具，看一眼计划，确认后写入。终端不能提问时：<code>rulemason init --tools claude,cursor --yes</code>。工具 id 是 <code>opencode</code>、<code>claude</code>、<code>cursor</code>、<code>codex</code>。</p>
         </div>
-        <div class="actions">
-          <a class="btn btn-pink" href="https://github.com/rulemason/rulemason">GitHub</a>
-          <a class="btn btn-line" href="https://pypi.org/project/rulemason/">PyPI</a>
-        </div>
-      </div>
-      <div class="hero-logo">
-        <img src="/assets/logo.svg" width="416" height="336" alt="像素标志：粉色的小兔子骑着一匹浅蓝色的飞马">
       </div>
     </div>
 
