@@ -104,7 +104,7 @@ def test_disable_and_allowlist() -> None:
 
 def test_seed_presets_idempotent(tmp_path: Path) -> None:
     first = seed_result_check_presets(tmp_path)
-    assert len(first) == 4
+    assert len(first) == 6
     hint = tmp_path / ".rulemason/result-check/prose-hygiene.hint.json"
     original = hint.read_text(encoding="utf-8")
     hint.write_text(original.replace("chatbot_closer", "em_dash"), encoding="utf-8")

@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "checks": [
+    {
+      "id": "walkthrough-heading",
+      "type": "pattern",
+      "pattern": "(?im)^#{1,6}\\s*(验证走查|走查记录|Walkthrough|Verification Walkthrough)\\b",
+      "severity": "hint"
+    },
+    {
+      "id": "observable-expectation-heading",
+      "type": "pattern",
+      "pattern": "(?im)^#{1,6}\\s*(可观察期望|期望(?:结果|表现)|Expected(?:\\s+(?:Behavior|Result))?|Observable Expectation)\\b",
+      "severity": "hint"
+    },
+    {
+      "id": "gaps-heading",
+      "type": "pattern",
+      "pattern": "(?im)^#{1,6}\\s*(差距(?:与待决)?|不符项|Gaps|Discrepancies)\\b",
+      "severity": "hint"
+    }
+  ]
+}

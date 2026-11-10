@@ -74,6 +74,4 @@
 
 ## Open Questions
 
-- 上游实现归因用 `next@aa3bf0e` 还是改对 `main@4d42b6be` 补分析？
-- 走查原则是否改为独立 `rules/*.md`（否决项可翻案）？
-- REQ-ID 可选 pattern 是否另开 change？
+无（用户已确认：归因 `next@aa3bf0e`；并入 `product-artifact-caution`；REQ-ID 本期推迟）。

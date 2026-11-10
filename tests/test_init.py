@@ -1178,6 +1178,8 @@ def test_go_project_gets_only_generic_rules_and_update_adds_python_later(tmp_pat
         "result-check/product-artifact.strict.json",
         "result-check/prose-hygiene.hint.json",
         "result-check/prose-hygiene.strict.json",
+        "result-check/verification-walkthrough.hint.json",
+        "result-check/verification-walkthrough.strict.json",
         "rules/agent-coding-caution.md",
         "rules/cjk-typography.md",
         "rules/code-style.md",
