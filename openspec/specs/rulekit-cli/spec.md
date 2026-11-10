@@ -88,7 +88,7 @@
 
 #### Scenario: Go 项目只拿到通用规则
 - **WHEN** 只有 `go.mod` 与 `.go` 文件的项目运行 `rulemason init --tools claude --yes`
-- **THEN** `.rulemason/` 下含 `rules/code-style.md`、`rules/workflow-gates.md`、`rules/cjk-typography.md`、`rules/result-check-contracts.md`、`rules/prose-hygiene.md`、`rules/agent-coding-caution.md`、`README.md`，以及首次种入的 `result-check/prose-hygiene.hint.json` 与 `prose-hygiene.strict.json`；没有 `python.md`、`react.md`、`copy-voice.md` 与 `lint/`；`check` 不报缺少副本
+- **THEN** `.rulemason/` 下含 `rules/code-style.md`、`rules/workflow-gates.md`、`rules/cjk-typography.md`、`rules/result-check-contracts.md`、`rules/prose-hygiene.md`、`rules/agent-coding-caution.md`、`rules/product-artifact-caution.md`、`README.md`，以及首次种入的 `result-check/prose-hygiene.*.json` 与 `product-artifact.*.json`；没有 `python.md`、`react.md`、`copy-voice.md` 与 `lint/`；`check` 不报缺少副本
 
 #### Scenario: 后来加了 Python
 - **WHEN** 上述项目新增 `pyproject.toml` 后运行 `rulemason update`
@@ -1046,3 +1046,21 @@ rulemason 调用 git 读取输出或传入路径时 SHALL 按 UTF-8 编码，MUS
 #### Scenario: 重复 update 不覆盖种子
 - **WHEN** 用户改过 `.rulemason/result-check/prose-hygiene.hint.json` 后再 `rulemason update --yes`
 - **THEN** 该文件内容保持用户修改
+
+### Requirement: 产品产物规矩必复制
+`init` 与 `update` SHALL 把 `rules/product-artifact-caution.md` 复制进 `.rulemason/rules/`（所有接入项目必复制），入口块 SHALL 引用并注明阅读场合。清单记录校验值；手改副本时 `check` 非 0。
+
+#### Scenario: Go 项目也拿到产品产物规矩
+- **WHEN** 仅有 `go.mod` 的项目 `rulemason init --yes`
+- **THEN** `.rulemason/rules/` 含 `product-artifact-caution.md`
+
+### Requirement: 可选产物结构提示种子幂等
+`init`/`update` SHALL 在 `.rulemason/result-check/` 下种入 `product-artifact.hint.json` 与 `product-artifact.strict.json`：**仅当目标文件不存在时写入**；已存在 MUST NOT 覆盖。种子 MUST NOT 进入落后必覆盖校验集。预设 MUST 默认 hint 语义（严格另文件）；MUST NOT 默认启用「商业成功」类主观规则。`remove` SHALL 删除已知种子文件名（含 prose 与 product-artifact）。MUST NOT 声称 `init`/`update` 本身检查文档正文。
+
+#### Scenario: 重复 update 不覆盖用户产物结构种子
+- **WHEN** 用户改过该种子后再 `rulemason update --yes`
+- **THEN** 文件内容保持用户修改
+
+#### Scenario: remove 删除产物结构种子
+- **WHEN** 已种入 `product-artifact.*.json` 的项目运行 `rulemason remove --yes`
+- **THEN** 这些种子文件被删除
