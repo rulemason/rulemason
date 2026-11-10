@@ -1,5 +1,5 @@
 <p align="center">
-<img alt="rulemason banner: a pixel rabbit riding a horse, with the slogan AI 写代码，也讲章法" src="https://raw.githubusercontent.com/rulemason/rulemason/main/docs/assets/banner.png" width="100%">
+<img alt="rulemason: AI writes code, and it follows the rules" src="https://raw.githubusercontent.com/rulemason/rulemason/main/docs/assets/banner.png" width="100%">
 </p>
 
 # rulemason
