@@ -1,3 +1,7 @@
+<p align="center">
+<img alt="rulemason 横幅：像素兔子骑着马，标语是 AI 写代码，也讲章法" src="https://raw.githubusercontent.com/rulemason/rulemason/main/docs/assets/banner.png" width="100%">
+</p>
+
 # rulemason
 
 **让 AI 写的代码，读起来像人写的。**
@@ -80,20 +84,23 @@ rulemason init               # 2. 在项目根目录运行：勾选你用的 AI 
 ## 怎么工作
 
 ```mermaid
-flowchart LR
-  A["/opsx:propose<br/>写方案"] --> B{"判断方案<br/>（可选）"}
-  B -- 格式问题 --> A
-  B -- 碰到红线 --> U["停下问你"]
-  B -- 通过 --> C["/opsx:apply<br/>写代码前再查一次"]
-  C --> D["写代码"]
-  D --> E["自动精简"]
-  E --> F["独立审查"]
-  F --> G["ruff"]
-  G --> H["测试"]
-  H --> I["前端 lint"]
-  I --> J["文案检查（需开启判断）"]
-  J --> K["写检查记录<br/>verification.md"]
-  K --> L["/opsx:archive<br/>归档"]
+flowchart TB
+  subgraph plan["方案"]
+    direction LR
+    A["/opsx:propose<br/>写方案"] --> B{"判断方案<br/>（可选）"}
+    B -- 格式问题 --> A
+    B -- 碰到红线 --> U["停下问你"]
+    B -- 通过 --> C["/opsx:apply<br/>写代码前再查一次"]
+  end
+  subgraph build["写代码与自动检查"]
+    direction LR
+    D["写代码"] --> E["自动精简"] --> F["独立审查"] --> G["ruff"] --> H["测试"]
+  end
+  subgraph finish["收尾归档"]
+    direction LR
+    I["前端 lint"] --> J["文案检查（需开启判断）"] --> K["写检查记录<br/>verification.md"] --> L["/opsx:archive<br/>归档"]
+  end
+  plan --> build --> finish
 ```
 
 <!-- TODO R3: recording of /opsx:apply running simplify, review, ruff, and tests, plus verification.md. -->

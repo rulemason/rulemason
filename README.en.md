@@ -1,3 +1,7 @@
+<p align="center">
+<img alt="rulemason banner: a pixel rabbit riding a horse, with the slogan AI 写代码，也讲章法" src="https://raw.githubusercontent.com/rulemason/rulemason/main/docs/assets/banner.png" width="100%">
+</p>
+
 # rulemason
 
 **AI-written code that reads like a person wrote it.**
@@ -82,20 +86,23 @@ After that, develop as usual. On the OpenSpec path the AI runs the checkpoints f
 ## How it works
 
 ```mermaid
-flowchart LR
-  A["/opsx:propose<br/>write the plan"] --> B{"judge the plan<br/>(optional)"}
-  B -- format issue --> A
-  B -- red line --> U["stop and ask you"]
-  B -- pass --> C["/opsx:apply<br/>check again before code"]
-  C --> D["write code"]
-  D --> E["simplify"]
-  E --> F["independent review"]
-  F --> G["ruff"]
-  G --> H["tests"]
-  H --> I["frontend lint"]
-  I --> J["copy check (needs judgment)"]
-  J --> K["write verification.md"]
-  K --> L["/opsx:archive"]
+flowchart TB
+  subgraph plan["Plan"]
+    direction LR
+    A["/opsx:propose<br/>write the plan"] --> B{"judge the plan<br/>(optional)"}
+    B -- format issue --> A
+    B -- red line --> U["stop and ask you"]
+    B -- pass --> C["/opsx:apply<br/>check again before code"]
+  end
+  subgraph build["Write code and check it"]
+    direction LR
+    D["write code"] --> E["simplify"] --> F["independent review"] --> G["ruff"] --> H["tests"]
+  end
+  subgraph finish["Finish and archive"]
+    direction LR
+    I["frontend lint"] --> J["copy check (needs judgment)"] --> K["write verification.md"] --> L["/opsx:archive"]
+  end
+  plan --> build --> finish
 ```
 
 <!-- TODO R3: recording of /opsx:apply running simplify, review, ruff, and tests, plus verification.md. -->
