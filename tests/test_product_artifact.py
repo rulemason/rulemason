@@ -230,11 +230,12 @@ def test_wheel_and_sdist_include_resources(tmp_path: Path) -> None:
     import subprocess
     import tarfile
 
+    repo = Path(__file__).resolve().parents[1]
     dist = tmp_path / "dist"
     dist.mkdir()
     proc = subprocess.run(
         ["uv", "build", "--out-dir", str(dist)],
-        cwd="/workspace", capture_output=True, text=True,
+        cwd=repo, capture_output=True, text=True,
     )
     assert proc.returncode == 0, proc.stderr or proc.stdout
     wheels = list(dist.glob("*.whl"))
