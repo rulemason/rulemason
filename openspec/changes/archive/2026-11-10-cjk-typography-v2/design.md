@@ -3,20 +3,20 @@
 ## Context
 
 - 基线：`main` `9217a78` / 0.8.32；模块 `src/rulemason/cjk_typography.py`；接线 `result_check.py`；规则 `rules/cjk-typography.md`；CI `tests/test_repo_cjk_typography_ci.py`。
-- 行为来源：附件 `autocorrect-analysis.md`（autocorrect MIT，`e1a75da`）。实现**不得**打开或复制 autocorrect 源码/正则/词表/配置；短名与例句自拟。
+- 行为来源：附件 `外部中文排版调研对象-analysis.md`（外部中文排版调研对象 MIT，`（已省略）`）。实现**不得**打开或复制 外部中文排版调研对象 源码/正则/词表/配置；短名与例句自拟。
 - 只读试跑（本仓 `README.md` + `rules/**/*.md`，自拟探测器）：现有 7 条、B5、B6、B10 收窄前后、B11 增量均为 **0** 命中。
 
 ## Goals / Non-Goals
 
-**Goals：** 第一期 B1、B3、B4、B10、B11、B5、B6；规则层同步；本仓 CI 开新规则；0.8.33；README/PR 致谢。
+**Goals：** 第一期 B1、B3、B4、B10、B11、B5、B6；规则层同步；本仓 CI 开新规则；0.8.33；README/版本说明。
 
-**Non-Goals：** 修复模式；文件扫描 CLI；B7–B9、B12–B15；Yaomancy 同步（另开）；复制 autocorrect。
+**Non-Goals：** 修复模式；文件扫描 CLI；B7–B9、B12–B15；Yaomancy 同步（另开）；复制 外部中文排版调研对象。
 
 ## Decisions
 
 1. **已决范围与版本：** 上列第一期；**0.8.33**；合入后是否打 tag/发 PyPI 再问用户。否决 0.9.0（非破坏性增强）。
 
-2. **已决干净室：** 只按报告行为写规格与自拟例句；短名 snake_case；配置沿用 requirements JSON（`rules`/`units`/`allowlist`/`path`）。否决移植上游正则或 `.autocorrectrc` 键名。
+2. **已决干净室：** 只按报告行为写规格与自拟例句；短名 snake_case；配置沿用 requirements JSON（`rules`/`units`/`allowlist`/`path`）。否决移植上游正则或 `外部排版工具配置键名` 键名。
 
 3. **推荐 · 关闭注释写法（待决 OQ-1）：**  
    - 语法：HTML 注释 `<!-- rulemason-disable -->` / `<!-- rulemason-disable rule1, rule2 -->`，配对 `<!-- rulemason-enable -->` 或 `<!-- rulemason-enable rule1 -->`。  
@@ -46,7 +46,7 @@
 
 10. **已决生效方式：** 新短名写入 `KNOWN_RULES` 与 `rules/cjk-typography.md`；调用方 `rules` 显式列出才启用。本仓 CI requirements **打开**新短名。Yaomancy 同步**本期不做**，另开 change。
 
-11. **已决致谢：** README（中）加一句：行为参考 [autocorrect](https://github.com/huacnlee/autocorrect)（MIT），未复制代码；PR 说明同句。
+11. **已决：** README 不写外部排版工具专名或链接。
 
 ## Open Questions（已确认 2026-11-10）
 
@@ -68,7 +68,7 @@
 
 ## Migration Plan
 
-1. 实现库与接线、规则正文、CI、致谢、bump 0.8.33。  
+1. 实现库与接线、规则正文、CI、bump 0.8.33。  
 2. 合入后**询问**是否打 `v0.8.33` / 发 PyPI。  
 3. Yaomancy 另 change 决定是否把新短名写入其 requirements。  
 回滚：revert；旧项目未列新短名则几乎无感（除 B10/B4/B11/报告形状）。
@@ -82,6 +82,6 @@
 | `rules/cjk-typography.md` | 改 | +15–30 |
 | `tests/test_cjk_typography.py` 等 | 改/增 | +120–200 |
 | `tests/test_repo_cjk_typography_ci.py` | 改 | +5–15 |
-| `README.md` | 致谢 | +3–8 |
+| `README.md` | 版本钉 | +1–3 |
 | `__init__.py` + README CI 钉 | 0.8.33 | ~3 |
 | `verification.md` | 增 | +40–60 |

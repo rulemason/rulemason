@@ -1,7 +1,6 @@
 """面向人读文案的确定性卫生检查（显式短名；非作者判别）。
 
-行为启发自公开仓库 miqdadbadjuber/anti-slop（MIT），短语与结构模式由本仓库自研，
-不复制其词表或正则。
+短语与结构模式由本仓库自研。
 """
 from __future__ import annotations
 

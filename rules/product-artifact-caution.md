@@ -22,7 +22,3 @@
 **走查结构默认同义标题（标题行）：** 验证走查 / 走查记录 / Walkthrough / Verification Walkthrough；可观察期望 / 期望结果 / 期望表现 / Expected / Expected Behavior / Expected Result / Observable Expectation；差距与待决 / 差距 / 不符项 / Gaps / Discrepancies。
 
 结构命中不代表实质合格；代码围栏内的假标题可能误报（本检查不剥围栏）。
-
-## 归因
-
-行为启发自 [phuryn/pm-skills](https://github.com/phuryn/pm-skills)（MIT，`9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef`）中与 PRD/故事/验收相关的执行轨想法；另参考 [deanpeters/Product-Manager-Skills](https://github.com/deanpeters/Product-Manager-Skills)（CC BY-NC-SA 4.0，`cfcb697f14b8891d8b3ec43c16c3547df3e70e13`）产物主题的一般思路。验证走查原则行为启发自 [open-gsd/gsd-core](https://github.com/open-gsd/gsd-core)（MIT，`aa3bf0e986379d46c6e23c50bfa30ad812f5aa55`）中「先给期望、再请人确认」的走查思路。本文件为**自研**正文，**未**嵌入、再分发上述仓库的 skill/工作流/模板/代码。

@@ -6,16 +6,16 @@
 
 | 仓库 | commit |
 |---|---|
-| [phuryn/pm-skills](https://github.com/phuryn/pm-skills) | [`9af7bfd`](https://github.com/phuryn/pm-skills/commit/9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef) |
-| [deanpeters/Product-Manager-Skills](https://github.com/deanpeters/Product-Manager-Skills) | [`cfcb697`](https://github.com/deanpeters/Product-Manager-Skills/commit/cfcb697f14b8891d8b3ec43c16c3547df3e70e13) |
-| [morluto/rea](https://github.com/morluto/rea)（分析工具） | [`99d00d1`](https://github.com/morluto/rea/commit/99d00d1041e9dd66736239c5f607c7178938c118) |
+| [外部产品产物调研对象](（已省略外部链接）) | [`（已省略）`](（已省略外部链接）) |
+| [外部产品产物调研对象](（已省略外部链接）) | [`（已省略）`](（已省略外部链接）) |
+| [静态分析工具（已省略专名）](（已省略外部链接）)（分析工具） | [`（已省略）`](（已省略外部链接）) |
 
-REA 免费静态：`analyze-javascript-application`（本地 JS/Electron 惰性语法图；不执行代码）。两仓主体是 Markdown 技能；REA **不能**替代人工读技能正文。用户确认范围 **A+B**。
+静态分析工具 免费静态：`静态 JS 分析命令（已省略专名）`（本地 JS/Electron 惰性语法图；不执行代码）。两仓主体是 Markdown 技能；静态分析工具 **不能**替代人工读技能正文。用户确认范围 **A+B**。
 
 ## Goals / Non-Goals
 
 - Goals：自研产品产物规矩自动分发；可选结构预设；`must_contain`/`pattern` 安全支持 `severity=hint`；文档标明分发 ≠ 自动检查。
-- Non-Goals：REA/付费 API 运行时；搬全套 PM 技能；把成功指标「看起来合理」当通过；新子命令；默认判断红线。
+- Non-Goals：静态分析工具/付费 API 运行时；搬全套 PM 技能；把成功指标「看起来合理」当通过；新子命令；默认判断红线。
 
 ## Decisions（已确认）
 
@@ -23,8 +23,7 @@ REA 免费静态：`analyze-javascript-application`（本地 JS/Electron 惰性�
    只收「可检验标准 / 非目标 / 证据边界 / 验收可测」进入共享规矩。否决：marketplace、GTM、简历、财务基准库、竞品情报流水线。
 
 2. **许可证策略**  
-   - MIT `pm-skills`：行为启发，自研规矩，归因 commit。
-   - CC BY-NC-SA `Product-Manager-Skills`：**不复制**其 SKILL/模板；想法层独立改写 + 注明未再分发。
+      - 限制性许可证材料：不复制其正文或模板；想法层独立改写。
 
 3. **落地形态 A+B**  
    - **A**：`rules/product-artifact-caution.md`，`COPIED_SHARED` 必复制，入口注明阅读场合。

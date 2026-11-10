@@ -13,7 +13,7 @@
 ### Non-goals（不做）
 
 - 不做：完整 JSON Schema、`$ref`/`allOf`、grapheme 计长、数组下标通配之外的查询语言。
-- 不做：改 Yaomancy / 打 tag / 发 PyPI；不借用 Promptfoo、Rea、Cedar、Ruler。
+- 不做：改 Yaomancy / 打 tag / 发 PyPI；不借用 Promptfoo、静态分析工具、Cedar、Ruler。
 
 ## Capabilities
 

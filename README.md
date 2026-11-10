@@ -95,7 +95,7 @@ rulemason check     # 只读，在项目任意子目录运行都可以
 
 ```yaml
 - uses: astral-sh/setup-uv@v7
-- run: uv tool install rulemason==0.8.36
+- run: uv tool install rulemason==0.8.37
 - run: rulemason check
 ```
 
@@ -192,12 +192,6 @@ uv sync
 uv run ruff check .
 uv run pytest
 ```
-
-## 致谢
-
-中文排版检查 `cjk_typography` 的行为参考了 [autocorrect](https://github.com/huacnlee/autocorrect)（MIT）；规则与实现由本仓库自行编写，未复制其代码、正则、词表或配置。
-
-文案卫生 `prose_hygiene` 行为启发自 [miqdadbadjuber/anti-slop](https://github.com/miqdadbadjuber/anti-slop)（MIT，`3b75daa`）；编码审慎规矩启发自社区整理的 [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills)（声明 MIT，`2c60614`，非 Karpathy 官方）。均为自研正文与检测，不嵌入对方全文；不是作者判别。
 
 ## 许可证
 

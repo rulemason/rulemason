@@ -23,7 +23,7 @@
 
 ## 干净室
 
-`src/rulemason` 与 `rules/` 无 autocorrect 源码/正则/词表拷贝；README 仅致谢行为参考。
+`src/rulemason` 与 `rules/` 无 外部中文排版调研对象 源码/正则/词表拷贝；README 不写外部工具名。
 
 ## 跳过
 

@@ -14,7 +14,7 @@
   - 不做编程 agent harness、通用会话采集、运行 agent、挂钩子或拦截 LLM。
   - 不改 `check` / `update` / `judge` 既有语义、参数或退出码含义。
   - 不改 Yaomancy（或其他接入项目）代码、护栏、工作流；不写采集器。
-  - 不依赖 Promptfoo / Rea / Cedar / Ruler；不复制或翻译第三方实现。
+  - 不依赖 第三方测试或分析框架；不复制或翻译第三方实现。
   - 不承诺报告自动脱敏或默认回显完整原文；不把 fixture 冒充真实模型会话。
   - 不为日后 eval / Skill / harness 预留插件、适配层或配置开关。
 

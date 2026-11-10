@@ -37,9 +37,9 @@ rulemason result-check --record prd.json --requirements my-reqs.json
 - 正文里出现「非目标」字样但无标题行 → 不匹配（预期）。
 - `field` / `cjk` / `must_not_contain` 本轮无 severity。
 - 不自动扫仓；init/update **不**检查文档。
-- 不进默认判断红线；无 LLM/REA 运行时依赖。
-- REA 仅规划阶段只读分析；不能替代读 PM 技能正文。
-- CC BY-NC-SA 来源**未**再分发正文/模板。
+- 不进默认判断红线；无 LLM/静态分析工具 运行时依赖。
+- 静态分析工具 仅规划阶段只读分析；不能替代读 PM 技能正文。
+- 限制性许可证 来源**未**再分发正文/模板。
 
 ## 迁移
 
