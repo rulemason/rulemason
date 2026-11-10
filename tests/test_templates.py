@@ -74,6 +74,7 @@ def test_claude_block_imports_rules_and_maps_simplify_step():
         "@.rulemason/rules/result-check-contracts.md",
         "@.rulemason/rules/prose-hygiene.md",
         "@.rulemason/rules/agent-coding-caution.md",
+        "@.rulemason/rules/product-artifact-caution.md",
         "@.rulemason/rules/workflow-gates.md",
     ]
     assert "/simplify" in mapping and "代码逻辑" in mapping and "行为保持" in mapping
@@ -100,6 +101,7 @@ def test_opencode_and_ruff_templates_point_to_copies():
         ".rulemason/rules/result-check-contracts.md",
         ".rulemason/rules/prose-hygiene.md",
         ".rulemason/rules/agent-coding-caution.md",
+        ".rulemason/rules/product-artifact-caution.md",
         ".rulemason/rules/workflow-gates.md",
     ]
     assert 'extend = "$extend"' in ruff and "select" not in ruff

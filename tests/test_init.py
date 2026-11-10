@@ -198,6 +198,7 @@ def test_generated_copies_match_shared_source_and_manifest(project):
         "rules/result-check-contracts.md",
         "rules/prose-hygiene.md",
         "rules/agent-coding-caution.md",
+        "rules/product-artifact-caution.md",
         "lint/ruff-base.toml",
     ]
     for rel in rules:
@@ -1173,11 +1174,14 @@ def test_go_project_gets_only_generic_rules_and_update_adds_python_later(tmp_pat
     assert _init(root) == 0
     assert sorted(p.relative_to(root / ".rulemason").as_posix() for p in (root / ".rulemason").rglob("*") if p.is_file()) == [
         "README.md",
+        "result-check/product-artifact.hint.json",
+        "result-check/product-artifact.strict.json",
         "result-check/prose-hygiene.hint.json",
         "result-check/prose-hygiene.strict.json",
         "rules/agent-coding-caution.md",
         "rules/cjk-typography.md",
         "rules/code-style.md",
+        "rules/product-artifact-caution.md",
         "rules/prose-hygiene.md",
         "rules/result-check-contracts.md",
         "rules/workflow-gates.md",

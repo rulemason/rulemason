@@ -6,6 +6,7 @@
 @.rulemason/rules/result-check-contracts.md
 @.rulemason/rules/prose-hygiene.md
 @.rulemason/rules/agent-coding-caution.md
+@.rulemason/rules/product-artifact-caution.md
 @.rulemason/rules/workflow-gates.md
 
 Claude Code 下，workflow gates 的「自动精简」一步用 `/simplify` 执行，替换手工精简：

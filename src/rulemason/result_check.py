@@ -35,6 +35,11 @@ CHECK_SKIP = "skip"
 # 不阻断总体通过的状态（提示不得单独导致非零，也不得吞掉失败）
 _NON_BLOCKING = frozenset({STATUS_PASS, STATUS_HINT})
 
+# 文本类检查可选 severity：缺省 strict（保持 0.8.34 前「缺失即失败」）；hint 记提示不单独非零
+SEVERITY_HINT = "hint"
+SEVERITY_STRICT = "strict"
+_TEXT_SEVERITIES = frozenset({SEVERITY_HINT, SEVERITY_STRICT})
+
 SKILL_TYPES = frozenset({CHECK_SKILL, "skill", "skill_call", "skill_calls"})
 # field 项允许的键：检查项 type 与值类型 value_type 分开，避免 JSON 键冲突
 _FIELD_KEYS = frozenset({
@@ -175,8 +180,22 @@ def _structured_field(record: dict[str, Any]) -> tuple[Any, bool]:
     return value, True
 
 
+def _text_severity(check: dict[str, Any]) -> str | ItemResult:
+    """解析 must_contain / pattern 的 severity；缺省 strict。非法则返回输入错误项。"""
+    cid = check["_id"]
+    if "severity" not in check:
+        return SEVERITY_STRICT
+    sev = check["severity"]
+    if not isinstance(sev, str) or sev not in _TEXT_SEVERITIES:
+        return ItemResult(cid, STATUS_INPUT_ERROR, "severity 必须是 hint 或 strict")
+    return sev
+
+
 def _eval_must_contain(check: dict[str, Any], text: str | None, provided: bool) -> ItemResult:
     cid = check["_id"]
+    sev = _text_severity(check)
+    if isinstance(sev, ItemResult):
+        return sev
     needles = _text_needles(check)
     if needles is None:
         return ItemResult(cid, STATUS_INPUT_ERROR, "必须包含要求缺少有效 texts")
@@ -184,7 +203,11 @@ def _eval_must_contain(check: dict[str, Any], text: str | None, provided: bool) 
         return ItemResult(cid, STATUS_UNKNOWN, "未提供输出正文，无法判断必须包含")
     missing = [t for t in needles if t not in text]
     if missing:
-        return ItemResult(cid, STATUS_FAIL, f"缺少必需文字：{missing[0]}", evidence=_excerpt(text or ""))
+        expl = f"缺少必需文字：{missing[0]}"
+        evidence = _excerpt(text or "")
+        if sev == SEVERITY_HINT:
+            return ItemResult(cid, STATUS_HINT, f"【提示·不阻断】{expl}", evidence=evidence)
+        return ItemResult(cid, STATUS_FAIL, expl, evidence=evidence)
     return ItemResult(cid, STATUS_PASS, "必需文字均已出现", evidence=_excerpt(text or "", needles[0]))
 
 
@@ -203,6 +226,9 @@ def _eval_must_not_contain(check: dict[str, Any], text: str | None, provided: bo
 
 def _eval_pattern(check: dict[str, Any], text: str | None, provided: bool) -> ItemResult:
     cid = check["_id"]
+    sev = _text_severity(check)
+    if isinstance(sev, ItemResult):
+        return sev
     pattern = check.get("pattern")
     if not isinstance(pattern, str) or not pattern:
         return ItemResult(cid, STATUS_INPUT_ERROR, "模式要求缺少有效 pattern")
@@ -213,7 +239,11 @@ def _eval_pattern(check: dict[str, Any], text: str | None, provided: bool) -> It
     if not provided:
         return ItemResult(cid, STATUS_UNKNOWN, "未提供输出正文，无法判断模式")
     if compiled.search(text or "") is None:
-        return ItemResult(cid, STATUS_FAIL, "正文不匹配给定模式", evidence=_excerpt(text or ""))
+        expl = "正文不匹配给定模式"
+        evidence = _excerpt(text or "")
+        if sev == SEVERITY_HINT:
+            return ItemResult(cid, STATUS_HINT, f"【提示·不阻断】{expl}", evidence=evidence)
+        return ItemResult(cid, STATUS_FAIL, expl, evidence=evidence)
     return ItemResult(cid, STATUS_PASS, "正文匹配给定模式", evidence=_excerpt(text or ""))
 
 
