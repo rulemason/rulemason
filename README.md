@@ -85,12 +85,20 @@ rulemason init               # 2. 在项目根目录运行：勾选你用的 AI 
 
 ```mermaid
 flowchart TB
+  subgraph rules["内置规则（全程生效）"]
+    direction LR
+    R1["九条写法<br/>外部操作与密钥"]
+    R2["Python / React 落法<br/>界面文案三档<br/>按项目复制"]
+    R3["方案写法 · 编码审慎<br/>产品产物审慎 · 文案卫生<br/>中文排版"]
+    R1 ~~~ R2 ~~~ R3
+  end
   subgraph plan["方案"]
     direction LR
-    A["/opsx:propose<br/>写方案"] --> B{"判断方案<br/>（可选）"}
+    A["/opsx:propose<br/>写方案"] --> B{"判断方案<br/>有 key 才用 Jev"}
     B -- 格式问题 --> A
     B -- 碰到红线 --> U["停下问你"]
-    B -- 通过 --> C["/opsx:apply<br/>写代码前再查一次"]
+    B -- 通过 --> C["/opsx:apply<br/>写代码前再查一次<br/>有 key 才用 Jev"]
+    B -- 无 key --> N["不调用 Jev<br/>格式在本机，其余待人工<br/>--lint-only 只查格式"]
   end
   subgraph build["写代码与自动检查"]
     direction LR
@@ -98,9 +106,13 @@ flowchart TB
   end
   subgraph finish["收尾归档"]
     direction LR
-    I["前端 lint"] --> J["文案检查（需开启判断）"] --> K["写检查记录<br/>verification.md"] --> L["/opsx:archive<br/>归档"]
+    I["前端 lint"] --> J["文案检查（需开启判断）<br/>长文案：Jev（需 key）"] --> K["写检查记录<br/>verification.md"] --> L["/opsx:archive<br/>归档"]
   end
-  plan --> build --> finish
+  rules --> plan
+  rules --> build
+  rules --> finish
+  plan --> build
+  build --> finish
 ```
 
 <!-- TODO R3: recording of /opsx:apply running simplify, review, ruff, and tests, plus verification.md. -->
@@ -108,7 +120,8 @@ flowchart TB
 - **自动精简**：只动这次改动里的重复、死代码、多余抽象和过于复杂的逻辑，需求、对外行为和接口保持不变。Claude Code 里这一步用它自带的 `/simplify`。
 - **独立审查**：审查者拿不到文件和命令，只看交给它的改动和方案，从需求符合、正确性、安全、代码质量、测试、改动是否干净六个方面逐项给出结论。必须修的问题，以及改动范围内能安全修的意见，会自动修好再审，最多两轮。两轮后还有必须修的，就停下来说明。不把逐条审代码交给你。
 - **lint 与测试**：只修这次改动新引入的问题；改动前就有的问题列出数量，不顺手乱改。
-- **文案检查**：改了界面文案、并且已经开启判断时才跑。没开判断就跳过，汇报里写明“判断层未装”。
+- **判断**：方案写完、写代码前各查一次，可选。有 key 才把方案交给 Jev。设计文档的格式（否决理由、风险对策、回滚）始终在本机检查，不调用 Jev；`--lint-only` 只做这一段。没有 key 时不调用 Jev，其余规则记为待人工。
+- **文案检查**：改了界面文案、并且已经开启判断时才跑。禁词和短标签在本机查；较长的文案有 key 才交给 Jev。没开判断就跳过，汇报里写明“判断层未装”。没有 key 时不调用 Jev。
 - **不走 OpenSpec 的小改动**：项目有 `openspec/` 时，AI 先读已写好的规格。会破坏已承诺的行为就先停下问你；不会就直接改，改完跑 ruff 和测试。没有 OpenSpec 时不跑方案判断，直接改完同样只跑 ruff 和测试。这两种情况都不做自动精简和独立审查，也不写 `verification.md`。
 
 ## 接入后多出哪些文件
