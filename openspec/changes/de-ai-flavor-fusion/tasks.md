@@ -1,22 +1,17 @@
-## 0. 确认门（本轮只做到此）
+## 1. 规格与规则
 
-- [ ] 0.1 用户确认双轨方案与五条待决（见 artifacts `02-fusion-recommendation.md`）
-- [ ] 0.2 确认前**禁止**改 `prose_hygiene` 实现、测试行为、推送/合并 `bb187b2`
+- [x] 1.1 按确认决策更新本 change 的 proposal/design/specs
+- [x] 1.2 新增 `rules/prose-hygiene.md`、`rules/agent-coding-caution.md`；更新契约一句
+- [x] 1.3 分发：COPIED_SHARED、入口模板、AGENTS/CLAUDE
 
-## 1. 文案轨（确认后）
+## 2. 检查与入口
 
-- [ ] 1.1 按决议调整短名集与 `rules/prose-hygiene.md`（含去 AI 味表述边界）
-- [ ] 1.2 更新 `prose_hygiene` 实现/测试与 CLI 帮助；保持未声明类型时兼容
-- [ ] 1.3 误报集夹具（合法破折号、代码块、disable/allowlist）
+- [x] 2.1 `prose_hygiene.py` + result-check 接线：`severity`、状态「提示」、em_dash 可选
+- [x] 2.2 包内 hint/strict 预设；init/update 幂等种子；CLI `--preset`
+- [x] 2.3 测试：hint exit0、strict 非零、旧失败/非法仍非零、幂等、正反例、回归
 
-## 2. 编码轨（确认后）
+## 3. 验证
 
-- [ ] 2.1 自研 `rules/agent-coding-caution.md`（四原则意译 + 归因 + 非作者判别无关声明）
-- [ ] 2.2 按决议接入 `COPIED_SHARED` / 入口模板 / 测试
-- [ ] 2.3 与 `workflow-gates` 交叉引用（先确认再实现），不新增 result-check 类型
-
-## 3. 验证（确认并实现后）
-
-- [ ] 3.1 ruff / pytest / openspec strict
-- [ ] 3.2 付费 Jev 回归按当时政策；默认可不跑
-- [ ] 3.3 本地提交；推送/PR/发版仅在用户另行授权后
+- [x] 3.1 ruff / pytest / openspec strict
+- [x] 3.2 付费 Jev：不跑并注明
+- [x] 3.3 verification + artifacts；本地提交；不推送

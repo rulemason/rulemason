@@ -1,0 +1,99 @@
+=== hint preset (hit) ===
+{
+  "schema": 1,
+  "overall_pass": true,
+  "exit_code": 0,
+  "items": [
+    {
+      "id": "prose-hygiene",
+      "status": "提示",
+      "explanation": "【提示·不阻断】文案卫生命中：共 3 处（首条 chatbot_closer @ 1:1）",
+      "evidence": "{\"hit_total\":3,\"hits_truncated\":false,\"hits\":[{\"rule\":\"chatbot_closer\",\"line\":1,\"column\":1,\"offset\":0,\"length\":17},{\"rule\":\"signpost_opener\",\"line\":2,\"column\":1,\"offset\":46,\"length\":13},{\"rule\":\"not_just_contrast\",\"line\":3,\"column\":1,\"offset\":72,\"length\":17}]}"
+    }
+  ],
+  "source": {},
+  "scope": "",
+  "limits": "来源标识可核对，不等于防伪或真实性验证；未采集的证据不得默认通过",
+  "input_errors": []
+}
+EXIT:0
+
+=== strict preset (hit) ===
+{
+  "schema": 1,
+  "overall_pass": false,
+  "exit_code": 1,
+  "items": [
+    {
+      "id": "prose-hygiene",
+      "status": "失败",
+      "explanation": "文案卫生命中：共 3 处（首条 chatbot_closer @ 1:1）",
+      "evidence": "{\"hit_total\":3,\"hits_truncated\":false,\"hits\":[{\"rule\":\"chatbot_closer\",\"line\":1,\"column\":1,\"offset\":0,\"length\":17},{\"rule\":\"signpost_opener\",\"line\":2,\"column\":1,\"offset\":46,\"length\":13},{\"rule\":\"not_just_contrast\",\"line\":3,\"column\":1,\"offset\":72,\"length\":17}]}"
+    }
+  ],
+  "source": {},
+  "scope": "",
+  "limits": "来源标识可核对，不等于防伪或真实性验证；未采集的证据不得默认通过",
+  "input_errors": []
+}
+EXIT:1
+
+=== hint preset (clean) ===
+总体：通过（exit=0）
+来源：（未提供）
+范围：（未提供）
+限度：来源标识可核对，不等于防伪或真实性验证；未采集的证据不得默认通过
+- [prose-hygiene] 通过：文案卫生约束通过
+EXIT:0
+
+=== off (no prose type) ===
+总体：未通过（exit=1）
+来源：（未提供）
+范围：（未提供）
+限度：来源标识可核对，不等于防伪或真实性验证；未采集的证据不得默认通过
+- [noop] 失败：缺少必需文字：Pricing；依据=字段 text；长度 43
+EXIT:1
+
+=== em_dash strict on ===
+总体：未通过（exit=1）
+来源：（未提供）
+范围：（未提供）
+限度：来源标识可核对，不等于防伪或真实性验证；未采集的证据不得默认通过
+- [p] 失败：文案卫生命中：共 2 处（首条 em_dash @ 1:12）；依据={"hit_total":2,"hits_truncated":false,"hits":[{"rule":"em_dash","line":1,"column":12,"offset":11,"length":1},{"rule":"em_dash","line":1,"column":34,"offset":33,"length":1}]}
+EXIT:1
+
+=== cjk fail + prose hint still nonzero ===
+总体：未通过（exit=1）
+来源：（未提供）
+范围：（未提供）
+限度：来源标识可核对，不等于防伪或真实性验证；未采集的证据不得默认通过
+- [c] 失败：中文排版未通过：共 1 处（首条 cjk_latin_space @ 1:2）；依据={"hit_total":1,"hits_truncated":false,"hits":[{"rule":"cjk_latin_space","line":1,"column":2,"offset":1,"length":2}]}
+- [p] 提示：【提示·不阻断】文案卫生命中：共 1 处（首条 chatbot_closer @ 1:7）；依据={"hit_total":1,"hits_truncated":false,"hits":[{"rule":"chatbot_closer","line":1,"column":7,"offset":6,"length":17}]}
+EXIT:1
+
+=== bad severity ===
+{
+  "schema": 1,
+  "overall_pass": false,
+  "exit_code": 2,
+  "items": [
+    {
+      "id": "p",
+      "status": "输入错误",
+      "explanation": "severity 必须是 hint 或 strict",
+      "evidence": null
+    }
+  ],
+  "source": {},
+  "scope": "",
+  "limits": "来源标识可核对，不等于防伪或真实性验证；未采集的证据不得默认通过",
+  "input_errors": []
+}
+EXIT:2
+=== off (no prose; em-dash text OK) ===
+总体：通过（exit=0）
+来源：（未提供）
+范围：（未提供）
+限度：来源标识可核对，不等于防伪或真实性验证；未采集的证据不得默认通过
+- [noop] 通过：必需文字均已出现；依据=字段 text；长度 43；The policy — announced…
+EXIT:0

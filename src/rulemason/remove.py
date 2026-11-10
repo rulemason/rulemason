@@ -29,6 +29,8 @@ from rulemason.shared import (
     COPY_DIR,
     MANIFEST,
     NAME,
+    RESULT_CHECK_PRESET_DIR,
+    RESULT_CHECK_PRESETS,
     list_files,
     read_yaml,
     shared_root,
@@ -194,6 +196,11 @@ def build_removal(root: Path, manifest: dict) -> Plan:
     plan_opencode_removal(root, files, plan)
     plan_operations_removal(root, plan)
     plan.notes += project_content_notes(root, moved, plan)
+    # 种子预设不进清单，卸载时仍删除已知文件名（避免留下空的 .rulemason/）
+    for filename in RESULT_CHECK_PRESETS:
+        rel = f"{RESULT_CHECK_PRESET_DIR}/{filename}"
+        if (root / rel).is_file() and rel not in plan.deletes:
+            plan.deletes.append(rel)
     plan.deletes.append(MANIFEST)                            # 清单最后删：中途失败时还能重跑 remove
     return plan
 

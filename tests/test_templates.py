@@ -72,6 +72,8 @@ def test_claude_block_imports_rules_and_maps_simplify_step():
         "@.rulemason/rules/react.md",
         "@.rulemason/rules/cjk-typography.md",
         "@.rulemason/rules/result-check-contracts.md",
+        "@.rulemason/rules/prose-hygiene.md",
+        "@.rulemason/rules/agent-coding-caution.md",
         "@.rulemason/rules/workflow-gates.md",
     ]
     assert "/simplify" in mapping and "代码逻辑" in mapping and "行为保持" in mapping
@@ -82,7 +84,7 @@ def test_claude_block_imports_rules_and_maps_simplify_step():
     assert (ROOT / "CLAUDE.md").read_text(encoding="utf-8") == own.replace(".rulemason/", "")
     # 其余模板（其他工具的入口、共用标记块）都不出现 /simplify；共享正文的同类检查在 test_workflow_gate_uses_automatic_review_not_simplify
     for path in TEMPLATES.iterdir():
-        if path.name != "claude.block.md" and not path.name.startswith("."):      # 跳过 .DS_Store 等本机文件
+        if path.is_file() and path.name != "claude.block.md" and not path.name.startswith("."):  # 跳过目录与 .DS_Store
             assert "/simplify" not in path.read_text(encoding="utf-8"), path.name
 
 
@@ -96,6 +98,8 @@ def test_opencode_and_ruff_templates_point_to_copies():
         ".rulemason/rules/react.md",
         ".rulemason/rules/cjk-typography.md",
         ".rulemason/rules/result-check-contracts.md",
+        ".rulemason/rules/prose-hygiene.md",
+        ".rulemason/rules/agent-coding-caution.md",
         ".rulemason/rules/workflow-gates.md",
     ]
     assert 'extend = "$extend"' in ruff and "select" not in ruff

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from rulemason import cjk_typography as _cjk
+from rulemason import prose_hygiene as _prose
 
 SCHEMA = 1
 STATUS_PASS = "通过"
@@ -15,6 +16,7 @@ STATUS_FAIL = "失败"
 STATUS_UNKNOWN = "无法判断"
 STATUS_SKIP = "未检查/不适用"
 STATUS_INPUT_ERROR = "输入错误"
+STATUS_HINT = "提示"
 
 EXIT_OK = 0
 EXIT_NOT_PASS = 1
@@ -26,8 +28,12 @@ CHECK_PATTERN = "pattern"
 CHECK_STRUCTURED_KEYS = "structured_keys"
 CHECK_FIELD = "field"
 CHECK_CJK_TYPOGRAPHY = "cjk_typography"
+CHECK_PROSE_HYGIENE = "prose_hygiene"
 CHECK_SKILL = "skill_present"
 CHECK_SKIP = "skip"
+
+# 不阻断总体通过的状态（提示不得单独导致非零，也不得吞掉失败）
+_NON_BLOCKING = frozenset({STATUS_PASS, STATUS_HINT})
 
 SKILL_TYPES = frozenset({CHECK_SKILL, "skill", "skill_call", "skill_calls"})
 # field 项允许的键：检查项 type 与值类型 value_type 分开，避免 JSON 键冲突
@@ -729,6 +735,109 @@ def _leaf_missing(structured: Any, path: str) -> bool:
     return False
 
 
+def _prose_body(
+    check: dict[str, Any], text: str | None, text_ok: bool, structured: Any, struct_ok: bool,
+) -> ItemResult | str:
+    cid = check["_id"]
+    err = _prose.config_error(check)
+    if err:
+        return ItemResult(cid, STATUS_INPUT_ERROR, err)
+    path = check.get("path")
+    if path is not None:
+        if not struct_ok:
+            return ItemResult(cid, STATUS_UNKNOWN, "未提供结构化输出，无法判断文案卫生")
+        if not isinstance(structured, dict):
+            return ItemResult(cid, STATUS_FAIL, "结构化输出不可解析为对象")
+        kind, value = _resolve_path(structured, path.strip())
+        if kind == "skip":
+            return ItemResult(cid, STATUS_SKIP, f"路径 {path} 的前缀为 null 或缺失，跳过")
+        if kind == "fail":
+            return ItemResult(cid, STATUS_FAIL, f"路径 {path} 的前缀不可下降为对象")
+        if _leaf_missing(structured, path.strip()):
+            return ItemResult(cid, STATUS_FAIL, f"缺少路径：{path}")
+        if not isinstance(value, str):
+            return ItemResult(cid, STATUS_FAIL, f"路径 {path} 的值不是字符串")
+        return value
+    if not text_ok:
+        return ItemResult(cid, STATUS_UNKNOWN, "未提供输出正文，无法判断文案卫生")
+    return text or ""
+
+
+def _prose_hit_payload(body: str, hits: list[Any], max_hits: int) -> tuple[str, str]:
+    total = len(hits)
+    shown = hits[:max_hits]
+    truncated = total > max_hits
+    rows = []
+    for h in shown:
+        line, col = _prose.offset_to_line_col(body, h.offset)
+        rows.append({
+            "rule": h.rule, "line": line, "column": col,
+            "offset": h.offset, "length": h.length,
+        })
+    first = rows[0]
+    if truncated:
+        expl = (
+            f"文案卫生命中：共 {total} 处，显示前 {len(rows)} 处"
+            f"（首条 {first['rule']} @ {first['line']}:{first['column']}）"
+        )
+    else:
+        expl = (
+            f"文案卫生命中：共 {total} 处"
+            f"（首条 {first['rule']} @ {first['line']}:{first['column']}）"
+        )
+    evidence = json.dumps(
+        {"hit_total": total, "hits_truncated": truncated, "hits": rows},
+        ensure_ascii=False, separators=(",", ":"),
+    )
+    return expl, evidence
+
+
+def _eval_prose_hygiene(
+    check: dict[str, Any], text: str | None, text_ok: bool, structured: Any, struct_ok: bool,
+) -> ItemResult:
+    cid = check["_id"]
+    body = _prose_body(check, text, text_ok, structured, struct_ok)
+    if isinstance(body, ItemResult):
+        return body
+    if err := _prose.directive_error(body):
+        return ItemResult(cid, STATUS_INPUT_ERROR, err)
+    allow = check.get("allowlist") if isinstance(check.get("allowlist"), list) else None
+    max_hits = check.get("max_hits", _prose.DEFAULT_MAX_HITS)
+    if not isinstance(max_hits, int) or isinstance(max_hits, bool) or max_hits < 1:
+        max_hits = _prose.DEFAULT_MAX_HITS
+    severity = check.get("severity", _prose.DEFAULT_SEVERITY)
+    if not isinstance(severity, str) or severity not in _prose.KNOWN_SEVERITIES:
+        severity = _prose.DEFAULT_SEVERITY
+    hits = _prose.find_hits(body, list(check["rules"]), allowlist=allow)
+    if not hits:
+        return ItemResult(cid, STATUS_PASS, "文案卫生约束通过")
+    expl, evidence = _prose_hit_payload(body, hits, max_hits)
+    if severity == _prose.SEVERITY_STRICT:
+        return ItemResult(cid, STATUS_FAIL, expl, evidence=evidence)
+    return ItemResult(cid, STATUS_HINT, f"【提示·不阻断】{expl}", evidence=evidence)
+
+
+def _dispatch_check(
+    ctype: str, check: dict[str, Any], text: str | None, text_ok: bool,
+    structured: Any, struct_ok: bool,
+) -> ItemResult | None:
+    if ctype == CHECK_MUST_CONTAIN:
+        return _eval_must_contain(check, text, text_ok)
+    if ctype == CHECK_MUST_NOT_CONTAIN:
+        return _eval_must_not_contain(check, text, text_ok)
+    if ctype == CHECK_PATTERN:
+        return _eval_pattern(check, text, text_ok)
+    if ctype == CHECK_STRUCTURED_KEYS:
+        return _eval_structured_keys(check, structured, struct_ok)
+    if ctype == CHECK_FIELD:
+        return _eval_field(check, structured, struct_ok)
+    if ctype == CHECK_CJK_TYPOGRAPHY:
+        return _eval_cjk_typography(check, text, text_ok, structured, struct_ok)
+    if ctype == CHECK_PROSE_HYGIENE:
+        return _eval_prose_hygiene(check, text, text_ok, structured, struct_ok)
+    return None
+
+
 def _eval_one(check: dict[str, Any], record: dict[str, Any]) -> ItemResult:
     ctype = check.get("type")
     cid = check["_id"]
@@ -742,18 +851,9 @@ def _eval_one(check: dict[str, Any], record: dict[str, Any]) -> ItemResult:
         return ItemResult(cid, STATUS_SKIP, reason)
     text, text_ok = _text_field(record)
     structured, struct_ok = _structured_field(record)
-    if ctype == CHECK_MUST_CONTAIN:
-        return _eval_must_contain(check, text, text_ok)
-    if ctype == CHECK_MUST_NOT_CONTAIN:
-        return _eval_must_not_contain(check, text, text_ok)
-    if ctype == CHECK_PATTERN:
-        return _eval_pattern(check, text, text_ok)
-    if ctype == CHECK_STRUCTURED_KEYS:
-        return _eval_structured_keys(check, structured, struct_ok)
-    if ctype == CHECK_FIELD:
-        return _eval_field(check, structured, struct_ok)
-    if ctype == CHECK_CJK_TYPOGRAPHY:
-        return _eval_cjk_typography(check, text, text_ok, structured, struct_ok)
+    hit = _dispatch_check(ctype, check, text, text_ok, structured, struct_ok)
+    if hit is not None:
+        return hit
     return ItemResult(cid, STATUS_INPUT_ERROR, f"未知检查类型：{ctype}")
 
 
@@ -794,14 +894,17 @@ def _eval_checks(checks: list[Any], record: dict[str, Any]) -> list[ItemResult]:
 
 
 def _summarize(items: list[ItemResult], input_errors: list[str]) -> tuple[bool, int, list[str]]:
-    """返回 (overall_pass, exit_code, 可能追加的 input_errors)。"""
+    """返回 (overall_pass, exit_code, 可能追加的 input_errors)。
+
+    「提示」不单独导致非零，也不得掩盖失败/无法判断/输入错误。
+    """
     errors = list(input_errors)
     has_input_error = any(it.status == STATUS_INPUT_ERROR for it in items) or bool(errors)
     required = [it for it in items if it.status != STATUS_SKIP]
     overall = (
         not has_input_error
         and bool(required)
-        and all(it.status == STATUS_PASS for it in required)
+        and all(it.status in _NON_BLOCKING for it in required)
     )
     if has_input_error:
         code = EXIT_INPUT_ERROR
@@ -852,8 +955,15 @@ def run_check(record_raw: Any, requirements_raw: Any) -> CheckReport:
 
 def render_human(report: CheckReport) -> str:
     """默认人读报告：状态与短摘录，不含完整输入原文。"""
+    has_hint = any(it.status == STATUS_HINT for it in report.items)
+    if report.overall_pass and has_hint:
+        overall_label = "通过（含提示）"
+    elif report.overall_pass:
+        overall_label = "通过"
+    else:
+        overall_label = "未通过"
     lines = [
-        f"总体：{'通过' if report.overall_pass else '未通过'}（exit={report.exit_code}）",
+        f"总体：{overall_label}（exit={report.exit_code}）",
         f"来源：{json.dumps(report.source, ensure_ascii=False) if report.source else '（未提供）'}",
         f"范围：{report.scope or '（未提供）'}",
         f"限度：{report.limits}",

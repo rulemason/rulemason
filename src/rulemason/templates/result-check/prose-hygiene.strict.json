@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "checks": [
+    {
+      "id": "prose-hygiene",
+      "type": "prose_hygiene",
+      "rules": [
+        "chatbot_closer",
+        "signpost_opener",
+        "not_just_contrast"
+      ],
+      "max_hits": 50,
+      "severity": "strict"
+    }
+  ]
+}

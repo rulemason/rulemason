@@ -1,8 +1,15 @@
 ## ADDED Requirements
 
-### Requirement: 编码审慎与文案卫生规矩的分发（确认后）
-在用户确认分发策略后，`init`/`update` SHALL 将 `rules/prose-hygiene.md` 与 `rules/agent-coding-caution.md`（最终文件名以实施为准）按决议复制进 `.rulemason/rules/`，入口块可注明阅读场合（文案检查显式启用时 / 写码改码时）。`check` MUST 在已记录的副本被手改时非 0 退出。MUST NOT 因新增规矩文件而改变未使用 `prose_hygiene` 的项目的 result-check 行为。
+### Requirement: 文案卫生与编码审慎规矩必复制
+`init` 与 `update` SHALL 把 `rules/prose-hygiene.md` 与 `rules/agent-coding-caution.md` 复制进 `.rulemason/rules/`（所有接入项目必复制），入口块 SHALL 引用二者并注明阅读场合。清单记录校验值；手改副本时 `check` 非 0。
 
-#### Scenario: 补齐副本不改变旧检查
-- **WHEN** 已接入项目升级并 `rulemason update` 补上上述规矩文件，且其 requirements 未声明 `prose_hygiene`
-- **THEN** 既有 result-check 退出行为与升级前一致
+#### Scenario: Go 项目也拿到两份
+- **WHEN** 仅有 `go.mod` 的项目 `rulemason init --yes`
+- **THEN** `.rulemason/rules/` 含 `prose-hygiene.md` 与 `agent-coding-caution.md`
+
+### Requirement: result-check 预设种子幂等
+`init` 与 `update` SHALL 在 `.rulemason/result-check/` 下种入 `prose-hygiene.hint.json` 与 `prose-hygiene.strict.json`：**仅当目标文件不存在时写入**；已存在则保留用户内容，不得覆盖。这些种子 MUST NOT 进入与共享规则相同的「落后必覆盖」校验集。
+
+#### Scenario: 重复 update 不覆盖种子
+- **WHEN** 用户改过 `.rulemason/result-check/prose-hygiene.hint.json` 后再 `rulemason update --yes`
+- **THEN** 该文件内容保持用户修改

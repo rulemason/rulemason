@@ -48,6 +48,7 @@ from rulemason.shared import (
     read_manifest,
     repo_root_hint,
     scan,
+    seed_result_check_presets,
     sha256_file,
     skill_dirs,
     skill_hint_lines,
@@ -948,6 +949,11 @@ def guide_key(root: Path) -> None:
         print(f"以后运行 {NAME} key 即可配置。")
 
 
+def _announce_seeded_presets(seeded: list[str]) -> None:
+    if seeded:
+        print("已种入 result-check 预设（仅首次）：" + "、".join(seeded))
+
+
 def run(root: Path, tools_arg: str | None, yes: bool, plan_only: bool = False, as_json: bool = False, at_cwd: bool = False) -> int:
     """at_cwd：项目根就是运行命令的目录（没给路径，或给的就是当前目录）；只有这时才提示所在 git 仓库根。"""
     try:
@@ -983,6 +989,8 @@ def run(root: Path, tools_arg: str | None, yes: bool, plan_only: bool = False, a
             return 1
     else:
         print_plan(root, plan)                                # 没有要改的文件：只打印提示与跳过项
+
+    _announce_seeded_presets(seed_result_check_presets(root))
 
     # 5. 汇报：结论、待办、下一步；交互时再引导配置 key
     report(root, plan, with_openspec, tools)

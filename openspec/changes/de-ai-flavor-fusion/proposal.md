@@ -2,35 +2,30 @@
 
 ## Why
 
-需要在「去 AI 味 / 表达更自然」上加强可解释能力，并把 anti-slop 候选 `prose_hygiene` 与社区整理的 Karpathy-inspired **编码行为**指南分轨融合。若把编码过程规则硬塞进禁词检测，或把禁破折号宣传成去 AI 味，会误导且误报高。本 change **仅规划**：等用户确认后再实现。
+在可解释的「去套话」与编码审慎指导上开箱可用：规则随 init/update 自动分发；文案检查默认只提示不阻断 CI；严格阻断由用户显式选择。避免把禁破折号或编码过程规则伪装成作者判别。
 
 ## What Changes
 
-（确认后才实施；本轮不改运行时代码。）
-
-- **文案轨**：在候选 `prose_hygiene` 上修订推荐短名集——保留 `chatbot_closer` / `signpost_opener` / `not_just_contrast`；将 `em_dash` 移出推荐默认组合（删除或降为高级可选，待决）；规则层强调非作者判别、不自动改事实。
-- **编码轨**：新增自研共享规矩（建议 `rules/agent-coding-caution.md`），意译四原则（先想清、简单、外科手术、目标可验证），经 init/update 分发；**不做**新 result-check 类型。
-- **明确不做**：搬迁对方 skill/安装器/EXAMPLES；复制词表；付费「AI 味」评分；默认 CI 全局阻塞；宣称 Karpathy 官方；在未确认前推送/合并 `bb187b2`。
+- **文案轨** `prose_hygiene`：推荐短名 `chatbot_closer` / `signpost_opener` / `not_just_contrast`；`em_dash` 仅高级可选（默认关闭）。新增 `severity`：`hint`（默认，命中为「提示」、不单独导致非零）/ `strict`（命中失败非零）。非法配置仍 exit 2；其他类型失败/无法判断仍非零；提示不得吞掉其他错误。
+- **入口**：打包 hint/strict 预设；init/update **仅在缺失时**种入 `.rulemason/result-check/prose-hygiene.*.json`（不覆盖已有）；CLI `--preset hint|strict` 可直接跑（优先项目种子，否则包内模板）。**不**改 `rulemason check` 退出语义、**不**默认扫仓阻断。
+- **编码轨**：自研 `rules/agent-coding-caution.md` 必复制；不做 result-check 类型。
+- **规则层**：`rules/prose-hygiene.md` 必复制；入口块默认提示阅读场合与 hint/strict。
+- **不做**：作者判别、大词表、`--fix`、付费模型、Yaomancy、推送/发版；不原样强推 `bb187b2`。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `agent-coding-caution`：共享编码审慎规矩（规则层）。
+- `agent-coding-caution`：编码审慎共享规矩。
+- `prose-hygiene`：文案卫生规矩与推荐短名。
 
 ### Modified Capabilities
 
-- `prose-hygiene`：修订短名推荐集与文档边界（相对候选实现）。
-- `run-result-check`：仅当确认保留/调整 `prose_hygiene` 短名时改检查契约。
-- `rulekit-cli`：若确认必复制新规矩文件则改 init/update 清单。
+- `run-result-check`：`prose_hygiene` 类型、`severity`、提示状态与退出码交互。
+- `rulekit-cli`：必复制两份规矩；种子预设幂等；CLI preset。
 
 ## Impact
 
-- 候选提交 `bb187b2` 保留为历史候选，不作为已批准上线。
-- 确认后的实现应自 `main` 重做或另提交修订，保持旧 API：未声明 `prose_hygiene` 则行为不变。
-- 第三方仅行为启发 + 归因；不嵌入对方正文（尤其对方缺 LICENSE 文件时）。
-
-## Non-goals
-
-- 本轮不实现、不勾实现任务为完成、不归档、不推送、不发版、不改 Yaomancy/Notion。
-- 不把编码过程规则伪装成确定性文案检测。
+- 未声明 `prose_hygiene` 的旧 requirements：行为与退出码不变。
+- 旧 cjk/field 失败仍为 1；输入错误仍为 2。
+- 第三方仅行为启发与归因。
