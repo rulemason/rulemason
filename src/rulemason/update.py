@@ -29,6 +29,7 @@ from rulemason.shared import (
     has_openspec,
     list_files,
     repo_root_hint,
+    seed_result_check_presets,
 )
 
 FILL_TITLE = "补齐计划（写进项目文件的 rulemason 基础配置，升级时与副本一起提交）："
@@ -84,6 +85,11 @@ def show_dry_run(root: Path, managed: Plan, fill_writes: dict[str, str], notes: 
     print(f"只列计划，未写任何文件。{ask}")
 
 
+def _announce_seeded_presets(seeded: list[str]) -> None:
+    if seeded:
+        print("已种入 result-check 预设（仅首次，不覆盖已有）：" + "、".join(seeded))
+
+
 def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = False) -> int:
     # 1. 预检：源码仓库本身、没有或无效的 manifest 都停下
     try:
@@ -113,6 +119,8 @@ def run(root: Path, yes: bool = False, dry_run: bool = False, as_json: bool = Fa
     if managed.overwritten:
         print("以下副本或标记块与共享版本不一致（被手改，或项目新增了语言），已按共享版本刷新：")
         print(bullets(managed.overwritten), end="")
+
+    _announce_seeded_presets(seed_result_check_presets(root))
 
     # 4. 补齐：交互确认或 --yes 才写，否则只列为待补齐
     if fill_writes:

@@ -88,7 +88,7 @@
 
 #### Scenario: Go 项目只拿到通用规则
 - **WHEN** 只有 `go.mod` 与 `.go` 文件的项目运行 `rulemason init --tools claude --yes`
-- **THEN** `.rulemason/` 下只有 `rules/code-style.md`、`rules/workflow-gates.md`、`rules/cjk-typography.md`、`rules/result-check-contracts.md` 与 `README.md`，没有 `python.md`、`react.md`、`copy-voice.md` 与 `lint/`；`check` 不报缺少副本
+- **THEN** `.rulemason/` 下含 `rules/code-style.md`、`rules/workflow-gates.md`、`rules/cjk-typography.md`、`rules/result-check-contracts.md`、`rules/prose-hygiene.md`、`rules/agent-coding-caution.md`、`README.md`，以及首次种入的 `result-check/prose-hygiene.hint.json` 与 `prose-hygiene.strict.json`；没有 `python.md`、`react.md`、`copy-voice.md` 与 `lint/`；`check` 不报缺少副本
 
 #### Scenario: 后来加了 Python
 - **WHEN** 上述项目新增 `pyproject.toml` 后运行 `rulemason update`
@@ -1032,3 +1032,17 @@ rulemason 调用 git 读取输出或传入路径时 SHALL 按 UTF-8 编码，MUS
 #### Scenario: 归档缺汇报和未归档的 change 一起列出
 - **WHEN** 最近一天的归档里有一个 change 没有 `verification.md`，同时 `openspec/changes/` 里另有一个任务已全部勾完的 change
 - **THEN** 这一项同时列出两者
+
+### Requirement: 文案卫生与编码审慎规矩必复制
+`init` 与 `update` SHALL 把 `rules/prose-hygiene.md` 与 `rules/agent-coding-caution.md` 复制进 `.rulemason/rules/`（所有接入项目必复制），入口块 SHALL 引用二者并注明阅读场合。清单记录校验值；手改副本时 `check` 非 0。
+
+#### Scenario: Go 项目也拿到两份
+- **WHEN** 仅有 `go.mod` 的项目 `rulemason init --yes`
+- **THEN** `.rulemason/rules/` 含 `prose-hygiene.md` 与 `agent-coding-caution.md`
+
+### Requirement: result-check 预设种子幂等
+`init` 与 `update` SHALL 在 `.rulemason/result-check/` 下种入 `prose-hygiene.hint.json` 与 `prose-hygiene.strict.json`：**仅当目标文件不存在时写入**；已存在则保留用户内容，不得覆盖。这些种子 MUST NOT 进入与共享规则相同的「落后必覆盖」校验集。
+
+#### Scenario: 重复 update 不覆盖种子
+- **WHEN** 用户改过 `.rulemason/result-check/prose-hygiene.hint.json` 后再 `rulemason update --yes`
+- **THEN** 该文件内容保持用户修改

@@ -3,6 +3,8 @@
 @rules/python.md
 @rules/cjk-typography.md
 @rules/result-check-contracts.md
+@rules/prose-hygiene.md
+@rules/agent-coding-caution.md
 @rules/workflow-gates.md
 
 Claude Code 下，workflow gates 的「自动精简」一步用 `/simplify` 执行，替换手工精简：

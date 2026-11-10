@@ -37,6 +37,8 @@ COPIED_SHARED = (
     "rules/copy-voice.md",
     "rules/cjk-typography.md",
     "rules/result-check-contracts.md",
+    "rules/prose-hygiene.md",
+    "rules/agent-coding-caution.md",
     "lint/ruff-base.toml",
     "lint/eslint-base.mjs",
 )
@@ -196,6 +198,46 @@ def generated_files(tools: list[str], rules: tuple[str, ...] | list[str] = COPIE
 def copy_record(files: dict[str, str]) -> dict[str, str]:
     """生成副本的清单记录：相对路径 → 校验值。init / update 写进清单，check 拿来比较是否落后。"""
     return {rel: sha256_text(content) for rel, content in files.items()}
+
+
+# result-check 预设：仅首次种入，不进清单覆盖集
+RESULT_CHECK_PRESET_DIR = f"{COPY_DIR}/result-check"
+RESULT_CHECK_PRESETS = ("prose-hygiene.hint.json", "prose-hygiene.strict.json")
+
+
+def packaged_result_check_preset(name: str) -> str:
+    """读取包内预设正文；name 为 hint 或 strict。"""
+    key = "hint" if name == "hint" else "strict" if name == "strict" else ""
+    if not key:
+        raise ValueError("preset 必须是 hint 或 strict")
+    path = Path(__file__).parent / "templates" / "result-check" / f"prose-hygiene.{key}.json"
+    return path.read_text(encoding="utf-8")
+
+
+def resolve_result_check_preset(root: Path | None, name: str) -> Path | str:
+    """项目种子优先，否则返回包内正文字符串。"""
+    key = "hint" if name == "hint" else "strict" if name == "strict" else ""
+    if not key:
+        raise ValueError("preset 必须是 hint 或 strict")
+    if root is not None:
+        seeded = root / RESULT_CHECK_PRESET_DIR / f"prose-hygiene.{key}.json"
+        if seeded.is_file():
+            return seeded
+    return packaged_result_check_preset(key)
+
+
+def seed_result_check_presets(root: Path) -> list[str]:
+    """若目标不存在则写入预设；已存在则跳过。返回新写入的相对路径列表。"""
+    written: list[str] = []
+    for filename in RESULT_CHECK_PRESETS:
+        key = "hint" if filename.endswith(".hint.json") else "strict"
+        rel = f"{RESULT_CHECK_PRESET_DIR}/{filename}"
+        dest = root / rel
+        if dest.is_file() or dest.is_symlink():
+            continue
+        write_text(dest, packaged_result_check_preset(key))
+        written.append(rel)
+    return written
 
 
 def sha256_text(text: str) -> str:

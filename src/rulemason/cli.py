@@ -30,10 +30,15 @@ optional、minimum/maximum、min_length/max_length（Unicode 码点）、enum、
 度百分号、全角标点旁空格、半角标点夹汉字、表意空格等）；检查前剥离围栏（含 ~~~）/缩进代码/
 行内代码、链接目标与自动链接、引用式定义、裸 URL、行内 HTML；HTML 注释 rulemason-disable/
 enable 可临时关闭规则；可选 allowlist、units、max_hits（默认 50，截断时标明总数）。
+支持 prose_hygiene：推荐短名 chatbot_closer / signpost_opener / not_just_contrast；
+em_dash 高级可选（默认关闭）。severity=hint（默认）命中为「提示」且单独不导致非零；
+severity=strict 命中失败。提示不吞掉其他失败或输入错误。可用 --preset hint|strict
+（项目 .rulemason/result-check 种子优先，否则包内模板）。init/update 自动分发规则正文，
+并仅在缺失时种入预设；不会自动扫仓或改 check 退出码。
 父路径为 null 或键缺失时，子路径项记未检查/不适用。约束由调用方 requirements 提供。
 旧 structured_keys 等类型语义不变。本期排除 Skill 出现检查。
 模式核对信任调用方提供的模式（本地确定性，无超时沙箱）。
-不改 check / update / judge 的既有语义。退出码：0 总体通过；1 失败或无法判断；2 输入错误。
+不改 check / update / judge 的既有语义。退出码：0 总体通过（可含提示）；1 失败或无法判断；2 输入错误。
 """
 
 
@@ -66,7 +71,12 @@ def main(argv: list[str] | None = None) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p_result.add_argument("--record", required=True, help="运行记录 JSON 路径（调用方提供）")
-    p_result.add_argument("--requirements", required=True, help="检查要求 JSON 路径")
+    p_result.add_argument("--requirements", help="检查要求 JSON 路径（与 --preset 二选一）")
+    p_result.add_argument(
+        "--preset",
+        choices=("hint", "strict"),
+        help="使用 prose_hygiene 预设（hint 默认提示不阻断；strict 阻断）；与 --requirements 二选一",
+    )
     p_result.add_argument("--json", action="store_true", help="只输出机器可读 JSON（schema 自有，不改 check --json）")
     argv = sys.argv[1:] if argv is None else argv
     if not argv and banner.interactive():
@@ -111,7 +121,39 @@ def _dispatch(args: argparse.Namespace) -> int:
 
 
 def _run_result_check(args: argparse.Namespace) -> int:
-    report = result_check.run_files(Path(args.record), Path(args.requirements))
+    if bool(args.requirements) == bool(args.preset):
+        raise ValueError("result-check 须指定 --requirements 或 --preset 之一（不能同时、不能都缺）")
+    record_path = Path(args.record)
+    if args.preset:
+        from rulemason.shared import find_root, resolve_result_check_preset
+
+        root = find_root(Path.cwd().resolve())
+        resolved = resolve_result_check_preset(root, args.preset)
+        if isinstance(resolved, Path):
+            report = result_check.run_files(record_path, resolved)
+        else:
+            # 包内模板：无项目种子时直接喂正文，记录文件错误归一为 exit 2
+            try:
+                report = result_check.run_check(
+                    result_check.load_json(record_path),
+                    json.loads(resolved),
+                )
+            except FileNotFoundError as exc:
+                report = result_check.CheckReport(
+                    schema=result_check.SCHEMA, overall_pass=False,
+                    exit_code=result_check.EXIT_INPUT_ERROR, items=[],
+                    limits="输入文件缺失，未执行逐项检查",
+                    input_errors=[f"文件不存在：{exc.filename or exc}"],
+                )
+            except (OSError, ValueError) as exc:
+                report = result_check.CheckReport(
+                    schema=result_check.SCHEMA, overall_pass=False,
+                    exit_code=result_check.EXIT_INPUT_ERROR, items=[],
+                    limits="输入损坏，未执行逐项检查",
+                    input_errors=[str(exc)],
+                )
+    else:
+        report = result_check.run_files(record_path, Path(args.requirements))
     if args.json:
         print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
     else:
