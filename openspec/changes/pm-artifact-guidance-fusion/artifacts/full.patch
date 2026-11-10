@@ -1,0 +1,1637 @@
+From 5258e72f34ec5164f451f9325b98975c76651b66 Mon Sep 17 00:00:00 2001
+From: Jincheng Xie <xjcelevenworld@gmail.com>
+Date: Tue, 10 Nov 2026 09:39:32 +0000
+Subject: [PATCH] =?UTF-8?q?feat:=20=E4=BA=A7=E5=93=81=E4=BA=A7=E7=89=A9?=
+ =?UTF-8?q?=E5=AE=A1=E6=85=8E=E8=A7=84=E7=9F=A9=E4=B8=8E=E7=BB=93=E6=9E=84?=
+ =?UTF-8?q?=E9=A2=84=E8=AE=BE=EF=BC=88A+B=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+新增 product-artifact-caution 自动分发；must_contain/pattern 可选 severity；
+product-artifact.hint|strict 预设（hint/strict 短名仍为 prose-hygiene）。
+
+Co-authored-by: Jincheng Xie <xjcelevenworld@gmail.com>
+---
+ AGENTS.md                                     |   3 +-
+ CLAUDE.md                                     |   1 +
+ .../.openspec.yaml                            |   2 +
+ .../artifacts/before-after.md                 |  45 +++
+ .../artifacts/cli-samples.txt                 |  34 +++
+ .../artifacts/configs-and-limits.md           |  49 ++++
+ .../artifacts/pm-artifact-fusion-plan.md      |  63 +++++
+ .../artifacts/pm-skills-rea-INDEX.md          |   9 +
+ .../artifacts/pm-skills-rea-analysis.md       | 112 ++++++++
+ .../artifacts/rea-analyze-javascript-help.txt |  35 +++
+ .../artifacts/rea-pm-analysis-summary.json    | 117 ++++++++
+ .../pm-artifact-guidance-fusion/design.md     |  70 +++++
+ .../pm-artifact-guidance-fusion/proposal.md   |  36 +++
+ .../specs/product-artifact-caution/spec.md    |  14 +
+ .../specs/result-check-contracts/spec.md      |   8 +
+ .../specs/rulekit-cli/spec.md                 |  19 ++
+ .../specs/run-result-check/spec.md            |  42 +++
+ .../pm-artifact-guidance-fusion/tasks.md      |  16 ++
+ .../verification.md                           |  40 +++
+ rules/product-artifact-caution.md             |  23 ++
+ rules/result-check-contracts.md               |   6 +-
+ src/rulemason/check.py                        |   3 +-
+ src/rulemason/cli.py                          |  24 +-
+ src/rulemason/result_check.py                 |  34 ++-
+ src/rulemason/shared.py                       |  46 ++-
+ src/rulemason/templates/claude.block.md       |   1 +
+ src/rulemason/templates/code-style.block.md   |   1 +
+ src/rulemason/templates/opencode.jsonc.tmpl   |   1 +
+ .../result-check/product-artifact.hint.json   |  17 ++
+ .../result-check/product-artifact.strict.json |  17 ++
+ tests/test_init.py                            |   4 +
+ tests/test_product_artifact.py                | 264 ++++++++++++++++++
+ tests/test_prose_hygiene.py                   |   9 +-
+ tests/test_shared.py                          |   2 +-
+ tests/test_templates.py                       |   2 +
+ 35 files changed, 1141 insertions(+), 28 deletions(-)
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/.openspec.yaml
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/artifacts/before-after.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/artifacts/cli-samples.txt
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/artifacts/configs-and-limits.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-artifact-fusion-plan.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-skills-rea-INDEX.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-skills-rea-analysis.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/artifacts/rea-analyze-javascript-help.txt
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/artifacts/rea-pm-analysis-summary.json
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/design.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/proposal.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/specs/product-artifact-caution/spec.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/specs/result-check-contracts/spec.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/specs/rulekit-cli/spec.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/specs/run-result-check/spec.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/tasks.md
+ create mode 100644 openspec/changes/pm-artifact-guidance-fusion/verification.md
+ create mode 100644 rules/product-artifact-caution.md
+ create mode 100644 src/rulemason/templates/result-check/product-artifact.hint.json
+ create mode 100644 src/rulemason/templates/result-check/product-artifact.strict.json
+ create mode 100644 tests/test_product_artifact.py
+
+diff --git a/AGENTS.md b/AGENTS.md
+index b205b07..ed93e9b 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -6,7 +6,7 @@
+ 
+ ## 目录
+ 
+-- `rules/`：给 AI 与人读的规矩：`code-style.md`、`python.md`、`react.md`、`workflow-gates.md`、`copy-voice.md`、`cjk-typography.md`、`result-check-contracts.md`、`prose-hygiene.md`、`agent-coding-caution.md`。
++- `rules/`：给 AI 与人读的规矩：`code-style.md`、`python.md`、`react.md`、`workflow-gates.md`、`copy-voice.md`、`cjk-typography.md`、`result-check-contracts.md`、`prose-hygiene.md`、`agent-coding-caution.md`、`product-artifact-caution.md`。
+ - `lint/`：给工具读的基础配置：`ruff-base.toml`、`eslint-base.mjs`。
+ - `openspec-base/`：项目照写进 `openspec/config.yaml` 的产物规则基础版。
+ - `src/rulemason/`：`rulemason` 命令行（`init`、`update`、`check`、`judge`）、init 用的模板（根目录 `pyproject.toml`）。
+@@ -34,6 +34,7 @@
+ - `rules/result-check-contracts.md`：改结构化输出或 result-check 要求时阅读
+ - `rules/prose-hygiene.md`：写给人读的文案时阅读；`result-check --preset hint`（默认提示）/ `strict`
+ - `rules/agent-coding-caution.md`：写码/改码时阅读
++- `rules/product-artifact-caution.md`：写工程交接用产品产物时阅读；结构检查 `--preset product-artifact.hint` / `product-artifact.strict`
+ 
+ 本仓库 Python 样板为 `src/rulemason/judge/judge.py` 与 `src/rulemason/check.py`。ruff 豁免见根目录 `pyproject.toml`。
+ 
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 8cf45c3..67c5273 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -5,6 +5,7 @@
+ @rules/result-check-contracts.md
+ @rules/prose-hygiene.md
+ @rules/agent-coding-caution.md
++@rules/product-artifact-caution.md
+ @rules/workflow-gates.md
+ 
+ Claude Code 下，workflow gates 的「自动精简」一步用 `/simplify` 执行，替换手工精简：
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/.openspec.yaml b/openspec/changes/pm-artifact-guidance-fusion/.openspec.yaml
+new file mode 100644
+index 0000000..2b638f8
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: spec-driven
++created: 2026-11-10
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/artifacts/before-after.md b/openspec/changes/pm-artifact-guidance-fusion/artifacts/before-after.md
+new file mode 100644
+index 0000000..a2cb129
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/artifacts/before-after.md
+@@ -0,0 +1,45 @@
++# 功能前后对比（自写示例，标明虚构）
++
++基线：0.8.34 / `71564ca`。以下正文均为**自写示例**，非真实用户研究或线上指标。
++
++## 规矩分发
++
++| | 前 | 后 |
++|---|---|---|
++| 共享规矩 | 无产品产物证据边界专文 | `rules/product-artifact-caution.md` 经 init/update 必复制 |
++| 入口 | 无 | AGENTS / CLAUDE / OpenCode 引用并写明阅读场合 |
++| init/update | 不扫产物 | **仍不扫**；只分发规矩与缺失种子 |
++
++## 结构检查（可选）
++
++自写记录（虚构）：
++
++```text
++# 导出 CSV
++## 摘要
++让用户导出报表。
++## 成功标准
++上线 30 天内导出成功率 ≥ 99%（以服务端日志为准）。
++## 非目标
++v1 不做定时调度。
++## 验收
++Given 已登录用户 When 点击导出 Then 收到 CSV。
++```
++
++| 调用 | 缺「非目标」小节时 |
++|---|---|
++| `--preset product-artifact.hint` | 项为「提示」，exit **0** |
++| `--preset product-artifact.strict` | 项为「失败」，exit **1** |
++| `--preset hint` | **仍**跑 prose-hygiene，不是产物结构 |
++| 不传预设 / 不用该 requirements | 不检查小节（关闭） |
++| 自定义种子后 update | 保留用户改动 |
++
++**结构命中 ≠ 99% 已达成，≠ 真实用户需要导出。**
++
++## severity 增强
++
++| | 前（0.8.34） | 后 |
++|---|---|---|
++| `must_contain` / `pattern` | 缺失一律失败 | 缺省仍失败；显式 `severity=hint` 可提示 |
++| `prose_hygiene` | hint/strict | 不变 |
++| `--preset hint\|strict` | prose | **不变**（不偷换） |
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/artifacts/cli-samples.txt b/openspec/changes/pm-artifact-guidance-fusion/artifacts/cli-samples.txt
+new file mode 100644
+index 0000000..7e80eef
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/artifacts/cli-samples.txt
+@@ -0,0 +1,34 @@
++# CLI 真实样例（本机实测摘录）
++
++## product-artifact.hint（缺「非目标」小节 → 提示，exit 0）
++
++$ rulemason result-check --json --record r.json --preset product-artifact.hint
++
++{
++  "overall_pass": true,
++  "exit_code": 0,
++  "items": [
++    {
++      "id": "non-goals-heading",
++      "status": "提示",
++      "explanation": "【提示·不阻断】正文不匹配给定模式"
++    },
++    {
++      "id": "success-or-acceptance-heading",
++      "status": "通过",
++      "explanation": "正文匹配给定模式"
++    }
++  ]
++}
++
++## --preset hint 仍为 prose-hygiene（未偷换）
++
++$ rulemason result-check --json --record r.json --preset hint
++→ items[0].id == "prose-hygiene"（文案卫生），不是 product-artifact
++
++## 构建
++
++$ uv build
++→ rulemason-0.8.34-py3-none-any.whl
++→ rulemason-0.8.34.tar.gz
++（pytest 断言 wheel/sdist 含 product-artifact-caution.md 与预设 JSON）
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/artifacts/configs-and-limits.md b/openspec/changes/pm-artifact-guidance-fusion/artifacts/configs-and-limits.md
+new file mode 100644
+index 0000000..ee7dec7
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/artifacts/configs-and-limits.md
+@@ -0,0 +1,49 @@
++# 配置说明、CLI 样例、限制与迁移
++
++## CLI 真实样例
++
++```bash
++# 文案卫生（旧短名，语义不变）
++rulemason result-check --record out.json --preset hint
++rulemason result-check --record out.json --preset strict
++
++# 产物结构（无歧义 id）
++rulemason result-check --record prd.json --preset product-artifact.hint
++rulemason result-check --record prd.json --preset product-artifact.strict
++
++# 自定义 requirements（可混用 field / pattern / prose_hygiene）
++rulemason result-check --record prd.json --requirements my-reqs.json
++```
++
++## 默认 / 严格 / 关闭 / 自定义
++
++| 模式 | 做法 |
++|---|---|
++| 默认（结构） | `--preset product-artifact.hint` 或种子里 severity=hint |
++| 严格门禁 | 显式 `--preset product-artifact.strict` |
++| 关闭 | 不调用该预设、requirements 不含对应项 |
++| 自定义 | 改 `.rulemason/result-check/product-artifact.*.json` 或自写 requirements；update **不覆盖**已有种子 |
++
++## 默认小节同义标题（最小中英）
++
++- 非目标：`非目标` / `不在范围内` / `Out of Scope` / `Non-goal(s)`
++- 成功或验收：`成功标准` / `验收` / `验收标准`（正则 `验收(?:标准)?`）/ `Success Criteria` / `Acceptance`
++- 匹配：Markdown AT题行 `^#{1,6}`（大小写不敏感）
++
++## 限制（如实）
++
++- 结构存在 ≠ 实质质量 / 商业成功 / 指标已达成。
++- 不剥代码围栏：围栏内假标题可误报通过（测试锁定）。
++- 正文里出现「非目标」字样但无标题行 → 不匹配（预期）。
++- `field` / `cjk` / `must_not_contain` 本轮无 severity。
++- 不自动扫仓；init/update **不**检查文档。
++- 不进默认判断红线；无 LLM/REA 运行时依赖。
++- REA 仅规划阶段只读分析；不能替代读 PM 技能正文。
++- CC BY-NC-SA 来源**未**再分发正文/模板。
++
++## 迁移
++
++- 未选用 `product-artifact.*` 的项目：无感。
++- 未写 `severity` 的 `must_contain`/`pattern`：仍失败（与 0.8.34 前一致）。
++- `--preset hint|strict`：仍为 prose-hygiene。
++- 回滚：删规矩与种子即可。
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-artifact-fusion-plan.md b/openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-artifact-fusion-plan.md
+new file mode 100644
+index 0000000..ca87691
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-artifact-fusion-plan.md
+@@ -0,0 +1,63 @@
++# 最小有效融合方案（已确认 A+B）
++
++基线：**rulemason 0.8.34** / `71564ca`。OpenSpec：`pm-artifact-guidance-fusion`。
++
++## 用户收益
++
++1. 写 PRD / 用户故事 / 验收 / verification 时有一份**共享、只读**的工程向规矩（可检验标准、非目标、证据边界）。  
++2. 对调用方提供的产物记录做**结构提示**，默认不阻断 CI。  
++3. 不背全套 PM 助手与 CC-NC 再分发风险。
++
++## 功能前后对比（自写示例，标注）
++
++### 示例 A — 规矩层（必做）
++
++**前：** AI 可写出「提升用户满意度」而无检验方式，且无非目标。  
++**后：** 入口要求阅读 `product-artifact-caution`：须写可核对标准与非目标；仍**不会**因文案自动 fail CI。
++
++### 示例 B — 可选结构提示（自写记录，**虚构**，非真实用户数据）
++
++```json
++{
++  "text": "# 导出 CSV\n\n## 摘要\n让用户导出报表。\n\n## 成功标准\n上线 30 天内导出成功率 ≥ 99%（以服务端日志为准）。\n\n## 非目标\nv1 不做定时调度。\n\n## 验收\nGiven 已登录用户 When 点击导出 Then 收到 CSV 文件。\n"
++}
++```
++
++- `--preset product-artifact.hint`：若删掉「非目标」小节 → 状态「提示」，**exit 0**。  
++- `--preset product-artifact.strict`：同上 → **exit 1**。  
++- `--preset hint`：**仍**为 prose-hygiene，不是产物结构。  
++- 另有 `must_contain` 失败 → 仍 **exit 1**（提示不吞错）。
++
++**明确：** 结构提示 **≠** 「99% 已达成」或「用户真实需要导出」。
++
++## 输入 / 输出 / 配置
++
++| 项 | 内容 |
++|---|---|
++| 分发 | `init`/`update` → `.rulemason/rules/product-artifact-caution.md` + 缺失时种子 |
++| 执行 | 仅 `rulemason result-check`；`check` 不扫产物 |
++| 预设 | `product-artifact.hint`（默认提示）/ `product-artifact.strict`；关闭=不传该预设 |
++| 自定义 | 改种子或 `--requirements`；update 不覆盖已有种子 |
++| 退出码 | 提示单独不阻断；非法配置 2 |
++
++## 新增 vs 复用
++
++| 能力 | 判定 |
++|---|---|
++| 产品产物规矩 | **新增**规则文件 + 分发 |
++| 节标题存在性 | **复用** `pattern` + severity |
++| 结构化 PRD JSON 字段 | **复用** `field`（无本轮 severity） |
++| 文风套话 | **复用** `prose_hygiene`（`--preset hint|strict` 不变） |
++| 新 check type / 新命令 | **不新增** |
++
++## 误报 / 漏报 / 退出码
++
++- 误报：合法不同标题 → 用户改种子；默认 hint。围栏内假标题为边界。  
++- 漏报：有标题但标准不可测 → **预期**；靠规矩与人工。  
++- 退出码：不改旧 cjk/field/prose 失败语义。
++
++## 测试 / 打包 / 迁移
++
++- 分发与入口；种子幂等；hint/strict/旧失败/非法；wheel/sdist；干净安装执行。  
++- 付费 Jev：**不跑**。  
++- 迁移：旧项目无感，直至选用 `product-artifact.*`。
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-skills-rea-INDEX.md b/openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-skills-rea-INDEX.md
+new file mode 100644
+index 0000000..b8959ac
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-skills-rea-INDEX.md
+@@ -0,0 +1,9 @@
++# PM Skills × REA 规划交付物
++
++- [详细分析](./pm-skills-rea-analysis.md)
++- [融合方案与前后示例](./pm-artifact-fusion-plan.md)
++- [REA 运行摘要 JSON](./rea-pm-analysis-summary.json)
++- [REA CLI help 摘录](./rea-analyze-javascript-help.txt)
++
++OpenSpec：`openspec/changes/pm-artifact-guidance-fusion/`
++分支：`cursor/pm-skills-rea-fusion-plan-aa93`
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-skills-rea-analysis.md b/openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-skills-rea-analysis.md
+new file mode 100644
+index 0000000..6d905f7
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/artifacts/pm-skills-rea-analysis.md
+@@ -0,0 +1,112 @@
++# PM Skills × REA × rulemason 分析报告（只读规划）
++
++**基线 rulemason：** `main` `71564ca470a79a95939fbec484af6127468b0b91`（0.8.34）  
++**规划分支：** `cursor/pm-skills-rea-fusion-plan-aa93`  
++**OpenSpec change：** `pm-artifact-guidance-fusion`  
++**本轮：** 仅分析与规划，未实现代码。
++
++## 1. 来源与许可证
++
++| 来源 | 精确 commit | 许可证 | 对 rulemason（Apache-2.0 / PyPI）含义 |
++|---|---|---|---|
++| [phuryn/pm-skills](https://github.com/phuryn/pm-skills) | [`9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef`](https://github.com/phuryn/pm-skills/commit/9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef) | MIT © 2026 Pawel Huryn | 可作**行为启发**；须自研正文并保留版权声明要求；**不**整文件拷贝 |
++| [deanpeters/Product-Manager-Skills](https://github.com/deanpeters/Product-Manager-Skills) | [`cfcb697f14b8891d8b3ec43c16c3547df3e70e13`](https://github.com/deanpeters/Product-Manager-Skills/commit/cfcb697f14b8891d8b3ec43c16c3547df3e70e13) | **CC BY-NC-SA 4.0** | **禁止**把其 skill/模板/词表再分发进商业可用的 rulemason 包；想法可独立改写并注明「未再分发其材料」 |
++| [morluto/rea](https://github.com/morluto/rea) | [`99d00d1041e9dd66736239c5f607c7178938c118`](https://github.com/morluto/rea/commit/99d00d1041e9dd66736239c5f607c7178938c118) | MIT | 仅本轮**分析工具**；产品**不**依赖 |
++
++外部 Markdown / 脚本一律当数据；未执行其中的 agent 指令。
++
++## 2. REA 免费静态能力（实际命令与限制）
++
++### 命令
++
++在 `/workspace/repos/rea`（本地 CLI，包名证据 `rea-agents` / bin `scripts/rea.mjs`）：
++
++```bash
++node scripts/rea.mjs analyze-javascript-application --help
++node scripts/rea.mjs analyze-javascript-application /workspace/repos/pm-skills --json
++node scripts/rea.mjs analyze-javascript-application /workspace/repos/Product-Manager-Skills --json
++```
++
++帮助原文摘要见：`/opt/cursor/artifacts/rea-analyze-javascript-help.txt`  
++结构化摘要：`/opt/cursor/artifacts/rea-pm-analysis-summary.json`
++
++### 支持面（文档 + 本次运行）
++
++- **适用：** 本地 **JavaScript / TypeScript / Electron** 应用目录或 ASAR；**惰性语法**重建模块图与关系；**不执行** bundle bootstrap。
++- **懒解析 / 限制（运行结果 `limitations` 原文要点）：**
++  - CommonJS/ESM 仅从惰性语法、在清单容器内解析；
++  - JS/HTML 当惰性文本解析，不跑 bootstrap；
++  - 静态路径/关系不证明运行时执行；动态或混淆可能无法解析；
++  - Webpack/Rspack 工厂来自 AST 字面量，不调用 push handler。
++- **不适用 / 未声称：** Markdown 技能语义、Python 脚本语义、产品对错、用户研究真伪。
++
++### 对本两仓的实际输出
++
++| 目标 | `statistics`（证据） | 解读 |
++|---|---|---|
++| pm-skills | `relevant_files: 20`, `parsed_javascript_files: 0`, `modules: 0`, `findings: 0` | 仓库几乎无 JS 应用面；**不能**用 REA 代替读 42 条 command Markdown |
++| Product-Manager-Skills | `relevant_files: 3`, `parsed_javascript_files: 1`, `visited_ast_nodes: 4891`, `findings: 8` | 主要解析到 `docs/pm-skills-guide.jsx`（文档站 JSX），**不是** 77 条 skill 正文；skills 仍靠人工阅读 |
++
++**结论：** REA 证明「免费静态 JS 车道可用且有明确限制」；**技能适用性判断以人工阅读为准**，索引/`catalog/*.yaml` 只作枚举，不作语义分析替代。
++
++## 3. 仓库能力清单（去重后分类）
++
++链接形式：`https://github.com/<org>/<repo>/blob/<commit>/<path>`
++
++### 3.1 phuryn/pm-skills（MIT）— 9 插件 / 42 commands
++
++插件根：`pm-product-discovery`、`pm-product-strategy`、`pm-market-research`、`pm-data-analytics`、`pm-marketing-growth`、`pm-go-to-market`、`pm-execution`、`pm-toolkit`、`pm-ai-shipping`（shipping 多已迁走占位）。
++
++| 类别 | 代表路径（固定 commit） | 适合 rulemason？ |
++|---|---|---|
++| 发现/访谈/头脑风暴 | [`…/pm-product-discovery/commands/discover.md`](https://github.com/phuryn/pm-skills/blob/9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef/pm-product-discovery/commands/discover.md) 等 | **拒绝整迁**；想法：澄清问题再写需求 → 进自研规矩一句 |
++| 策略/定价/商业模式 | `pm-product-strategy/commands/*` | **拒绝**（主观商业） |
++| 市场研究/竞品 | `pm-market-research/commands/*` | **拒绝**（易伪造研究） |
++| 数据分析/实验 | `pm-data-analytics/commands/*` | **拒绝自动验证**；可提示「勿编造统计」 |
++| 增长/GTM/战报 | `pm-marketing-growth/*`、`pm-go-to-market/*` | **拒绝** |
++| **执行：PRD/故事/红队/测试场景/预验尸** | [`write-prd.md`](https://github.com/phuryn/pm-skills/blob/9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef/pm-execution/commands/write-prd.md)、[`write-stories.md`](https://github.com/phuryn/pm-skills/blob/9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef/pm-execution/commands/write-stories.md)、[`red-team-prd.md`](https://github.com/phuryn/pm-skills/blob/9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef/pm-execution/commands/red-team-prd.md)、[`test-scenarios.md`](https://github.com/phuryn/pm-skills/blob/9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef/pm-execution/commands/test-scenarios.md)、[`pre-mortem.md`](https://github.com/phuryn/pm-skills/blob/9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef/pm-execution/commands/pre-mortem.md) | **共享指导启发**；红队/预验尸 → **人工/语义**；结构小节 → **可复用 result-check** |
++| 工具箱（简历/NDA/隐私政策） | `pm-toolkit/commands/*` | **拒绝** |
++| AI shipping 占位 | [`ship-check.md`](https://github.com/phuryn/pm-skills/blob/9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef/pm-ai-shipping/commands/ship-check.md) | **拒绝**（已迁出；非本仓能力） |
++| 校验脚本 | [`validate_plugins.py`](https://github.com/phuryn/pm-skills/blob/9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef/validate_plugins.py) | **不适合**进 rulemason 产品（插件市场校验） |
++
++### 3.2 deanpeters/Product-Manager-Skills（CC BY-NC-SA）— 77 skills + commands
++
++主题簇（frontmatter `theme`，人工枚举）：market-intelligence(18)、pm-artifacts(8)、discovery-research(7)、finance-metrics(7)、eol-transition(6)、career-leadership(5)、strategy-positioning(5)、validation-experiments(5)、workshops(5)、stakeholder-comms(4)、ai-agents(3)、meta-authoring(2)、product-lifecycle(2)。
++
++与 rulemason **想法重叠（仅独立改写，不拷正文）**：
++
++| PMS skill | 路径 | 映射 |
++|---|---|---|
++| prd-development | `skills/prd-development/SKILL.md` | ↔ pm-skills write-prd → **自研规矩** |
++| user-story / splitting / mapping | `skills/user-story*` | ↔ write-stories → **规矩 + 可选结构提示** |
++| epic-hypothesis | `skills/epic-hypothesis/SKILL.md` | 可检验假设 → **规矩一句**；验证本身 **人工** |
++| derisk-measurement-advisor / pol-probe* | `skills/derisk-*`、`pol-probe*` | 风险登记 → **人工**；禁自动「值不值得做」 |
++| autonomous-investigation | `skills/autonomous-investigation/SKILL.md` | 证据标签协议 → **规矩：区分事实/推断**；不移植调查代理 |
++| 其余市场情报/财务/EOL/职业/工作坊 | 各 theme | **拒绝**进共享层 |
++
++包装脚本（`scripts/*.py|sh`、`app/main.py`）：库维护工具，**不**进 rulemason。
++
++### 3.3 与现有 rulemason 能力对照
++
++| 已有能力 | 能表达什么 | 不够什么 |
++|---|---|---|
++| 共享 `rules/*` + init/update | 过程指导（如 `agent-coding-caution`） | 尚无「产品产物证据边界」专文 |
++| `result-check`：must_contain / pattern / field / cjk / prose_hygiene | 记录里是否出现节标题、字段、文风提示 | **不**判断需求好坏、用户是否真实 |
++| `workflow-gates` / OpenSpec | 方案/实现检查点 | 不替代 PRD 技能包 |
++| `judge`（Jev，付费） | 可选语义审 | **本轮不跑、不新增依赖** |
++
++## 4. 推荐 / 拒绝摘要
++
++**推荐（最小有效）：**
++
++1. 自研 `product-artifact-caution` 规矩并自动分发（启发：pm-skills 执行轨 + PMS 产物主题的**想法**）。  
++2. 可选 hint 结构预设：**复用**既有检查类型。  
++3. 红队/假设验证：保持人工或项目自选判断；不做成默认短名。
++
++**拒绝：** 全套命令移植；PMS 正文再分发；商业/竞品/财务自动结论；把「有验收字样」当成上线合格；引入 REA 为运行时依赖。
++
++## 5. 对 rulemason 的提升（若确认实现）
++
++- AI 在工程仓写需求/验收时有**统一、可分发**的证据边界。  
++- 与 `prose_hygiene` / `agent-coding-caution` 同模式：开箱提示、可选严格、不静默改旧 CI。  
++- 避免许可证污染与范围膨胀。
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/artifacts/rea-analyze-javascript-help.txt b/openspec/changes/pm-artifact-guidance-fusion/artifacts/rea-analyze-javascript-help.txt
+new file mode 100644
+index 0000000..a6c5299
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/artifacts/rea-analyze-javascript-help.txt
+@@ -0,0 +1,35 @@
++rea analyze-javascript-application — Statically reconstruct a local JavaScript/Electron application
++
++Usage: rea analyze-javascript-application <path> [options]
++
++Arguments:
++  path  ASAR or extracted application path
++
++Options:
++  --detail <complete|summary>                    Deliver complete Evidence, or a summary with --evidence_output (default: complete)
++  --evidence_output <string>                     Save complete Evidence as a bundle; required for summary delivery. Never overwrites.
++  --view <string>                                JSON javascript-routes view; requires --detail summary and --evidence_output
++  --max-semantic-nodes <value>                   Maximum retained semantic nodes across the application; defaults to 100000. Worker heap and parent result admission remain enforced.
++  --max-semantic-nodes-per-file <value>          Maximum retained semantic nodes per source file; defaults to 20000, additionally bounded by max_semantic_nodes and memory/transfer limits.
++  --max-semantic-unknowns <value>                Maximum retained semantic unknown records across the application; defaults to 100000. Omitted emission occurrences are counted by family and reason.
++  --max-semantic-unknowns-per-file <value>       Maximum retained semantic unknown records per source file; defaults to 20000, additionally bounded by max_semantic_unknowns and memory/transfer limits.
++  --source-path <array>                          Exact inventoried file path relative to the application root; repeat to select several. No implicit dependencies.
++  --source-paths-json <string>                   Inline JSON array or JSON file path of exact inventoried file paths relative to the application root, selected after any --source-path values. Use a file for selections that exceed the host command-line limit.
++  --max-heap-mb <value>                          Maximum V8 old-space heap in MiB for the isolated JavaScript source analyzer; defaults to 1024. This does not change the CLI/MCP process heap. When REA runs on Bun, which ignores V8 heap flags, Windows instead limits the analyzer's committed memory to this budget plus a 512 MiB runtime reserve; other Bun hosts enforce no limit.
++  --analysis-timeout-ms <value>                  Maximum startup, analysis and transfer time per JavaScript source, in milliseconds; defaults to 300000. On timeout, return collected partial Evidence and stop the analysis.
++  --artifact-format <auto|asar|directory>        Application artifact format (default: auto)
++  --integrity-policy <fail|record-and-continue>  Behavior when declared application integrity does not match (default: fail)
++
++Custom Global Options:
++  --timings  Write measured command timing to stderr.
++
++Global Options:
++  --filter-output <keys>              Filter output by key paths (e.g. foo,bar.baz,a[0,3])
++  --format <toon|json|yaml|md|jsonl>  Output format
++  --full-output                       Show full output envelope
++  --help                              Show help
++  --llms, --llms-full                 Print LLM-readable manifest
++  --schema                            Show JSON Schema for command
++  --token-count                       Print token count of output (instead of output)
++  --token-limit <n>                   Limit output to n tokens
++  --token-offset <n>                  Skip first n tokens of output
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/artifacts/rea-pm-analysis-summary.json b/openspec/changes/pm-artifact-guidance-fusion/artifacts/rea-pm-analysis-summary.json
+new file mode 100644
+index 0000000..e973a69
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/artifacts/rea-pm-analysis-summary.json
+@@ -0,0 +1,117 @@
++{
++  "pm-skills": {
++    "command": "node scripts/rea.mjs analyze-javascript-application /workspace/repos/pm-skills --json",
++    "subject": {
++      "name": "pm-skills",
++      "digest": {
++        "sha256": "0c8cd077a805079cc8333e81715791ec709478d77fc2e15e335c938df32b55e3"
++      },
++      "local_path": "/workspace/repos/pm-skills",
++      "format": "directory",
++      "architecture": null
++    },
++    "provider": {
++      "id": "rea-javascript-application",
++      "name": "REA JavaScript application analyzer",
++      "version": "1"
++    },
++    "operation": "analyze_javascript_application",
++    "statistics": {
++      "relevant_files": 20,
++      "nested_asar_containers": 0,
++      "text_bytes_read": 16615,
++      "invalid_utf8_files": 0,
++      "parsed_javascript_files": 0,
++      "skipped_javascript_files": 0,
++      "visited_ast_nodes": 0,
++      "findings": 0,
++      "modules": 0,
++      "parse_failures": 0
++    },
++    "summary_excerpt": {
++      "browser_windows": 0,
++      "explicit_web_preferences": 0,
++      "preload_entrypoints": 0,
++      "context_bridge_apis": 0,
++      "exposed_api_members": 0,
++      "ipc": {
++        "operations": 0,
++        "literal_channels": 0,
++        "dynamic_channel_operations": 0,
++        "renderer_transmissions": 0,
++        "renderer_listeners": 0,
++        "main_handlers": 0,
++        "paired_renderer_transmissions": 0,
++        "ambiguous_renderer_transmissions": 0,
++        "unpaired_literal_renderer_transmissions": 0
++      },
++      "sender_validation_observations": 0,
++      "utility_processes": 0
++    },
++    "limitations": [
++      "CommonJS and ESM binding relationships were recovered from inert syntax and resolved only within the inventoried artifact container.",
++      "JavaScript and HTML were parsed as inert text; bundle bootstrap code was never executed.",
++      "Static imports, entrypoints, workers, endpoints, and storage relationships do not prove runtime execution.",
++      "Static paths and relationships may remain unresolved when expressions are dynamic or obfuscated.",
++      "Webpack/Rspack factories were recovered from AST literals; REA did not invoke push handlers or bundle bootstrap code."
++    ]
++  },
++  "Product-Manager-Skills": {
++    "command": "node scripts/rea.mjs analyze-javascript-application /workspace/repos/Product-Manager-Skills --json",
++    "subject": {
++      "name": "Product-Manager-Skills",
++      "digest": {
++        "sha256": "5286f6219cb0ef698dab526013a316c4686ef11d92f2f7303d92078f0c8674a8"
++      },
++      "local_path": "/workspace/repos/Product-Manager-Skills",
++      "format": "directory",
++      "architecture": null
++    },
++    "provider": {
++      "id": "rea-javascript-application",
++      "name": "REA JavaScript application analyzer",
++      "version": "1"
++    },
++    "operation": "analyze_javascript_application",
++    "statistics": {
++      "relevant_files": 3,
++      "nested_asar_containers": 0,
++      "text_bytes_read": 87225,
++      "invalid_utf8_files": 0,
++      "parsed_javascript_files": 1,
++      "skipped_javascript_files": 0,
++      "visited_ast_nodes": 4891,
++      "findings": 8,
++      "modules": 0,
++      "parse_failures": 0
++    },
++    "summary_excerpt": {
++      "browser_windows": 0,
++      "explicit_web_preferences": 0,
++      "preload_entrypoints": 0,
++      "context_bridge_apis": 0,
++      "exposed_api_members": 0,
++      "ipc": {
++        "operations": 0,
++        "literal_channels": 0,
++        "dynamic_channel_operations": 0,
++        "renderer_transmissions": 0,
++        "renderer_listeners": 0,
++        "main_handlers": 0,
++        "paired_renderer_transmissions": 0,
++        "ambiguous_renderer_transmissions": 0,
++        "unpaired_literal_renderer_transmissions": 0
++      },
++      "sender_validation_observations": 0,
++      "utility_processes": 0
++    },
++    "limitations": [
++      "CommonJS and ESM binding relationships were recovered from inert syntax and resolved only within the inventoried artifact container.",
++      "Graph coverage is incomplete; unavailable facts remain explicit and must not be read as absence.",
++      "JavaScript and HTML were parsed as inert text; bundle bootstrap code was never executed.",
++      "Static imports, entrypoints, workers, endpoints, and storage relationships do not prove runtime execution.",
++      "Static paths and relationships may remain unresolved when expressions are dynamic or obfuscated.",
++      "Webpack/Rspack factories were recovered from AST literals; REA did not invoke push handlers or bundle bootstrap code."
++    ]
++  }
++}
+\ No newline at end of file
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/design.md b/openspec/changes/pm-artifact-guidance-fusion/design.md
+new file mode 100644
+index 0000000..56a8524
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/design.md
+@@ -0,0 +1,70 @@
++# Design
++
++## Context
++
++基线：`main` @ `71564ca`（0.8.34）。来源钉死：
++
++| 仓库 | commit |
++|---|---|
++| [phuryn/pm-skills](https://github.com/phuryn/pm-skills) | [`9af7bfd`](https://github.com/phuryn/pm-skills/commit/9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef) |
++| [deanpeters/Product-Manager-Skills](https://github.com/deanpeters/Product-Manager-Skills) | [`cfcb697`](https://github.com/deanpeters/Product-Manager-Skills/commit/cfcb697f14b8891d8b3ec43c16c3547df3e70e13) |
++| [morluto/rea](https://github.com/morluto/rea)（分析工具） | [`99d00d1`](https://github.com/morluto/rea/commit/99d00d1041e9dd66736239c5f607c7178938c118) |
++
++REA 免费静态：`analyze-javascript-application`（本地 JS/Electron 惰性语法图；不执行代码）。两仓主体是 Markdown 技能；REA **不能**替代人工读技能正文。用户确认范围 **A+B**。
++
++## Goals / Non-Goals
++
++- Goals：自研产品产物规矩自动分发；可选结构预设；`must_contain`/`pattern` 安全支持 `severity=hint`；文档标明分发 ≠ 自动检查。
++- Non-Goals：REA/付费 API 运行时；搬全套 PM 技能；把成功指标「看起来合理」当通过；新子命令；默认判断红线。
++
++## Decisions（已确认）
++
++1. **融合面：工程交接产物，不是 PM OS**  
++   只收「可检验标准 / 非目标 / 证据边界 / 验收可测」进入共享规矩。否决：marketplace、GTM、简历、财务基准库、竞品情报流水线。
++
++2. **许可证策略**  
++   - MIT `pm-skills`：行为启发，自研规矩，归因 commit。
++   - CC BY-NC-SA `Product-Manager-Skills`：**不复制**其 SKILL/模板；想法层独立改写 + 注明未再分发。
++
++3. **落地形态 A+B**  
++   - **A**：`rules/product-artifact-caution.md`，`COPIED_SHARED` 必复制，入口注明阅读场合。
++   - **B**：包内预设，用**既有** `pattern` 检查约定小节标题；不新增 check type。
++   - **C**：不做。
++
++4. **hint 兼容增强（审查 0.8.34）**  
++   - 0.8.34：`STATUS_HINT` 仅 `prose_hygiene`；`must_contain`/`pattern` 缺省失败。
++   - 增强：二者可选 `severity`；**缺省 `strict`**（旧行为）；显式 `hint` → 提示不单独非零；非法 → exit 2；不得吞旧失败/无法判断。
++   - `field` / `cjk_typography` / `must_not_contain` 本轮不加 severity。
++
++5. **预设选择（无新命令、无歧义）**  
++   - `--preset hint|strict` 及 `prose-hygiene.*` → 文案卫生（旧语义）。
++   - `--preset product-artifact.hint|product-artifact.strict` → 产物结构。
++   - 种子文件名与预设 id 对齐；项目种子优先。
++
++6. **默认章节集合（最小中英）**  
++   - 非目标：`非目标|不在范围内|Out of Scope|Non-goals?`
++   - 成功/验收：`成功标准|验收标准?|Success Criteria|Acceptance`
++   - 标题锚定 `^#{1,6}`；围栏内假标题为已知边界，文档声明，不自动剥代码。
++
++7. **执行入口**  
++   仅 `rulemason result-check`。`check`/`init`/`update` 不跑产物扫描。种子仅首次写入。不进默认 judge 红线。
++
++8. **退出码**  
++   提示不单独非零；失败/无法判断/输入错误仍非零。
++
++## Risks / Trade-offs
++
++- [把「有小节标题」当成「需求质量合格」] → 文档与报告标明结构提示 ≠ 产品正确性。
++- [CC-NC-SA 误拷] → diff 审查禁止 PMS 正文。
++- [围栏内假标题] → 标题锚定 + 限制文档；不改全局剥码语义。
++- [偷换 `--preset hint`] → 短名固定绑定 prose-hygiene。
++
++## Migration Plan
++
++- 前向：update 补规矩与缺失种子；用户已有种子/requirements 不覆盖。
++- 回滚：删规矩与预设即可；未声明检查的项目无感。
++- 未声明 `severity` 的 `must_contain`/`pattern`：仍失败（与 0.8.34 前一致）。
++
++## Open Questions
++
++无（A+B、关键词集合、不进红线均已确认）。
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/proposal.md b/openspec/changes/pm-artifact-guidance-fusion/proposal.md
+new file mode 100644
+index 0000000..6f4c4c4
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/proposal.md
+@@ -0,0 +1,36 @@
++# Proposal
++
++## Why
++
++两份公开 PM skill 仓库提供了大量「产品需求 / 验收 / 证据 / 规划评审」工作流。rulemason 已是工程向的规则分发与确定性 `result-check` 工具：需要的是**可进共享层的最小融合**，而不是把 rulemason 变成全套 PM 助手。用户已确认实施 **A+B**。
++
++## What Changes
++
++- **新增共享规矩（自研正文）**：写工程交接用的产品产物（PRD/用户故事/验收/验证证据）时阅读——强调可检验成功标准、非目标、证据边界、禁止编造用户/指标；经 `init`/`update` **自动分发**，**不**自动扫仓、**不**默认 CI 阻断、**不**进默认判断红线。
++- **可选结构预设（复用既有类型）**：包内 `product-artifact.hint|strict`，用 `pattern`（标题锚定）检查约定小节；默认 hint；严格显式。`--preset hint|strict` **仍**为 prose-hygiene，不偷换。
++- **最小兼容增强**：`must_contain` / `pattern` 支持可选 `severity`（缺省 `strict` 保持旧「缺失即失败」）；非法 severity → 输入错误；提示不吞失败/无法判断/输入错误。
++- **不引入**：付费模型、REA 运行时依赖、整包 PM slash 命令、商业成功/主观优先级自动打分、新 CLI 子命令。
++
++## Capabilities
++
++### New Capabilities
++
++- `product-artifact-caution`：工程向产品产物写作与证据边界的共享规矩（自研；行为启发注明来源）。
++
++### Modified Capabilities
++
++- `rulekit-cli`：必复制新规矩；可选 result-check 种子预设（幂等、不覆盖用户配置）；入口引用。
++- `run-result-check`：`must_contain`/`pattern` 的 severity；`product-artifact.*` 预设入口；旧 prose 预设语义不变。
++- `result-check-contracts`：一句指向产品产物字段与夹具同步约定。
++
++## Impact
++
++- 旧项目：未声明新产品检查时行为与退出码不变；`--preset hint|strict` 仍为文案卫生。
++- 许可证：`phuryn/pm-skills` MIT 可作行为启发；`deanpeters/Product-Manager-Skills` 为 **CC BY-NC-SA 4.0**——**不得**把其正文/模板/词表拷进 Apache-2.0 的 rulemason 包；只允许独立改写想法并归因。
++- REA：仅作只读分析证据；不进产品依赖。
++
++## Non-Goals
++
++- 不移植完整 42/77 条 PM 技能或 marketplace 命令面。
++- 不把主观产品决策、市场研究结论、简历/NDA/定价策略写成可自动验证。
++- 本轮不归档、不推送、不发版（仅本地提交）。
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/specs/product-artifact-caution/spec.md b/openspec/changes/pm-artifact-guidance-fusion/specs/product-artifact-caution/spec.md
+new file mode 100644
+index 0000000..012babb
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/specs/product-artifact-caution/spec.md
+@@ -0,0 +1,14 @@
++# product-artifact-caution Specification
++
++## Purpose
++
++工程向产品产物（需求、故事、验收、验证证据）的共享写作规矩：可检验标准、非目标、证据边界；自动分发；非作者判别、非商业成功自动评分。
++
++## ADDED Requirements
++
++### Requirement: 产品产物规矩自动分发
++本仓库 SHALL 提供自研 `rules/product-artifact-caution.md`，经 `init`/`update` 对接入项目必复制。正文 MUST 要求：成功标准可检验、写明非目标、区分证据与推断、禁止编造用户引言或指标、不把结构提示说成产品验证通过。MUST 写明：确定性结构检查仅经 `rulemason result-check`（含 `--preset product-artifact.*`）；`init`/`update` 只分发规矩与缺失种子，不扫仓。MUST 归因行为启发来源（MIT `pm-skills` 固定 commit；若提及 PMS 仅说明想法启发且未再分发 CC BY-NC-SA 材料）。MUST NOT 嵌入第三方 skill 全文或模板。MUST NOT 列入默认判断红线。
++
++#### Scenario: update 后可读
++- **WHEN** 已接入项目运行 `rulemason update`
++- **THEN** `.rulemason/rules/product-artifact-caution.md` 存在且含可检验标准与证据边界说明
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/specs/result-check-contracts/spec.md b/openspec/changes/pm-artifact-guidance-fusion/specs/result-check-contracts/spec.md
+new file mode 100644
+index 0000000..e20ccce
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/specs/result-check-contracts/spec.md
+@@ -0,0 +1,8 @@
++## ADDED Requirements
++
++### Requirement: 产品产物结构与夹具同步
++共享契约正文 SHALL 注明：改工程交接用产品产物且项目选用了结构预设时，同一次 change 须同步 requirements / 夹具并跑 `result-check`；结构命中 MUST NOT 被写成业务验证通过。种子文件名 SHALL 含 `product-artifact.*.json`（与 `prose-hygiene.*.json` 并列），仅首次写入。
++
++#### Scenario: 契约提到产物结构预设
++- **WHEN** 打开 `rules/result-check-contracts.md`
++- **THEN** 正文含 `product-artifact` 预设或种子说明，并写明结构命中不等于业务验证通过
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/specs/rulekit-cli/spec.md b/openspec/changes/pm-artifact-guidance-fusion/specs/rulekit-cli/spec.md
+new file mode 100644
+index 0000000..354081a
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/specs/rulekit-cli/spec.md
+@@ -0,0 +1,19 @@
++## ADDED Requirements
++
++### Requirement: 产品产物规矩必复制
++`init` 与 `update` SHALL 把 `rules/product-artifact-caution.md` 复制进 `.rulemason/rules/`（所有接入项目必复制），入口块 SHALL 引用并注明阅读场合。清单记录校验值；手改副本时 `check` 非 0。
++
++#### Scenario: Go 项目也拿到
++- **WHEN** 仅有 `go.mod` 的项目 `rulemason init --yes`
++- **THEN** `.rulemason/rules/` 含 `product-artifact-caution.md`
++
++### Requirement: 可选产物结构提示种子幂等
++`init`/`update` SHALL 在 `.rulemason/result-check/` 下种入 `product-artifact.hint.json` 与 `product-artifact.strict.json`：**仅当目标文件不存在时写入**；已存在 MUST NOT 覆盖。种子 MUST NOT 进入落后必覆盖校验集。预设 MUST 默认 hint 语义（严格另文件）；MUST NOT 默认启用「商业成功」类主观规则。`remove` SHALL 删除已知种子文件名（含 prose 与 product-artifact）。MUST NOT 声称 `init`/`update` 本身检查文档正文。
++
++#### Scenario: 重复 update 不覆盖用户种子
++- **WHEN** 用户改过该种子后再 `rulemason update --yes`
++- **THEN** 文件内容保持用户修改
++
++#### Scenario: remove 删除产物结构种子
++- **WHEN** 已种入 `product-artifact.*.json` 的项目运行 `rulemason remove --yes`
++- **THEN** 这些种子文件被删除
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/specs/run-result-check/spec.md b/openspec/changes/pm-artifact-guidance-fusion/specs/run-result-check/spec.md
+new file mode 100644
+index 0000000..82d8972
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/specs/run-result-check/spec.md
+@@ -0,0 +1,42 @@
++## ADDED Requirements
++
++### Requirement: must_contain 与 pattern 的可选 severity
++`must_contain` 与 `pattern` SHALL 支持可选字段 `severity`，取值为 `hint` 或 `strict`。缺省 MUST 为 `strict`（缺失或未匹配记失败，与未引入本字段前一致）。`severity=hint` 时未满足 MUST 记状态「提示」且不得单独使 exit_code 非零；同次其他失败、无法判断或输入错误 MUST 仍使 exit_code 非零。非法 `severity` MUST 为输入错误（exit 2）。`must_not_contain`、`field`、`cjk_typography` 等类型 MUST NOT 因本要求改变既有语义。未声明 severity 的旧 requirements MUST 行为不变。
++
++#### Scenario: 缺省 must_contain 缺失仍失败
++- **WHEN** `must_contain` 未写 severity 且正文缺必需文字
++- **THEN** 该项为「失败」，exit_code 为 1
++
++#### Scenario: pattern severity=hint 单独不阻断
++- **WHEN** 仅有一项 `pattern` 且 `severity` 为 `hint`，正文不匹配
++- **THEN** 该项为「提示」，exit_code 为 0
++
++#### Scenario: 文本 hint 不吞掉其他失败
++- **WHEN** 同次有 `severity=hint` 的 pattern 提示与另一项失败
++- **THEN** exit_code 为 1
++
++#### Scenario: 非法文本 severity
++- **WHEN** `must_contain` 或 `pattern` 的 severity 不是 hint 或 strict
++- **THEN** 输入错误，exit_code 为 2
++
++### Requirement: 产物结构提示不冒充产品验证
++若提供产物结构相关的 result-check 预设或检查项，报告与文档 MUST 标明其为结构/标记存在性检查。`hint` 命中 MUST 为「提示」且不得单独使 exit_code 非零；同次其他失败/无法判断/输入错误仍非零。未包含该类检查的 requirements MUST 行为不变。MUST NOT 将「出现成功标准字样」解释为业务目标已达成。
++
++#### Scenario: 仅结构提示命中仍可 exit 0
++- **WHEN** 仅运行 `--preset product-artifact.hint` 且记录缺某约定小节标题
++- **THEN** 项为「提示」，exit_code 为 0
++
++#### Scenario: 提示不吞掉其他失败
++- **WHEN** 同次有结构提示与另一项失败
++- **THEN** exit_code 为 1
++
++### Requirement: product-artifact 预设入口且不偷换 prose 短名
++CLI SHALL 支持 `--preset product-artifact.hint` 与 `--preset product-artifact.strict`（项目 `.rulemason/result-check/product-artifact.*.json` 若存在则优先，否则包内模板）。`--preset hint` 与 `--preset strict`（及 `prose-hygiene.*`）MUST 仍加载文案卫生预设，MUST NOT 改指向产物结构预设。产物结构预设 MUST 用既有 `pattern`（或同等文本类型）检查约定小节标题；hint 预设各项 severity 为 hint，strict 为 strict。
++
++#### Scenario: product-artifact.hint 可运行
++- **WHEN** 调用方提供 `--record` 与 `--preset product-artifact.hint`
++- **THEN** 使用产物结构 hint 预设执行检查且无需另传 requirements 路径
++
++#### Scenario: hint 短名仍为 prose
++- **WHEN** 调用方提供 `--preset hint`
++- **THEN** 仍加载 prose-hygiene hint 预设（推荐三短名），不是 product-artifact
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/tasks.md b/openspec/changes/pm-artifact-guidance-fusion/tasks.md
+new file mode 100644
+index 0000000..4378297
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/tasks.md
+@@ -0,0 +1,16 @@
++## 1. 确认范围（实现闸门）
++
++- [x] 1.1 用户确认方案 A+B（含结构提示预设）与关键词最小集合
++- [x] 1.2 确认不移植 PM slash 命令面、不拷贝 PMS（CC BY-NC-SA）正文、不进默认判断红线
++
++## 2. 规矩与分发
++
++- [x] 2.1 自研 `rules/product-artifact-caution.md` + 入口/`COPIED_SHARED`/契约一句
++- [x] 2.2 `must_contain`/`pattern` severity 兼容增强；包内 product-artifact 预设；init/update 幂等种子；CLI `--preset` 扩展且保留 hint|strict=prose
++- [x] 2.3 测试：分发、入口、种子幂等、hint/strict、旧 prose/cjk/field、坏配置、误报边界、remove、wheel/sdist 干净安装执行
++
++## 3. 验证与交付
++
++- [x] 3.1 ruff / 完整 pytest / openspec strict / 构建 / 低成本 rulemason 检查
++- [x] 3.2 付费 Jev / 判断回归：不跑并注明
++- [x] 3.3 前后对比、配置说明、verification；**本地提交**；不归档、不推送、不发版
+diff --git a/openspec/changes/pm-artifact-guidance-fusion/verification.md b/openspec/changes/pm-artifact-guidance-fusion/verification.md
+new file mode 100644
+index 0000000..68f8e77
+--- /dev/null
++++ b/openspec/changes/pm-artifact-guidance-fusion/verification.md
+@@ -0,0 +1,40 @@
++# Verification — pm-artifact-guidance-fusion
++
++基线分支：`main` @ `71564ca`（0.8.34，`git fetch origin main` 核实）。实现分支：`cursor/pm-artifact-guidance-impl-aa93`。
++
++## 已实现功能（真实）
++
++- 自研 `rules/product-artifact-caution.md` 经 `init`/`update` 必复制；入口引用；不进默认判断红线。
++- `must_contain`/`pattern` 可选 `severity`（缺省 `strict`）；`product-artifact.hint|strict` 预设；`--preset hint|strict` 仍为 prose-hygiene。
++- 种子首次写入、幂等不覆盖；`remove` 删除；wheel/sdist 含规则与预设模板。
++
++## 限制（如实）
++
++- 结构标题存在 ≠ 实质质量 / 指标已达成。
++- 不剥代码围栏（围栏内假标题可误报通过，测试锁定）。
++- 无 LLM/REA 运行时；init/update 不扫仓、不检查文档。
++- CC BY-NC-SA 来源未再分发正文。
++
++## 测试结果（本次实测）
++
++| 项 | 结果 |
++|---|---|
++| `uv run ruff check .` | 通过 |
++| `uv run pytest` | **742 passed**（本次全量；不宣称「旧 725」） |
++| `openspec validate --specs --strict` | 13 passed |
++| `openspec validate --all --strict` | 14 passed（含本 change） |
++| `openspec validate pm-artifact-guidance-fusion --strict` | valid |
++| `uv build` | 见构建步骤；wheel/sdist 资源断言在 pytest 内 |
++| 付费 Jev / 判断回归 | **未跑**（按要求注明） |
++
++## 计划差异
++
++- 规划示例曾写 `--preset hint` 做结构检查；实现改为无歧义 `product-artifact.*`，保留 hint/strict=prose。
++- 验收同义词正则由错误的 `验收标准?` 改为 `验收(?:标准)?`。
++- 未升版本号、未归档、未推送、未发版。
++
++## 产物
++
++- 前后对比：`artifacts/before-after.md`
++- 配置/限制/CLI：`artifacts/configs-and-limits.md`
++- 完整补丁：本地 git commit（不 push）
+diff --git a/rules/product-artifact-caution.md b/rules/product-artifact-caution.md
+new file mode 100644
+index 0000000..aa51285
+--- /dev/null
++++ b/rules/product-artifact-caution.md
+@@ -0,0 +1,23 @@
++<!-- 产品产物审慎：写工程交接用的需求/故事/验收/验证说明时阅读。项目经 rulemason 生成的 .rulemason/ 副本引用：不把正文抄进项目指令，不手改副本 -->
++
++写或改**工程交接用的产品产物**（PRD、用户故事、验收标准、verification / 成功标准说明）时阅读。这是过程指导，**不是**默认判断红线，也**不会**因「像合格需求」自动判业务成功。
++
++## 原则
++
++1. **成功标准可检验**：写清谁在何时用什么证据核对（测试、日志、指标口径）；禁止只写「提升体验/满意度」而无核对方式。
++2. **写明非目标**：v1 明确不做的范围，避免范围默默膨胀。
++3. **验收可测**：验收条件应能被执行或复核（步骤 → 预期）；缺省时主动补齐或标为待决。
++4. **证据边界**：区分已证实事实、推断与假设；**禁止编造**用户引言、调研结论、指标「已达成」或未提供的数据。
++5. **结构提示 ≠ 质量合格**：`result-check` 可选预设只检查约定小节是否出现，**不**证明需求正确或价值成立。
++
++## 何时会跑确定性检查
++
++仅当有人调用 `rulemason result-check` 且 requirements（或 `--preset product-artifact.hint|product-artifact.strict`）含相应检查项。`init` / `update` **只分发规矩与（缺失时）种子文件**，不扫描仓库正文、不改 `check` 退出码。
++
++**默认 `severity=hint`（结构预设）：** 缺约定小节记「提示」，单独不导致非零。需要门禁时显式 `product-artifact.strict`。非法配置仍为 exit 2；同次其他失败/无法判断仍非零。
++
++**默认同义标题（标题行）：** 非目标 / 不在范围内 / Out of Scope / Non-goal(s)；成功标准 / 验收 / 验收标准 / Success Criteria / Acceptance。结构命中不代表实质合格；代码围栏内的假标题可能误报（本检查不剥围栏）。
++
++## 归因
++
++行为启发自 [phuryn/pm-skills](https://github.com/phuryn/pm-skills)（MIT，`9af7bfd0bc47fdad43c2eaa7a43cd13918e7aaef`）中与 PRD/故事/验收相关的执行轨想法；另参考 [deanpeters/Product-Manager-Skills](https://github.com/deanpeters/Product-Manager-Skills)（CC BY-NC-SA 4.0，`cfcb697f14b8891d8b3ec43c16c3547df3e70e13`）产物主题的一般思路。本文件为**自研**正文，**未**嵌入、再分发上述仓库的 skill/模板/代码。
+diff --git a/rules/result-check-contracts.md b/rules/result-check-contracts.md
+index 8a7b60c..e47c130 100644
+--- a/rules/result-check-contracts.md
++++ b/rules/result-check-contracts.md
+@@ -1,8 +1,8 @@
+ <!-- result-check 契约：改被检查覆盖的结构化输出时同步要求文件。项目经 rulemason 生成的 .rulemason/ 副本引用：不把正文抄进项目指令，不手改副本 -->
+ 
+-当修改**已被**某份 `result-check` requirements 覆盖的结构化输出 schema、生成该输出的 prompt、或被检查覆盖的文案字段（含可选 `prose_hygiene`）时：
++当修改**已被**某份 `result-check` requirements 覆盖的结构化输出 schema、生成该输出的 prompt、或被检查覆盖的文案字段（含可选 `prose_hygiene`），或改工程交接用产品产物且项目选用了结构预设时：
+ 
+ 1. 在**同一次** change / PR 内更新对应的 requirements JSON 与相关夹具；
+-2. 本地运行 `rulemason result-check --record … --requirements …`（或 `--preset hint|strict`）确认通过、提示或按预期失败并已处理。
++2. 本地运行 `rulemason result-check --record … --requirements …`（或 `--preset hint|strict` / `product-artifact.hint|product-artifact.strict`）确认通过、提示或按预期失败并已处理。
+ 
+-项目专属的字段名、阈值、白名单与路径只写在各项目的 requirements / 夹具里，不写进本共享文件。未使用 result-check 的项目可忽略本条。`.rulemason/result-check/prose-hygiene.*.json` 种子仅首次写入，手改后 update 不覆盖。
++项目专属的字段名、频率、白名单、小节标题与路径只写在各项目的 requirements / 夹具里，不写进本共享文件。产品产物字段与夹具须与 `product-artifact-caution` 的证据边界一致：结构命中 ≠ 业务验证通过。未使用 result-check 的项目可忽略本条。`.rulemason/result-check/prose-hygiene.*.json` 与 `product-artifact.*.json` 种子仅首次写入，手改后 update 不覆盖。
+diff --git a/src/rulemason/check.py b/src/rulemason/check.py
+index 253bab8..eb62d5b 100644
+--- a/src/rulemason/check.py
++++ b/src/rulemason/check.py
+@@ -167,7 +167,7 @@ def frontend_dirs(root: Path, files: list[str]) -> list[str]:
+ 
+ 
+ def copied_rules(root: Path, files: list[str]) -> list[str]:
+-    """项目用得上的共享文件：九条、检查点、中文排版、result-check 契约、文案卫生与编码审慎必复制；
++    """项目用得上的共享文件：九条、检查点、中文排版、result-check 契约、文案卫生、编码审慎与产品产物审慎必复制；
+     Python 落法与 ruff 基础配置随 Python；React 落法随 React 目录；
+     ESLint 基础配置随 React 目录或已有的 ESLint 配置；文案语气随前端目录或已启用的判断。"""
+     react = bool(react_dirs(root, files))
+@@ -178,6 +178,7 @@ def copied_rules(root: Path, files: list[str]) -> list[str]:
+         "rules/result-check-contracts.md",
+         "rules/prose-hygiene.md",
+         "rules/agent-coding-caution.md",
++        "rules/product-artifact-caution.md",
+     }
+     if has_python(files):
+         wanted |= {"rules/python.md", RUFF_BASE}
+diff --git a/src/rulemason/cli.py b/src/rulemason/cli.py
+index e6ca0d4..208be04 100644
+--- a/src/rulemason/cli.py
++++ b/src/rulemason/cli.py
+@@ -32,9 +32,13 @@ optional、minimum/maximum、min_length/max_length（Unicode 码点）、enum、
+ enable 可临时关闭规则；可选 allowlist、units、max_hits（默认 50，截断时标明总数）。
+ 支持 prose_hygiene：推荐短名 chatbot_closer / signpost_opener / not_just_contrast；
+ em_dash 高级可选（默认关闭）。severity=hint（默认）命中为「提示」且单独不导致非零；
+-severity=strict 命中失败。提示不吞掉其他失败或输入错误。可用 --preset hint|strict
+-（项目 .rulemason/result-check 种子优先，否则包内模板）。init/update 自动分发规则正文，
+-并仅在缺失时种入预设；不会自动扫仓或改 check 退出码。
++severity=strict 命中失败。提示不吞掉其他失败或输入错误。
++must_contain / pattern 可选 severity：缺省 strict（缺失仍失败，与 0.8.34 前一致）；
++显式 severity=hint 时缺失记「提示」且单独不导致非零。field / cjk 等不因本能力改语义。
++--preset：hint|strict（及 prose-hygiene.*）仍为文案卫生预设；product-artifact.hint|
++product-artifact.strict 为产物结构小节标题提示（结构存在 ≠ 质量合格）。项目
++.rulemason/result-check 种子优先，否则包内模板。init/update 自动分发规则正文，
++并仅在缺失时种入预设；不会自动扫仓或改 check 退出码，也不声称 init/update 检查文档。
+ 父路径为 null 或键缺失时，子路径项记未检查/不适用。约束由调用方 requirements 提供。
+ 旧 structured_keys 等类型语义不变。本期排除 Skill 出现检查。
+ 模式核对信任调用方提供的模式（本地确定性，无超时沙箱）。
+@@ -74,8 +78,18 @@ def main(argv: list[str] | None = None) -> None:
+     p_result.add_argument("--requirements", help="检查要求 JSON 路径（与 --preset 二选一）")
+     p_result.add_argument(
+         "--preset",
+-        choices=("hint", "strict"),
+-        help="使用 prose_hygiene 预设（hint 默认提示不阻断；strict 阻断）；与 --requirements 二选一",
++        choices=(
++            "hint",
++            "strict",
++            "prose-hygiene.hint",
++            "prose-hygiene.strict",
++            "product-artifact.hint",
++            "product-artifact.strict",
++        ),
++        help=(
++            "预设：hint|strict|prose-hygiene.* 为文案卫生；"
++            "product-artifact.* 为产物结构小节提示；与 --requirements 二选一"
++        ),
+     )
+     p_result.add_argument("--json", action="store_true", help="只输出机器可读 JSON（schema 自有，不改 check --json）")
+     argv = sys.argv[1:] if argv is None else argv
+diff --git a/src/rulemason/result_check.py b/src/rulemason/result_check.py
+index ea1c7e5..8a778bd 100644
+--- a/src/rulemason/result_check.py
++++ b/src/rulemason/result_check.py
+@@ -35,6 +35,11 @@ CHECK_SKIP = "skip"
+ # 不阻断总体通过的状态（提示不得单独导致非零，也不得吞掉失败）
+ _NON_BLOCKING = frozenset({STATUS_PASS, STATUS_HINT})
+ 
++# 文本类检查可选 severity：缺省 strict（保持 0.8.34 前「缺失即失败」）；hint 记提示不单独非零
++SEVERITY_HINT = "hint"
++SEVERITY_STRICT = "strict"
++_TEXT_SEVERITIES = frozenset({SEVERITY_HINT, SEVERITY_STRICT})
++
+ SKILL_TYPES = frozenset({CHECK_SKILL, "skill", "skill_call", "skill_calls"})
+ # field 项允许的键：检查项 type 与值类型 value_type 分开，避免 JSON 键冲突
+ _FIELD_KEYS = frozenset({
+@@ -175,8 +180,22 @@ def _structured_field(record: dict[str, Any]) -> tuple[Any, bool]:
+     return value, True
+ 
+ 
++def _text_severity(check: dict[str, Any]) -> str | ItemResult:
++    """解析 must_contain / pattern 的 severity；缺省 strict。非法则返回输入错误项。"""
++    cid = check["_id"]
++    if "severity" not in check:
++        return SEVERITY_STRICT
++    sev = check["severity"]
++    if not isinstance(sev, str) or sev not in _TEXT_SEVERITIES:
++        return ItemResult(cid, STATUS_INPUT_ERROR, "severity 必须是 hint 或 strict")
++    return sev
++
++
+ def _eval_must_contain(check: dict[str, Any], text: str | None, provided: bool) -> ItemResult:
+     cid = check["_id"]
++    sev = _text_severity(check)
++    if isinstance(sev, ItemResult):
++        return sev
+     needles = _text_needles(check)
+     if needles is None:
+         return ItemResult(cid, STATUS_INPUT_ERROR, "必须包含要求缺少有效 texts")
+@@ -184,7 +203,11 @@ def _eval_must_contain(check: dict[str, Any], text: str | None, provided: bool)
+         return ItemResult(cid, STATUS_UNKNOWN, "未提供输出正文，无法判断必须包含")
+     missing = [t for t in needles if t not in text]
+     if missing:
+-        return ItemResult(cid, STATUS_FAIL, f"缺少必需文字：{missing[0]}", evidence=_excerpt(text or ""))
++        expl = f"缺少必需文字：{missing[0]}"
++        evidence = _excerpt(text or "")
++        if sev == SEVERITY_HINT:
++            return ItemResult(cid, STATUS_HINT, f"【提示·不阻断】{expl}", evidence=evidence)
++        return ItemResult(cid, STATUS_FAIL, expl, evidence=evidence)
+     return ItemResult(cid, STATUS_PASS, "必需文字均已出现", evidence=_excerpt(text or "", needles[0]))
+ 
+ 
+@@ -203,6 +226,9 @@ def _eval_must_not_contain(check: dict[str, Any], text: str | None, provided: bo
+ 
+ def _eval_pattern(check: dict[str, Any], text: str | None, provided: bool) -> ItemResult:
+     cid = check["_id"]
++    sev = _text_severity(check)
++    if isinstance(sev, ItemResult):
++        return sev
+     pattern = check.get("pattern")
+     if not isinstance(pattern, str) or not pattern:
+         return ItemResult(cid, STATUS_INPUT_ERROR, "模式要求缺少有效 pattern")
+@@ -213,7 +239,11 @@ def _eval_pattern(check: dict[str, Any], text: str | None, provided: bool) -> It
+     if not provided:
+         return ItemResult(cid, STATUS_UNKNOWN, "未提供输出正文，无法判断模式")
+     if compiled.search(text or "") is None:
+-        return ItemResult(cid, STATUS_FAIL, "正文不匹配给定模式", evidence=_excerpt(text or ""))
++        expl = "正文不匹配给定模式"
++        evidence = _excerpt(text or "")
++        if sev == SEVERITY_HINT:
++            return ItemResult(cid, STATUS_HINT, f"【提示·不阻断】{expl}", evidence=evidence)
++        return ItemResult(cid, STATUS_FAIL, expl, evidence=evidence)
+     return ItemResult(cid, STATUS_PASS, "正文匹配给定模式", evidence=_excerpt(text or ""))
+ 
+ 
+diff --git a/src/rulemason/shared.py b/src/rulemason/shared.py
+index f9700f5..13ff5a1 100644
+--- a/src/rulemason/shared.py
++++ b/src/rulemason/shared.py
+@@ -39,6 +39,7 @@ COPIED_SHARED = (
+     "rules/result-check-contracts.md",
+     "rules/prose-hygiene.md",
+     "rules/agent-coding-caution.md",
++    "rules/product-artifact-caution.md",
+     "lint/ruff-base.toml",
+     "lint/eslint-base.mjs",
+ )
+@@ -202,25 +203,46 @@ def copy_record(files: dict[str, str]) -> dict[str, str]:
+ 
+ # result-check 预设：仅首次种入，不进清单覆盖集
+ RESULT_CHECK_PRESET_DIR = f"{COPY_DIR}/result-check"
+-RESULT_CHECK_PRESETS = ("prose-hygiene.hint.json", "prose-hygiene.strict.json")
++RESULT_CHECK_PRESETS = (
++    "prose-hygiene.hint.json",
++    "prose-hygiene.strict.json",
++    "product-artifact.hint.json",
++    "product-artifact.strict.json",
++)
++# --preset 取值 → 包内文件名（无 .json）。hint/strict 仍是 prose-hygiene 短别名，不得偷换成产物结构预设
++RESULT_CHECK_PRESET_IDS: dict[str, str] = {
++    "hint": "prose-hygiene.hint",
++    "strict": "prose-hygiene.strict",
++    "prose-hygiene.hint": "prose-hygiene.hint",
++    "prose-hygiene.strict": "prose-hygiene.strict",
++    "product-artifact.hint": "product-artifact.hint",
++    "product-artifact.strict": "product-artifact.strict",
++}
++
++
++def normalize_result_check_preset(name: str) -> str:
++    """把 CLI --preset 取值归一成包内文件名（无 .json）；非法则 ValueError。"""
++    key = RESULT_CHECK_PRESET_IDS.get(name)
++    if key is None:
++        raise ValueError(
++            "preset 必须是 hint、strict、prose-hygiene.hint、prose-hygiene.strict、"
++            "product-artifact.hint 或 product-artifact.strict"
++        )
++    return key
+ 
+ 
+ def packaged_result_check_preset(name: str) -> str:
+-    """读取包内预设正文；name 为 hint 或 strict。"""
+-    key = "hint" if name == "hint" else "strict" if name == "strict" else ""
+-    if not key:
+-        raise ValueError("preset 必须是 hint 或 strict")
+-    path = Path(__file__).parent / "templates" / "result-check" / f"prose-hygiene.{key}.json"
++    """读取包内预设正文；name 为短别名或完整 id（见 RESULT_CHECK_PRESET_IDS）。"""
++    key = normalize_result_check_preset(name)
++    path = Path(__file__).parent / "templates" / "result-check" / f"{key}.json"
+     return path.read_text(encoding="utf-8")
+ 
+ 
+ def resolve_result_check_preset(root: Path | None, name: str) -> Path | str:
+     """项目种子优先，否则返回包内正文字符串。"""
+-    key = "hint" if name == "hint" else "strict" if name == "strict" else ""
+-    if not key:
+-        raise ValueError("preset 必须是 hint 或 strict")
++    key = normalize_result_check_preset(name)
+     if root is not None:
+-        seeded = root / RESULT_CHECK_PRESET_DIR / f"prose-hygiene.{key}.json"
++        seeded = root / RESULT_CHECK_PRESET_DIR / f"{key}.json"
+         if seeded.is_file():
+             return seeded
+     return packaged_result_check_preset(key)
+@@ -230,12 +252,12 @@ def seed_result_check_presets(root: Path) -> list[str]:
+     """若目标不存在则写入预设；已存在则跳过。返回新写入的相对路径列表。"""
+     written: list[str] = []
+     for filename in RESULT_CHECK_PRESETS:
+-        key = "hint" if filename.endswith(".hint.json") else "strict"
+         rel = f"{RESULT_CHECK_PRESET_DIR}/{filename}"
+         dest = root / rel
+         if dest.is_file() or dest.is_symlink():
+             continue
+-        write_text(dest, packaged_result_check_preset(key))
++        stem = filename.removesuffix(".json")
++        write_text(dest, packaged_result_check_preset(stem))
+         written.append(rel)
+     return written
+ 
+diff --git a/src/rulemason/templates/claude.block.md b/src/rulemason/templates/claude.block.md
+index 6661898..b56384b 100644
+--- a/src/rulemason/templates/claude.block.md
++++ b/src/rulemason/templates/claude.block.md
+@@ -6,6 +6,7 @@
+ @.rulemason/rules/result-check-contracts.md
+ @.rulemason/rules/prose-hygiene.md
+ @.rulemason/rules/agent-coding-caution.md
++@.rulemason/rules/product-artifact-caution.md
+ @.rulemason/rules/workflow-gates.md
+ 
+ Claude Code 下，workflow gates 的「自动精简」一步用 `/simplify` 执行，替换手工精简：
+diff --git a/src/rulemason/templates/code-style.block.md b/src/rulemason/templates/code-style.block.md
+index 2befef1..202ffdd 100644
+--- a/src/rulemason/templates/code-style.block.md
++++ b/src/rulemason/templates/code-style.block.md
+@@ -7,5 +7,6 @@
+ - `.rulemason/rules/result-check-contracts.md`：改结构化输出或 result-check 要求时阅读
+ - `.rulemason/rules/prose-hygiene.md`：写给人读的文案时阅读；检查默认 hint（`result-check --preset hint`），严格门禁用 `--preset strict`
+ - `.rulemason/rules/agent-coding-caution.md`：写码/改码时阅读（过程指导，非自动禁词检测）
++- `.rulemason/rules/product-artifact-caution.md`：写工程交接用的产品产物时阅读；结构检查用 `--preset product-artifact.hint`（默认提示）/ `product-artifact.strict`（显式门禁）；init/update 只分发不扫仓
+ 
+ 开始相关代码工作前，读取并遵守适用的共享规则。
+diff --git a/src/rulemason/templates/opencode.jsonc.tmpl b/src/rulemason/templates/opencode.jsonc.tmpl
+index 414a765..a0beb8a 100644
+--- a/src/rulemason/templates/opencode.jsonc.tmpl
++++ b/src/rulemason/templates/opencode.jsonc.tmpl
+@@ -8,6 +8,7 @@
+     ".rulemason/rules/result-check-contracts.md",
+     ".rulemason/rules/prose-hygiene.md",
+     ".rulemason/rules/agent-coding-caution.md",
++    ".rulemason/rules/product-artifact-caution.md",
+     ".rulemason/rules/workflow-gates.md"
+   ]
+ }
+diff --git a/src/rulemason/templates/result-check/product-artifact.hint.json b/src/rulemason/templates/result-check/product-artifact.hint.json
+new file mode 100644
+index 0000000..118d673
+--- /dev/null
++++ b/src/rulemason/templates/result-check/product-artifact.hint.json
+@@ -0,0 +1,17 @@
++{
++  "schema": 1,
++  "checks": [
++    {
++      "id": "non-goals-heading",
++      "type": "pattern",
++      "pattern": "(?im)^#{1,6}\\s*(非目标|不在范围内|Out of [Ss]cope|Non-?goals?)\\b",
++      "severity": "hint"
++    },
++    {
++      "id": "success-or-acceptance-heading",
++      "type": "pattern",
++      "pattern": "(?im)^#{1,6}\\s*(成功标准|验收(?:标准)?|Success [Cc]riteria|Acceptance)\\b",
++      "severity": "hint"
++    }
++  ]
++}
+diff --git a/src/rulemason/templates/result-check/product-artifact.strict.json b/src/rulemason/templates/result-check/product-artifact.strict.json
+new file mode 100644
+index 0000000..b443b2d
+--- /dev/null
++++ b/src/rulemason/templates/result-check/product-artifact.strict.json
+@@ -0,0 +1,17 @@
++{
++  "schema": 1,
++  "checks": [
++    {
++      "id": "non-goals-heading",
++      "type": "pattern",
++      "pattern": "(?im)^#{1,6}\\s*(非目标|不在范围内|Out of [Ss]cope|Non-?goals?)\\b",
++      "severity": "strict"
++    },
++    {
++      "id": "success-or-acceptance-heading",
++      "type": "pattern",
++      "pattern": "(?im)^#{1,6}\\s*(成功标准|验收(?:标准)?|Success [Cc]riteria|Acceptance)\\b",
++      "severity": "strict"
++    }
++  ]
++}
+diff --git a/tests/test_init.py b/tests/test_init.py
+index 07f7d8d..17f5701 100644
+--- a/tests/test_init.py
++++ b/tests/test_init.py
+@@ -198,6 +198,7 @@ def test_generated_copies_match_shared_source_and_manifest(project):
+         "rules/result-check-contracts.md",
+         "rules/prose-hygiene.md",
+         "rules/agent-coding-caution.md",
++        "rules/product-artifact-caution.md",
+         "lint/ruff-base.toml",
+     ]
+     for rel in rules:
+@@ -1173,11 +1174,14 @@ def test_go_project_gets_only_generic_rules_and_update_adds_python_later(tmp_pat
+     assert _init(root) == 0
+     assert sorted(p.relative_to(root / ".rulemason").as_posix() for p in (root / ".rulemason").rglob("*") if p.is_file()) == [
+         "README.md",
++        "result-check/product-artifact.hint.json",
++        "result-check/product-artifact.strict.json",
+         "result-check/prose-hygiene.hint.json",
+         "result-check/prose-hygiene.strict.json",
+         "rules/agent-coding-caution.md",
+         "rules/cjk-typography.md",
+         "rules/code-style.md",
++        "rules/product-artifact-caution.md",
+         "rules/prose-hygiene.md",
+         "rules/result-check-contracts.md",
+         "rules/workflow-gates.md",
+diff --git a/tests/test_product_artifact.py b/tests/test_product_artifact.py
+new file mode 100644
+index 0000000..dd68f86
+--- /dev/null
++++ b/tests/test_product_artifact.py
+@@ -0,0 +1,264 @@
++"""product-artifact-caution 分发与结构预设；must_contain/pattern severity。"""
++from __future__ import annotations
++
++import json
++import zipfile
++from pathlib import Path
++
++from rulemason import cli, init, remove, shared, update
++from rulemason.result_check import STATUS_HINT, run_check
++from rulemason.shared import packaged_result_check_preset, seed_result_check_presets
++
++
++def _run_cli(*argv: str):
++    try:
++        cli.main(list(argv))
++    except SystemExit as exc:
++        return exc.code
++    return 0
++
++
++# ---------- severity 兼容 ----------
++
++def test_must_contain_default_still_fails() -> None:
++    report = run_check(
++        {"text": "只有摘要"},
++        {"schema": 1, "checks": [{"id": "a", "type": "must_contain", "texts": ["非目标"]}]},
++    )
++    assert report.exit_code == 1
++    assert report.items[0].status == "失败"
++
++
++def test_pattern_hint_alone_exit_zero() -> None:
++    report = run_check(
++        {"text": "# 摘要\n无目标段落\n"},
++        {"schema": 1, "checks": [{
++            "id": "h", "type": "pattern",
++            "pattern": r"(?im)^#{1,6}\s*非目标\b",
++            "severity": "hint",
++        }]},
++    )
++    assert report.exit_code == 0
++    assert report.overall_pass is True
++    assert report.items[0].status == STATUS_HINT
++
++
++def test_must_contain_hint_alone_exit_zero() -> None:
++    report = run_check(
++        {"text": "只有摘要"},
++        {"schema": 1, "checks": [{
++            "id": "a", "type": "must_contain", "texts": ["非目标"], "severity": "hint",
++        }]},
++    )
++    assert report.exit_code == 0
++    assert report.items[0].status == STATUS_HINT
++
++
++def test_pattern_hint_does_not_swallow_fail() -> None:
++    report = run_check(
++        {"text": "I hope this helps"},
++        {"schema": 1, "checks": [
++            {"id": "h", "type": "pattern", "pattern": r"非目标", "severity": "hint"},
++            {"id": "t", "type": "must_contain", "texts": ["MISSING"]},
++        ]},
++    )
++    assert report.exit_code == 1
++    assert any(i.status == STATUS_HINT for i in report.items)
++    assert any(i.status == "失败" for i in report.items)
++
++
++def test_bad_text_severity_input_error() -> None:
++    report = run_check(
++        {"text": "x"},
++        {"schema": 1, "checks": [{
++            "id": "a", "type": "must_contain", "texts": ["x"], "severity": "loud",
++        }]},
++    )
++    assert report.exit_code == 2
++
++
++def test_unknown_and_input_error_not_swallowed_by_hint() -> None:
++    missing_text = run_check(
++        {},
++        {"schema": 1, "checks": [{
++            "id": "h", "type": "pattern", "pattern": r"非目标", "severity": "hint",
++        }]},
++    )
++    assert missing_text.exit_code == 1
++    assert missing_text.items[0].status == "无法判断"
++
++    bad_pat = run_check(
++        {"text": "x"},
++        {"schema": 1, "checks": [{
++            "id": "h", "type": "pattern", "pattern": "(", "severity": "hint",
++        }]},
++    )
++    assert bad_pat.exit_code == 2
++
++
++def test_legacy_prose_cjk_field_exit_codes_unchanged() -> None:
++    prose = run_check(
++        {"text": "I hope this helps"},
++        {"schema": 1, "checks": [{
++            "id": "p", "type": "prose_hygiene", "rules": ["chatbot_closer"], "severity": "strict",
++        }]},
++    )
++    assert prose.exit_code == 1
++
++    cjk = run_check(
++        {"text": "使用Git"},
++        {"schema": 1, "checks": [{"id": "c", "type": "cjk_typography", "rules": ["cjk_latin_space"]}]},
++    )
++    assert cjk.exit_code == 1
++
++    field = run_check(
++        {"structured": {"a": 1}},
++        {"schema": 1, "checks": [{
++            "id": "f", "type": "field", "path": "a", "value_type": "string",
++        }]},
++    )
++    assert field.exit_code == 1
++
++
++# ---------- 预设语义 ----------
++
++def test_preset_hint_still_prose_not_product() -> None:
++    preset = json.loads(packaged_result_check_preset("hint"))
++    assert preset["checks"][0]["type"] == "prose_hygiene"
++    product = json.loads(packaged_result_check_preset("product-artifact.hint"))
++    assert all(c["type"] == "pattern" for c in product["checks"])
++    assert all(c["severity"] == "hint" for c in product["checks"])
++
++
++def test_product_artifact_hint_and_strict(tmp_path: Path, capsys, monkeypatch) -> None:
++    monkeypatch.chdir(tmp_path)
++    rec = tmp_path / "r.json"
++    # 自写示例：有成功标准，缺非目标
++    rec.write_text(json.dumps({
++        "text": "# 功能\n\n## 成功标准\n日志可核对。\n",
++    }, ensure_ascii=False), encoding="utf-8")
++    code = _run_cli(
++        "result-check", "--json", "--record", str(rec), "--preset", "product-artifact.hint",
++    )
++    assert code == 0
++    payload = json.loads(capsys.readouterr().out)
++    assert any(i["status"] == STATUS_HINT for i in payload["items"])
++
++    code = _run_cli(
++        "result-check", "--json", "--record", str(rec), "--preset", "product-artifact.strict",
++    )
++    assert code == 1
++
++
++def test_synonym_headings_pass() -> None:
++    text = "# Feat\n\n## Non-goals\nv1 skip.\n\n## Acceptance\nGiven When Then.\n"
++    report = run_check({"text": text}, json.loads(packaged_result_check_preset("product-artifact.hint")))
++    assert report.exit_code == 0
++    assert all(i.status == "通过" for i in report.items)
++
++
++def test_code_fence_fake_heading_documented_false_positive() -> None:
++    # 围栏内假标题仍可能匹配（已知边界：本类型不剥代码）；锁定为「会误报通过」以免静默变严
++    text = "摘要\n\n```\n## 非目标\n## 验收\n```\n"
++    report = run_check({"text": text}, json.loads(packaged_result_check_preset("product-artifact.strict")))
++    assert report.exit_code == 0
++    assert all(i.status == "通过" for i in report.items)
++
++
++def test_keyword_in_prose_without_heading_is_miss() -> None:
++    text = "本文讨论非目标与验收标准，但没有独立小节。\n"
++    report = run_check({"text": text}, json.loads(packaged_result_check_preset("product-artifact.strict")))
++    assert report.exit_code == 1
++
++
++# ---------- 种子 / 分发 / remove ----------
++
++def test_seed_four_presets_idempotent(tmp_path: Path) -> None:
++    first = seed_result_check_presets(tmp_path)
++    assert len(first) == 4
++    hint = tmp_path / ".rulemason/result-check/product-artifact.hint.json"
++    original = hint.read_text(encoding="utf-8")
++    hint.write_text(original.replace("非目标", "范围外"), encoding="utf-8")
++    custom = hint.read_text(encoding="utf-8")
++    assert seed_result_check_presets(tmp_path) == []
++    assert hint.read_text(encoding="utf-8") == custom
++
++
++def test_init_distributes_rule_and_seeds(tmp_path: Path) -> None:
++    from conftest import commit, git_init, write
++
++    root = tmp_path / "proj"
++    git_init(root)
++    write(root, "go.mod", "module x\n")
++    write(root, "openspec/config.yaml", "schema: spec-driven\n")
++    commit(root)
++    assert init.run(root, "claude", True) == 0
++    rule = root / ".rulemason/rules/product-artifact-caution.md"
++    assert rule.is_file()
++    assert "可检验" in rule.read_text(encoding="utf-8")
++    assert "未再分发" in rule.read_text(encoding="utf-8") or "未" in rule.read_text(encoding="utf-8")
++    assert (root / ".rulemason/result-check/product-artifact.hint.json").is_file()
++    agents = (root / "AGENTS.md").read_text(encoding="utf-8")
++    assert "product-artifact-caution.md" in agents
++    files = shared.read_manifest(root)["files"]
++    assert ".rulemason/rules/product-artifact-caution.md" in files
++    assert ".rulemason/result-check/product-artifact.hint.json" not in files
++    path = root / ".rulemason/result-check/product-artifact.hint.json"
++    custom = path.read_text(encoding="utf-8").replace("Non-?goals?", "OutOfScopeX")
++    path.write_text(custom, encoding="utf-8")
++    assert update.run(root, yes=True) == 0
++    assert path.read_text(encoding="utf-8") == custom
++
++
++def test_remove_deletes_product_seeds(tmp_path: Path) -> None:
++    from conftest import commit, git_init, write
++
++    root = tmp_path / "proj"
++    git_init(root)
++    write(root, "README.md", "demo\n")
++    write(root, "openspec/config.yaml", "schema: spec-driven\n")
++    commit(root)
++    assert init.run(root, "claude", True) == 0
++    pa_h = root / ".rulemason/result-check/product-artifact.hint.json"
++    pa_s = root / ".rulemason/result-check/product-artifact.strict.json"
++    assert pa_h.is_file() and pa_s.is_file()
++    assert remove.run(root, yes=True) == 0
++    assert not pa_h.exists() and not pa_s.exists()
++
++
++def test_wheel_and_sdist_include_resources(tmp_path: Path) -> None:
++    import subprocess
++    import tarfile
++
++    dist = tmp_path / "dist"
++    dist.mkdir()
++    proc = subprocess.run(
++        ["uv", "build", "--out-dir", str(dist)],
++        cwd="/workspace", capture_output=True, text=True,
++    )
++    assert proc.returncode == 0, proc.stderr or proc.stdout
++    wheels = list(dist.glob("*.whl"))
++    sdists = list(dist.glob("*.tar.gz"))
++    assert wheels and sdists
++    with zipfile.ZipFile(wheels[0]) as zf:
++        names = zf.namelist()
++        assert any(n.endswith("rules/product-artifact-caution.md") for n in names)
++        assert any(n.endswith("templates/result-check/product-artifact.hint.json") for n in names)
++        assert any(n.endswith("templates/result-check/product-artifact.strict.json") for n in names)
++    with tarfile.open(sdists[0], "r:gz") as tf:
++        snames = tf.getnames()
++        assert any(n.endswith("rules/product-artifact-caution.md") for n in snames)
++        assert any("product-artifact.hint.json" in n for n in snames)
++
++
++def test_clean_install_preset_runs(tmp_path: Path, monkeypatch) -> None:
++    """用包内模板直接跑（不依赖已接入项目），模拟干净安装后的 CLI 路径。"""
++    monkeypatch.chdir(tmp_path)
++    rec = tmp_path / "r.json"
++    rec.write_text(json.dumps({
++        "text": "## 非目标\nx\n\n## 验收\ny\n",
++    }, ensure_ascii=False), encoding="utf-8")
++    code = _run_cli(
++        "result-check", "--json", "--record", str(rec), "--preset", "product-artifact.hint",
++    )
++    assert code == 0
+diff --git a/tests/test_prose_hygiene.py b/tests/test_prose_hygiene.py
+index 6db977f..e04d186 100644
+--- a/tests/test_prose_hygiene.py
++++ b/tests/test_prose_hygiene.py
+@@ -104,7 +104,7 @@ def test_disable_and_allowlist() -> None:
+ 
+ def test_seed_presets_idempotent(tmp_path: Path) -> None:
+     first = seed_result_check_presets(tmp_path)
+-    assert len(first) == 2
++    assert len(first) == 4
+     hint = tmp_path / ".rulemason/result-check/prose-hygiene.hint.json"
+     original = hint.read_text(encoding="utf-8")
+     hint.write_text(original.replace("chatbot_closer", "em_dash"), encoding="utf-8")
+@@ -263,9 +263,10 @@ def test_remove_deletes_seed_presets(tmp_path: Path) -> None:
+     assert init.run(root, "claude", True) == 0
+     hint = root / ".rulemason/result-check/prose-hygiene.hint.json"
+     strict = root / ".rulemason/result-check/prose-hygiene.strict.json"
+-    assert hint.is_file() and strict.is_file()
++    pa = root / ".rulemason/result-check/product-artifact.hint.json"
++    assert hint.is_file() and strict.is_file() and pa.is_file()
+     assert remove.run(root, yes=True) == 0
+-    assert not hint.exists() and not strict.exists()
++    assert not hint.exists() and not strict.exists() and not pa.exists()
+     assert not (root / ".rulemason").exists()
+ 
+ 
+@@ -284,7 +285,9 @@ def test_init_seeds_not_in_manifest_and_survive_update(tmp_path: Path) -> None:
+     seed = ".rulemason/result-check/prose-hygiene.hint.json"
+     assert ".rulemason/rules/prose-hygiene.md" in files
+     assert ".rulemason/rules/agent-coding-caution.md" in files
++    assert ".rulemason/rules/product-artifact-caution.md" in files
+     assert seed not in files
++    assert ".rulemason/result-check/product-artifact.hint.json" not in files
+     path = root / seed
+     custom = path.read_text(encoding="utf-8").replace("chatbot_closer", "em_dash")
+     path.write_text(custom, encoding="utf-8")
+diff --git a/tests/test_shared.py b/tests/test_shared.py
+index 1b92a4a..f11932d 100644
+--- a/tests/test_shared.py
++++ b/tests/test_shared.py
+@@ -34,7 +34,7 @@ def test_shared_root_missing_everywhere_raises(tmp_path, monkeypatch):
+ def test_generated_files_cover_rulemason_dir_and_selected_skills():
+     files = shared.generated_files(["claude", "codex"])
+ 
+-    assert sum(1 for rel in files if rel.startswith(".rulemason/")) == 12
++    assert sum(1 for rel in files if rel.startswith(".rulemason/")) == 13
+     assert files[".rulemason/rules/code-style.md"] == (shared.SOURCE_ROOT / "rules/code-style.md").read_text(encoding="utf-8")
+     assert ".claude/skills/rulemason/SKILL.md" in files
+     assert ".agents/skills/rulemason/SKILL.md" in files
+diff --git a/tests/test_templates.py b/tests/test_templates.py
+index abd50f8..8b88ed3 100644
+--- a/tests/test_templates.py
++++ b/tests/test_templates.py
+@@ -74,6 +74,7 @@ def test_claude_block_imports_rules_and_maps_simplify_step():
+         "@.rulemason/rules/result-check-contracts.md",
+         "@.rulemason/rules/prose-hygiene.md",
+         "@.rulemason/rules/agent-coding-caution.md",
++        "@.rulemason/rules/product-artifact-caution.md",
+         "@.rulemason/rules/workflow-gates.md",
+     ]
+     assert "/simplify" in mapping and "代码逻辑" in mapping and "行为保持" in mapping
+@@ -100,6 +101,7 @@ def test_opencode_and_ruff_templates_point_to_copies():
+         ".rulemason/rules/result-check-contracts.md",
+         ".rulemason/rules/prose-hygiene.md",
+         ".rulemason/rules/agent-coding-caution.md",
++        ".rulemason/rules/product-artifact-caution.md",
+         ".rulemason/rules/workflow-gates.md",
+     ]
+     assert 'extend = "$extend"' in ruff and "select" not in ruff
+-- 
+2.43.0
+

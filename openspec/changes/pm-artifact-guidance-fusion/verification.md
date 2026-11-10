@@ -1,6 +1,7 @@
 # Verification — pm-artifact-guidance-fusion
 
 基线分支：`main` @ `71564ca`（0.8.34，`git fetch origin main` 核实）。实现分支：`cursor/pm-artifact-guidance-impl-aa93`。
+本地实现提交：`5258e72`（其后另有 docs 提交附 `artifacts/full.patch`）。**未 push / 未开 PR / 未归档 / 未发版**。
 
 ## 已实现功能（真实）
 
