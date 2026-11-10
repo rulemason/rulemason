@@ -2,10 +2,32 @@
 [project]
 name = "rulemason"
 dynamic = ["version"]
-description = "Shared rules and checkpoints for AI coding tools（给 AI 编码工具的共享规则与检查点）：一处维护规则，项目内生成只读副本，方案与代码前后自动判断与审查"
+description = "Make AI-written code read like a human wrote it. 让 AI 写的代码更精简、好读、好调试：一处维护规则，Claude Code、Cursor、Codex、OpenCode 共用，方案和代码前后自动检查。"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "jincheng-xie" }]
+keywords = [
+    "code-quality",
+    "ai-agents",
+    "ai-rules",
+    "ai-coding",
+    "claude-code",
+    "cursor",
+    "codex",
+    "opencode",
+    "openspec",
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Topic :: Software Development :: Quality Assurance",
+]
 requires-python = ">=3.11"
 dependencies = [
     "typesafe-sdk>=0.7.5",
