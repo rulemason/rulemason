@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>rulemason：AI 写代码，也讲章法</title>
+  <title>rulemason：让 AI 写的代码，读起来像人写的</title>
   <meta name="description" content="让 AI 写的代码，读起来像人写的。给 AI 编码工具的一套规矩，外加每次改动都要过的关卡。支持 Claude Code、Cursor、Codex、OpenCode。">
   <link rel="canonical" href="https://rulemason.com/">
   <link rel="alternate" hreflang="zh-CN" href="https://rulemason.com/">
@@ -13,15 +13,15 @@
   <meta property="og:locale" content="zh_CN">
   <meta property="og:locale:alternate" content="en_US">
   <meta property="og:site_name" content="rulemason">
-  <meta property="og:title" content="rulemason：AI 写代码，也讲章法">
+  <meta property="og:title" content="rulemason：让 AI 写的代码，读起来像人写的">
   <meta property="og:description" content="让 AI 写的代码，读起来像人写的。给 AI 编码工具的一套规矩，外加每次改动都要过的关卡。">
   <meta property="og:url" content="https://rulemason.com/">
   <meta property="og:image" content="https://rulemason.com/assets/banner.png">
   <meta property="og:image:width" content="1920">
   <meta property="og:image:height" content="960">
-  <meta property="og:image:alt" content="rulemason：AI 写代码，也讲章法">
+  <meta property="og:image:alt" content="rulemason：让 AI 写的代码，读起来像人写的">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="rulemason：AI 写代码，也讲章法">
+  <meta name="twitter:title" content="rulemason：让 AI 写的代码，读起来像人写的">
   <meta name="twitter:description" content="让 AI 写的代码，读起来像人写的。给 AI 编码工具的一套规矩，外加每次改动都要过的关卡。">
   <meta name="twitter:image" content="https://rulemason.com/assets/banner.png">
   <meta name="theme-color" content="#f7f6f3">
@@ -48,6 +48,9 @@
         <a href="#tools">工具</a>
         <a href="#faq">问答</a>
       </nav>
+      <a class="nav-github" href="https://github.com/rulemason/rulemason" aria-label="GitHub">
+        <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      </a>
       <a class="lang" href="/en/" hreflang="en" lang="en">EN</a>
     </div>
   </header>
@@ -57,8 +60,8 @@
       <div class="hero-copy">
         <p class="eyebrow">rulemason · RULES FOR AI CODING</p>
         <p class="tagline">AI CODING, WITH RULES</p>
-        <h1>AI 写代码，<br><span class="accent">也讲章法。</span></h1>
-        <p class="lede">让 AI 写的代码，读起来像人写的。</p>
+        <!-- 标题只写在这个 h1 -->
+        <h1 id="hero-title">让 AI 写的代码，读起来像人写的。</h1>
         <p class="support">用 AI 写代码很快，难的是几个月以后。功能一个个加上去，代码越堆越多：同一段逻辑复制了好几份，没人调用的函数和参数留在原处，读起来完全不像人写的代码。</p>
         <div class="actions">
           <a class="btn btn-solid" href="https://github.com/rulemason/rulemason">GitHub</a>
@@ -74,10 +77,28 @@
         <div class="hero-logo">
           <img src="/assets/logo.svg" width="416" height="448" alt="像素标志：粉色的小兔子骑着一匹浅蓝色的飞马">
         </div>
+        <div class="term" data-term>
+          <div class="term-bar">
+            <span class="term-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="term-name">terminal</span>
+          </div>
+          <div class="term-screen" role="log" aria-label="rulemason init --tools cursor --yes 的真实输出">
+            <p class="term-line term-cmd"><span class="tok-prompt">$</span> <span class="cmd-text">rulemason init --tools cursor --yes</span><span class="caret" aria-hidden="true"></span></p>
+            <p class="term-line">项目没有 openspec/，本机也没有 openspec 命令（安装：npm install -g @fission-ai/openspec@latest）；先只接入规则与 lint。</p>
+            <p class="term-line tok-head">## 文件计划</p>
+            <p class="term-line">新增 14 个文件：规则副本 9、配置 2、skill 1、入口 2</p>
+            <p class="term-line tok-dim">已种入 result-check 预设（仅首次）：.rulemason/result-check/prose-hygiene.hint.json、.rulemason/result-check/prose-hygiene.strict.json、.rulemason/result-check/product-artifact.hint.json、.rulemason/result-check/product-artifact.strict.json、.rulemason/result-check/verification-walkthrough.hint.json、.rulemason/result-check/verification-walkthrough.strict.json</p>
+            <p class="term-line tok-key">补项目信息：在 AI 工具中运行 /rulemason</p>
+            <p class="term-line">本次改动的文件：.rulemason/rules/code-style.md、.rulemason/rules/python.md、.rulemason/rules/workflow-gates.md、.rulemason/rules/cjk-typography.md、.rulemason/rules/result-check-contracts.md、.rulemason/rules/prose-hygiene.md、.rulemason/rules/agent-coding-caution.md、.rulemason/rules/product-artifact-caution.md、.rulemason/lint/ruff-base.toml、.rulemason/README.md、.agents/skills/rulemason/SKILL.md、AGENTS.md、ruff.toml、.rulemason.yaml</p>
+            <p class="term-line">检查点与方案写法需要 OpenSpec：安装后在项目根运行 openspec init，再运行 rulemason update 补齐</p>
+            <p class="term-line tok-key">下一步：在 AI 工具中运行 /rulemason，补项目简介、红线并确认命令表。</p>
+          </div>
+          <p class="term-note">一次真实运行：新仓库里只有 main.py，命令是 <code>rulemason init --tools cursor --yes</code>。</p>
+        </div>
         <div class="install">
           <div class="install-bar">
-            <pre id="install-cmd"><code>uv tool install rulemason
-rulemason init</code></pre>
+            <pre id="install-cmd"><code><span class="tok-cmd">uv</span> <span class="tok-fn">tool install</span> <span class="tok-str">rulemason</span>
+<span class="tok-cmd">rulemason</span> <span class="tok-fn">init</span></code></pre>
             <button type="button" class="copy" hidden data-for="install-cmd" data-done="已复制" data-fail="没复制上，请选中上面的命令">复制</button>
           </div>
           <p id="copy-status" class="copy-status" role="status"></p>
@@ -86,8 +107,9 @@ rulemason init</code></pre>
       </div>
     </div>
 
-    <section id="pain">
+    <section id="pain" class="reveal">
       <div class="wrap">
+        <p class="kicker">01</p>
         <h2>项目一大，代码就难读</h2>
         <p class="section-lead">rulemason 是给 AI 编码工具定的一套规矩，外加每次改动都要过的关卡。支持 Claude Code、Cursor、Codex、OpenCode。规矩写在项目里，AI 写方案、写代码、写文档时照着做。</p>
         <ul class="cards">
@@ -107,8 +129,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="steps">
+    <section id="steps" class="reveal">
       <div class="wrap">
+        <p class="kicker">02</p>
         <h2>读、守、查</h2>
         <p class="section-lead">先把规矩放进项目，写的时候照着守，写完再过关卡。方案和代码的关卡需要 <a href="https://github.com/Fission-AI/OpenSpec">OpenSpec</a>（<code>npm install -g @fission-ai/openspec@latest</code>）。没装也能先接入规矩和 lint，装好后运行 <code>rulemason update</code> 补齐。</p>
 
@@ -154,8 +177,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="flow">
+    <section id="flow" class="reveal">
       <div class="wrap">
+        <p class="kicker">03</p>
         <h2>怎么工作</h2>
         <p class="section-lead">内置规则全程生效。有 key 才用 Jev；没有 key 时不调用 Jev。</p>
         <ol class="flow">
@@ -217,8 +241,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="compare">
+    <section id="compare" class="reveal">
       <div class="wrap">
+        <p class="kicker">04</p>
         <h2>用和不用，差在哪</h2>
         <div class="table-wrap" tabindex="0" role="region" aria-label="用和不用的对比，可以横向滚动">
           <table>
@@ -276,8 +301,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="tools">
+    <section id="tools" class="reveal">
       <div class="wrap">
+        <p class="kicker">05</p>
         <h2>支持的工具</h2>
         <p class="section-lead">OpenSpec 的命令由 <code>openspec init</code> 生成，不同版本的文件名以它写出的为准。Claude Code 用冒号，Cursor 和 OpenCode 用连字符。Codex 只生成 skill，用 <code>$</code> 加上 skill 名。</p>
         <div class="table-wrap" tabindex="0" role="region" aria-label="支持的工具，可以横向滚动">
@@ -321,8 +347,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="safety">
+    <section id="safety" class="reveal">
       <div class="wrap">
+        <p class="kicker">06</p>
         <h2>让你放心的设计</h2>
         <ul class="safety">
           <li><strong>先看清楚再写。</strong><code>init</code> 和 <code>remove</code> 先列出要改哪些文件，确认后才写。<code>update</code> 会直接刷新它自己管的副本和入口；你的文件（ruff、ESLint、<code>openspec/config.yaml</code> 等）缺了配置时，先列出补齐计划，确认后才写。<code>--plan</code> 和 <code>--dry-run</code> 只看计划，什么都不写。</li>
@@ -341,8 +368,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="faq" class="faq">
+    <section id="faq" class="faq reveal">
       <div class="wrap">
+        <p class="kicker">07</p>
         <h2>常见问题</h2>
         <details>
           <summary>和自己手写一份 AGENTS.md 或 CLAUDE.md 有什么区别？</summary>

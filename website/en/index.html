@@ -4,8 +4,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>rulemason: AI writes code, and it follows the rules</title>
-  <meta name="description" content="AI-written code that reads like a person wrote it. Rules for AI coding tools, plus a checkpoint after every change. Supports Claude Code, Cursor, Codex, and OpenCode.">
+  <title>rulemason: Make AI-written code read like a human wrote it.</title>
+  <meta name="description" content="Make AI-written code read like a human wrote it. Rules for AI coding tools, plus a checkpoint after every change. Supports Claude Code, Cursor, Codex, and OpenCode.">
   <link rel="canonical" href="https://rulemason.com/en/">
   <link rel="alternate" hreflang="en" href="https://rulemason.com/en/">
   <link rel="alternate" hreflang="zh-CN" href="https://rulemason.com/">
@@ -13,16 +13,16 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:locale:alternate" content="zh_CN">
   <meta property="og:site_name" content="rulemason">
-  <meta property="og:title" content="rulemason: AI writes code, and it follows the rules">
-  <meta property="og:description" content="AI-written code that reads like a person wrote it. Rules for AI coding tools, plus a checkpoint after every change.">
+  <meta property="og:title" content="rulemason: Make AI-written code read like a human wrote it.">
+  <meta property="og:description" content="Make AI-written code read like a human wrote it. Rules for AI coding tools, plus a checkpoint after every change.">
   <meta property="og:url" content="https://rulemason.com/en/">
   <meta property="og:image" content="https://rulemason.com/assets/banner.png">
   <meta property="og:image:width" content="1920">
   <meta property="og:image:height" content="960">
-  <meta property="og:image:alt" content="rulemason: AI writes code, and it follows the rules">
+  <meta property="og:image:alt" content="rulemason: Make AI-written code read like a human wrote it.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="rulemason: AI writes code, and it follows the rules">
-  <meta name="twitter:description" content="AI-written code that reads like a person wrote it. Rules for AI coding tools, plus a checkpoint after every change.">
+  <meta name="twitter:title" content="rulemason: Make AI-written code read like a human wrote it.">
+  <meta name="twitter:description" content="Make AI-written code read like a human wrote it. Rules for AI coding tools, plus a checkpoint after every change.">
   <meta name="twitter:image" content="https://rulemason.com/assets/banner.png">
   <meta name="theme-color" content="#f7f6f3">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -48,6 +48,9 @@
         <a href="#tools">Tools</a>
         <a href="#faq">FAQ</a>
       </nav>
+      <a class="nav-github" href="https://github.com/rulemason/rulemason" aria-label="GitHub">
+        <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      </a>
       <a class="lang" href="/" hreflang="zh-CN" lang="zh-CN">中文</a>
     </div>
   </header>
@@ -57,8 +60,8 @@
       <div class="hero-copy">
         <p class="eyebrow">rulemason · RULES FOR AI CODING</p>
         <p class="tagline">AI CODING, WITH RULES</p>
-        <h1>AI writes code,<br><span class="accent">and it follows the rules.</span></h1>
-        <p class="lede">AI-written code that reads like a person wrote it.</p>
+        <!-- Headline lives only in this h1 -->
+        <h1 id="hero-title">Make AI-written code read like a human wrote it.</h1>
         <p class="support">Writing code with AI is fast. The hard part comes months later. Features pile up, the same logic is copied several times, and functions nobody calls stay where they are. It no longer looks like code a person wrote.</p>
         <p class="lang-note">Command-line output, the generated rules, and the skill are written in Chinese. This page translates the Chinese docs. The output you see while using rulemason is still Chinese.</p>
         <div class="actions">
@@ -75,10 +78,28 @@
         <div class="hero-logo">
           <img src="/assets/logo.svg" width="416" height="448" alt="Pixel mark: a pink rabbit riding a light-blue winged horse">
         </div>
+        <div class="term" data-term>
+          <div class="term-bar">
+            <span class="term-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="term-name">terminal</span>
+          </div>
+          <div class="term-screen" role="log" aria-label="Real output of rulemason init --tools cursor --yes">
+            <p class="term-line term-cmd"><span class="tok-prompt">$</span> <span class="cmd-text">rulemason init --tools cursor --yes</span><span class="caret" aria-hidden="true"></span></p>
+            <p class="term-line">项目没有 openspec/，本机也没有 openspec 命令（安装：npm install -g @fission-ai/openspec@latest）；先只接入规则与 lint。</p>
+            <p class="term-line tok-head">## 文件计划</p>
+            <p class="term-line">新增 14 个文件：规则副本 9、配置 2、skill 1、入口 2</p>
+            <p class="term-line tok-dim">已种入 result-check 预设（仅首次）：.rulemason/result-check/prose-hygiene.hint.json、.rulemason/result-check/prose-hygiene.strict.json、.rulemason/result-check/product-artifact.hint.json、.rulemason/result-check/product-artifact.strict.json、.rulemason/result-check/verification-walkthrough.hint.json、.rulemason/result-check/verification-walkthrough.strict.json</p>
+            <p class="term-line tok-key">补项目信息：在 AI 工具中运行 /rulemason</p>
+            <p class="term-line">本次改动的文件：.rulemason/rules/code-style.md、.rulemason/rules/python.md、.rulemason/rules/workflow-gates.md、.rulemason/rules/cjk-typography.md、.rulemason/rules/result-check-contracts.md、.rulemason/rules/prose-hygiene.md、.rulemason/rules/agent-coding-caution.md、.rulemason/rules/product-artifact-caution.md、.rulemason/lint/ruff-base.toml、.rulemason/README.md、.agents/skills/rulemason/SKILL.md、AGENTS.md、ruff.toml、.rulemason.yaml</p>
+            <p class="term-line">检查点与方案写法需要 OpenSpec：安装后在项目根运行 openspec init，再运行 rulemason update 补齐</p>
+            <p class="term-line tok-key">下一步：在 AI 工具中运行 /rulemason，补项目简介、红线并确认命令表。</p>
+          </div>
+          <p class="term-note">Real output of <code>rulemason init --tools cursor --yes</code> in a new repo that only had <code>main.py</code>. The command-line text is Chinese.</p>
+        </div>
         <div class="install">
           <div class="install-bar">
-            <pre id="install-cmd"><code>uv tool install rulemason
-rulemason init</code></pre>
+            <pre id="install-cmd"><code><span class="tok-cmd">uv</span> <span class="tok-fn">tool install</span> <span class="tok-str">rulemason</span>
+<span class="tok-cmd">rulemason</span> <span class="tok-fn">init</span></code></pre>
             <button type="button" class="copy" hidden data-for="install-cmd" data-done="Copied" data-fail="Could not copy. Select the commands above.">Copy</button>
           </div>
           <p id="copy-status" class="copy-status" role="status"></p>
@@ -87,8 +108,9 @@ rulemason init</code></pre>
       </div>
     </div>
 
-    <section id="pain">
+    <section id="pain" class="reveal">
       <div class="wrap">
+        <p class="kicker">01</p>
         <h2>The code gets hard to read</h2>
         <p class="section-lead">rulemason is a set of rules for AI coding tools, plus a checkpoint after every change. It supports Claude Code, Cursor, Codex, and OpenCode. The rules live in the project. The AI follows them when it writes plans, code, and docs.</p>
         <ul class="cards">
@@ -108,8 +130,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="steps">
+    <section id="steps" class="reveal">
       <div class="wrap">
+        <p class="kicker">02</p>
         <h2>Read, keep, check</h2>
         <p class="section-lead">Put the rules in the project, follow them while writing, then pass the checkpoints. Checkpoints that involve plans and code need <a href="https://github.com/Fission-AI/OpenSpec">OpenSpec</a> (<code>npm install -g @fission-ai/openspec@latest</code>). Without it, rulemason still installs the rules and lint setup. Run <code>rulemason update</code> after OpenSpec is installed to fill in the checkpoints.</p>
 
@@ -155,8 +178,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="flow">
+    <section id="flow" class="reveal">
       <div class="wrap">
+        <p class="kicker">03</p>
         <h2>How it works</h2>
         <p class="section-lead">Built-in rules apply throughout. Jev runs only when a key is set. With no key, Jev is not called.</p>
         <ol class="flow">
@@ -218,8 +242,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="compare">
+    <section id="compare" class="reveal">
       <div class="wrap">
+        <p class="kicker">04</p>
         <h2>With and without</h2>
         <div class="table-wrap" tabindex="0" role="region" aria-label="With and without rulemason. Scroll sideways if needed.">
           <table>
@@ -277,8 +302,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="tools">
+    <section id="tools" class="reveal">
       <div class="wrap">
+        <p class="kicker">05</p>
         <h2>Supported tools</h2>
         <p class="section-lead"><code>openspec init</code> generates these commands, and the filenames it writes win if a version differs. Claude Code uses a colon. Cursor and OpenCode use a hyphen. Codex only gets skills, invoked with <code>$</code> plus the skill name.</p>
         <div class="table-wrap" tabindex="0" role="region" aria-label="Supported tools. Scroll sideways if needed.">
@@ -322,8 +348,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="safety">
+    <section id="safety" class="reveal">
       <div class="wrap">
+        <p class="kicker">06</p>
         <h2>Designed so you can trust it</h2>
         <ul class="safety">
           <li><strong>Look before it writes.</strong> <code>init</code> and <code>remove</code> list the files first and write only after you confirm. <code>update</code> refreshes the copies and entry points it owns immediately. For your own files (ruff, ESLint, <code>openspec/config.yaml</code>, and the like), a missing setting is listed in a fill-in plan and written only after you confirm. <code>--plan</code> and <code>--dry-run</code> only print the plan.</li>
@@ -342,8 +369,9 @@ rulemason init</code></pre>
       </div>
     </section>
 
-    <section id="faq" class="faq">
+    <section id="faq" class="faq reveal">
       <div class="wrap">
+        <p class="kicker">07</p>
         <h2>FAQ</h2>
         <details>
           <summary>How is this different from writing AGENTS.md or CLAUDE.md myself?</summary>
