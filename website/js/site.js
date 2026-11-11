@@ -1,4 +1,4 @@
-// 落地页小交互：复制安装命令、终端逐行打出真实输出、滚进视口时淡入。减少动效时都不动。
+// 落地页小交互：复制安装命令、终端逐行打出真实输出并循环、滚进视口时淡入。减少动效时都不动。
 
 (function () {
   // 1. 复制按钮默认藏着，脚本跑起来再显示
@@ -10,7 +10,7 @@
   if (reduce) {
     return;
   }
-  // 2. 终端：先打命令，再逐行放出真实输出
+  // 2. 终端：先打命令，再逐行放出真实输出，打完循环
   var terms = document.querySelectorAll("[data-term]");
   for (var t = 0; t < terms.length; t++) {
     playTerm(terms[t]);
@@ -75,32 +75,74 @@ function playTerm(term) {
   var screen = term.querySelector(".term-screen");
   var cmd = term.querySelector(".cmd-text");
   var full = cmd.textContent;
-  term.classList.add("is-playing");
-  lines[0].classList.add("is-on");
-  cmd.textContent = "";
-  var i = 0;
-  // 1. 逐字打出命令
-  function typeCmd() {
-    i += 1;
-    cmd.textContent = full.slice(0, i);
-    if (i < full.length) {
-      window.setTimeout(typeCmd, 28);
+  var timer = 0;
+  var pending = null;
+  var due = 0;
+  var paused = document.hidden;
+
+  function arm(fn, ms) {
+    pending = fn;
+    due = Date.now() + ms;
+    window.clearTimeout(timer);
+    timer = 0;
+    if (paused) {
+      // 走到这里说明标签页在后台，这一步先记着，等回来再打
       return;
     }
-    // 2. 命令打完，按行放出后面的真实输出
-    var n = 1;
-    function showNext() {
-      if (n >= lines.length) {
+    timer = window.setTimeout(function () {
+      timer = 0;
+      fn();
+    }, ms);
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    paused = document.hidden;
+    if (paused) {
+      window.clearTimeout(timer);
+      timer = 0;
+      return;
+    }
+    if (pending && !timer) {
+      arm(pending, Math.max(0, due - Date.now()));
+    }
+  });
+
+  function begin() {
+    // 1. 清空后逐字打命令
+    term.classList.add("is-playing");
+    for (var k = 0; k < lines.length; k += 1) {
+      lines[k].classList.remove("is-on");
+    }
+    lines[0].classList.add("is-on");
+    cmd.textContent = "";
+    screen.scrollTop = 0;
+    var i = 0;
+    function typeCmd() {
+      i += 1;
+      cmd.textContent = full.slice(0, i);
+      if (i < full.length) {
+        arm(typeCmd, 28);
         return;
       }
-      lines[n].classList.add("is-on");
-      screen.scrollTop = screen.scrollHeight;
-      n += 1;
-      window.setTimeout(showNext, 220);
+      // 2. 命令打完，按行放出真实输出，并滚到新行
+      var n = 1;
+      function showNext() {
+        if (n >= lines.length) {
+          // 3. 停几秒让人读完最后几行，再从头打
+          arm(begin, 4000);
+          return;
+        }
+        lines[n].classList.add("is-on");
+        screen.scrollTop = screen.scrollHeight;
+        n += 1;
+        arm(showNext, 220);
+      }
+      arm(showNext, 280);
     }
-    window.setTimeout(showNext, 280);
+    arm(typeCmd, 400);
   }
-  window.setTimeout(typeCmd, 400);
+
+  begin();
 }
 
 function revealOnScroll() {
