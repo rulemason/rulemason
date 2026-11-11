@@ -45,6 +45,7 @@
         <a href="#steps">Steps</a>
         <a href="#flow">How it works</a>
         <a href="#compare">Compare</a>
+        <a href="#case">Case</a>
         <a href="#tools">Tools</a>
         <a href="#faq">FAQ</a>
       </nav>
@@ -302,9 +303,40 @@
       </div>
     </section>
 
-    <section id="tools" class="reveal">
+    <section id="case" class="reveal">
       <div class="wrap">
         <p class="kicker">05</p>
+        <h2>One real cleanup</h2>
+        <p class="section-lead">An assistant tidied the permissions module of an existing project, following RuleMason 0.8.29. <code>rulemason init</code> wrote the rule copies and entry points and left that module's business code unchanged. No AI coding CLI was available, so there is no two-group generation comparison on the same task.</p>
+        <p>The same reviewer check was written twice. After the cleanup it lives in one function, and both call sites use it. The file now opens with a line that says what the module is for.</p>
+        <ul class="case-facts">
+          <li><strong>Behavior tests 16 to 16</strong> 4 lock tests were added on the untouched module, and 16 passed. The same 16 passed after the cleanup.</li>
+          <li><strong>101 passed without a database</strong> The full run was 101 passed and 145 skipped. The skipped tests need a local Postgres, which was not started.</li>
+          <li><strong>ruff 0 to 0</strong> <code>ruff check</code> reported 0 issues before and after.</li>
+          <li><strong>120 lines to 130</strong> <code>access.py</code> grew. The extra lines are not a quality gain, and the file did not get shorter.</li>
+        </ul>
+        <figure>
+          <div class="case-shot" tabindex="0" role="region" aria-label="Before and after the cleanup. Scroll sideways on a narrow screen.">
+            <img src="/assets/case-access-before-after.png" width="1837" height="576" alt="The same reviewer check written twice, then extracted into one function">
+          </div>
+          <figcaption>The labels on this figure are in Chinese. Before, the same check was written twice. After, one function is called from both places.</figcaption>
+        </figure>
+        <figure>
+          <img src="/assets/case-access-verification.png" width="1100" height="642" alt="Recorded results: behavior tests 16 to 16, 101 passed, 145 skipped, ruff at 0, lines 120 to 130" loading="lazy">
+          <figcaption>The card is the recorded result, in Chinese, and it matches the numbers above.</figcaption>
+        </figure>
+        <figure>
+          <video class="case-video" controls playsinline preload="metadata" poster="/assets/case-access-poster.jpg" width="1920" height="1080">
+            <source src="/assets/case-access-contrast.mp4" type="video/mp4">
+          </video>
+          <figcaption>An 82-second contrast animation, not a screen recording. Use the controls on the page to play it.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="tools" class="reveal">
+      <div class="wrap">
+        <p class="kicker">06</p>
         <h2>Supported tools</h2>
         <p class="section-lead"><code>openspec init</code> generates these commands, and the filenames it writes win if a version differs. Claude Code uses a colon. Cursor and OpenCode use a hyphen. Codex only gets skills, invoked with <code>$</code> plus the skill name.</p>
         <div class="table-wrap" tabindex="0" role="region" aria-label="Supported tools. Scroll sideways if needed.">
@@ -350,7 +382,7 @@
 
     <section id="safety" class="reveal">
       <div class="wrap">
-        <p class="kicker">06</p>
+        <p class="kicker">07</p>
         <h2>Designed so you can trust it</h2>
         <ul class="safety">
           <li><strong>Look before it writes.</strong> <code>init</code> and <code>remove</code> list the files first and write only after you confirm. <code>update</code> refreshes the copies and entry points it owns immediately. For your own files (ruff, ESLint, <code>openspec/config.yaml</code>, and the like), a missing setting is listed in a fill-in plan and written only after you confirm. <code>--plan</code> and <code>--dry-run</code> only print the plan.</li>
@@ -371,7 +403,7 @@
 
     <section id="faq" class="faq reveal">
       <div class="wrap">
-        <p class="kicker">07</p>
+        <p class="kicker">08</p>
         <h2>FAQ</h2>
         <details>
           <summary>How is this different from writing AGENTS.md or CLAUDE.md myself?</summary>
