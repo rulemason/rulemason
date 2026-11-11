@@ -45,6 +45,7 @@
         <a href="#steps">三步</a>
         <a href="#flow">怎么工作</a>
         <a href="#compare">对比</a>
+        <a href="#case">案例</a>
         <a href="#tools">工具</a>
         <a href="#faq">问答</a>
       </nav>
@@ -301,9 +302,40 @@
       </div>
     </section>
 
-    <section id="tools" class="reveal">
+    <section id="case" class="reveal">
       <div class="wrap">
         <p class="kicker">05</p>
+        <h2>一次真实整理</h2>
+        <p class="section-lead">一个已有项目里的权限判定模块，由助手按 RuleMason 0.8.29 的规则整理。<code>rulemason init</code> 写入规则和入口，这份业务代码原样未动。当时没有可用的 AI 编码 CLI，没有做同一需求下的两组生成对照。</p>
+        <p>同一条点评者判定原来写了两遍，整理后收成一个函数，两处调用。文件开头补了一句这个模块是做什么的。</p>
+        <ul class="case-facts">
+          <li><strong>行为测试 16 到 16</strong> 先在未改的模块上补了 4 条锁定用例，16 条通过；整理后再跑，仍是 16 条通过。</li>
+          <li><strong>不连数据库 101 通过</strong> 全量是 101 条通过、145 条跳过。跳过的需要本机 Postgres，这次没有启动。</li>
+          <li><strong>ruff 0 到 0</strong> <code>ruff check</code> 整理前后都是 0。</li>
+          <li><strong>120 行到 130 行</strong> <code>access.py</code> 行数变多，不能当作质量变好，也不是少写了代码。</li>
+        </ul>
+        <figure>
+          <div class="case-shot" tabindex="0" role="region" aria-label="整理前后的代码，窄屏可以横向滚动">
+            <img src="/assets/case-access-before-after.png" width="1837" height="576" alt="整理前同一条判定写了两遍，整理后抽成一处">
+          </div>
+          <figcaption>整理前同一条判定写了两遍，整理后抽成一个函数，两处调用</figcaption>
+        </figure>
+        <figure>
+          <img src="/assets/case-access-verification.png" width="1100" height="642" alt="核验记录：行为测试 16 到 16，不连库 101 通过，全量 101 通过、145 跳过，ruff 为 0，行数 120 到 130" loading="lazy">
+          <figcaption>同一次整理的核验记录</figcaption>
+        </figure>
+        <figure>
+          <video class="case-video" controls playsinline preload="metadata" poster="/assets/case-access-poster.jpg" width="1920" height="1080">
+            <source src="/assets/case-access-contrast.mp4" type="video/mp4">
+          </video>
+          <figcaption>82 秒对照演示，不是屏幕操作实录。用页面上的控件播放。</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="tools" class="reveal">
+      <div class="wrap">
+        <p class="kicker">06</p>
         <h2>支持的工具</h2>
         <p class="section-lead">OpenSpec 的命令由 <code>openspec init</code> 生成，不同版本的文件名以它写出的为准。Claude Code 用冒号，Cursor 和 OpenCode 用连字符。Codex 只生成 skill，用 <code>$</code> 加上 skill 名。</p>
         <div class="table-wrap" tabindex="0" role="region" aria-label="支持的工具，可以横向滚动">
@@ -349,7 +381,7 @@
 
     <section id="safety" class="reveal">
       <div class="wrap">
-        <p class="kicker">06</p>
+        <p class="kicker">07</p>
         <h2>让你放心的设计</h2>
         <ul class="safety">
           <li><strong>先看清楚再写。</strong><code>init</code> 和 <code>remove</code> 先列出要改哪些文件，确认后才写。<code>update</code> 会直接刷新它自己管的副本和入口；你的文件（ruff、ESLint、<code>openspec/config.yaml</code> 等）缺了配置时，先列出补齐计划，确认后才写。<code>--plan</code> 和 <code>--dry-run</code> 只看计划，什么都不写。</li>
@@ -370,7 +402,7 @@
 
     <section id="faq" class="faq reveal">
       <div class="wrap">
-        <p class="kicker">07</p>
+        <p class="kicker">08</p>
         <h2>常见问题</h2>
         <details>
           <summary>和自己手写一份 AGENTS.md 或 CLAUDE.md 有什么区别？</summary>
