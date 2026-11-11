@@ -35,7 +35,7 @@ So I wrote these rules to constrain the AI: keep the code concise, the logic sim
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](https://pypi.org/project/rulemason/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/rulemason/rulemason/blob/main/LICENSE)
 
-[Three steps](#three-steps) · [With and without](#with-and-without) · [How it works](#how-it-works) · [FAQ](#faq)
+[Three steps](#three-steps) · [With and without](#with-and-without) · [How it works](#how-it-works) · [One real cleanup](#one-real-cleanup) · [FAQ](#faq)
 
 ## Three steps
 
@@ -178,7 +178,21 @@ In `AGENTS.md` and `CLAUDE.md`, rulemason owns only the text between `<!-- rulem
 - Logic that appears a second time is extracted into a function. Parameters and functions nobody calls are not left behind.
 - The first line of `rulemason check` is `日常巡检：一切一致`.
 
-<!-- TODO: before/after counts from a real project (lines, duplicate blocks, dead code). Publish only measured numbers. -->
+## One real cleanup
+
+An assistant tidied the permissions module of an existing project, following RuleMason 0.8.29. `rulemason init` wrote the rule copies and entry points and left that module's business code unchanged. No AI coding CLI was available, so there is no two-group generation comparison on the same task.
+
+The same reviewer check was written twice. After the cleanup it lives in one function, and both call sites use it. The file now opens with a line that says what the module is for.
+
+Behavior tests: 4 lock tests were added on the untouched module, and 16 passed; the same 16 passed after the cleanup. Tests that do not touch a database: 101 passed. The full run was 101 passed and 145 skipped. The skipped tests need a local Postgres, which was not started. `ruff check` reported 0 issues before and after. `access.py` went from 120 lines to 130. The extra lines are not a quality improvement.
+
+The motion image is an 82-second contrast animation, not a screen recording. The link opens the full MP4 in the repo.
+
+![The same check was written twice; after the cleanup it lives in one function](docs/assets/case-access-before-after.png)
+
+[![82-second contrast animation, not a screen recording](docs/assets/case-access-contrast.gif)](docs/assets/case-access-contrast.mp4)
+
+![Recorded results: behavior tests 16 to 16, 101 passed without a database, 101 passed and 145 skipped overall, ruff at 0, lines 120 to 130](docs/assets/case-access-verification.png)
 
 ## Optional: judge plans and copy with Jev
 
