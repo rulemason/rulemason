@@ -967,15 +967,124 @@ th:last-child {
   }
 }
 
+/* 并排时首屏只占导航以下的一屏。横幅高出这一屏时先缩小标志和终端，安装说明留在屏内。 */
 @media (min-width: 900px) {
   .hero {
+    height: calc(100vh - var(--nav));
+    height: calc(100svh - var(--nav));
+    min-height: calc(100vh - var(--nav));
+    min-height: calc(100svh - var(--nav));
+    max-height: calc(100vh - var(--nav));
+    max-height: calc(100dvh - var(--nav));
     grid-template-columns: 1.15fr 0.9fr;
-    padding: 3.4rem 0 2rem;
-    gap: 2.5rem;
+    grid-template-rows: minmax(0, 1fr);
+    align-items: center;
+    padding: clamp(0.7rem, 5.1svh, 3.4rem) 0 clamp(0.45rem, 3svh, 2rem);
+    gap: clamp(1rem, 3.8svh, 2.5rem);
+  }
+
+  .hero-copy,
+  .hero-stage {
+    min-height: 0;
+    max-height: 100%;
+  }
+
+  .hero h1 {
+    font-size: clamp(1.65rem, min(5.4vw, 8.3svh), 3.7rem);
+    margin-block: clamp(0.3rem, 1.3svh, 0.85rem) clamp(0.25rem, 1.1svh, 0.7rem);
+  }
+
+  .hero .support,
+  .hero .lang-note {
+    margin-block: clamp(0.3rem, 1.5svh, 1em);
+  }
+
+  .hero .actions {
+    margin-top: clamp(0.45rem, 2svh, 1.3rem);
+  }
+
+  .hero .chips {
+    margin-top: clamp(0.4rem, 1.9svh, 1.25rem);
+    padding-top: clamp(0.35rem, 1.4svh, 0.9rem);
+  }
+
+  .hero-stage {
+    display: flex;
+    flex-direction: column;
+    padding: clamp(0.55rem, 1.65svh, 1.1rem) 1.1rem clamp(0.45rem, 1.35svh, 0.9rem);
+  }
+
+  /* 基准高度是现在的标志尺寸。空间不够时标志多让一点，终端少让一点，安装说明不让。 */
+  .hero-logo {
+    flex: 0 2 21.54rem;
+    min-height: 7rem;
+    max-height: 21.54rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
   }
 
   .hero-logo img {
-    width: min(100%, 20rem);
+    width: auto;
+    height: 100%;
+    max-width: min(100%, 20rem);
+    object-fit: contain;
+  }
+
+  .term {
+    flex: 0 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .term-bar,
+  .term-note,
+  .install {
+    flex: none;
+  }
+
+  .term-screen {
+    flex: 1 1 auto;
+    min-height: 4.25rem;
+    max-height: 11.5rem;
+  }
+}
+
+@media (min-width: 900px) and (max-height: 660px) {
+  .hero {
+    padding-block: 0.65rem 0.45rem;
+    gap: 1rem;
+  }
+
+  .hero h1 {
+    margin-block: 0.3rem 0.22rem;
+  }
+
+  .hero .support,
+  .hero .lang-note {
+    font-size: 0.92rem;
+    line-height: 1.45;
+    margin-block: 0.28rem;
+  }
+
+  .hero .actions {
+    margin-top: 0.4rem;
+  }
+
+  .hero .chips {
+    margin-top: 0.4rem;
+    padding-top: 0.35rem;
+  }
+
+  .hero-stage {
+    padding: 0.55rem 0.75rem 0.4rem;
+  }
+
+  .hero-stage .fine {
+    font-size: 0.8rem;
+    line-height: 1.4;
   }
 }
 
