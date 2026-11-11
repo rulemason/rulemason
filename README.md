@@ -33,7 +33,7 @@
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](https://pypi.org/project/rulemason/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/rulemason/rulemason/blob/main/LICENSE)
 
-[三步上手](#三步上手) · [用和不用的区别](#用和不用差在哪) · [怎么工作](#怎么工作) · [常见问题](#常见问题)
+[三步上手](#三步上手) · [用和不用的区别](#用和不用差在哪) · [怎么工作](#怎么工作) · [一次真实整理](#一次真实整理) · [常见问题](#常见问题)
 
 ## 三步上手
 
@@ -176,7 +176,21 @@ OpenSpec 的命令由 `openspec init` 生成，不同版本的文件名以它写
 - 同一段逻辑出现第二次就要抽成函数，没人调用的参数和函数不留下。
 - `rulemason check` 第一行是“日常巡检：一切一致”。
 
-<!-- TODO: before/after counts from a real project (lines, duplicate blocks, dead code). Publish only measured numbers. -->
+## 一次真实整理
+
+一个已有项目里的权限判定模块，由助手按 RuleMason 0.8.29 的规则整理。`rulemason init` 写入规则和入口，这份业务代码原样未动。当时没有可用的 AI 编码 CLI，没有做同一需求下的两组生成对照。
+
+同一条点评者判定原来写了两遍，整理后收成一个函数，两处调用。文件开头补了一句这个模块是做什么的。
+
+行为测试先在未改的模块上补了 4 条锁定用例，16 条通过；整理后同一组仍是 16 条通过。不连数据库的用例 101 条通过。全量是 101 条通过、145 条跳过，跳过的需要本机 Postgres，这次没有启动。`ruff check` 整理前后都是 0。`access.py` 从 120 行到 130 行，多出来的行不能当作质量变好。
+
+下面的动图是 82 秒对照演示，不是屏幕操作实录。点开是仓库里的完整 MP4。
+
+![整理前同一条判定写了两遍，整理后抽成一处](docs/assets/case-access-before-after.png)
+
+[![82 秒对照演示，不是屏幕操作实录](docs/assets/case-access-contrast.gif)](docs/assets/case-access-contrast.mp4)
+
+![核验记录：行为测试 16 到 16，不连库 101 通过，全量 101 通过、145 跳过，ruff 为 0，行数 120 到 130](docs/assets/case-access-verification.png)
 
 ## 可选：用 Jev 判断方案和文案
 
