@@ -259,8 +259,10 @@ def test_workflow_gates_fix_only_problems_this_change_introduced():
 
     assert "「红线规则」指命令表之后列出、供判断使用的实质类规则" in text
     assert "直到通过" not in text
-    assert text.count("建议运行 `/rulemason` 建立基线") == 2
-    assert "修掉本次改动引入的问题" in text and "改动前就有的问题不修" in text
+    assert text.count("建议运行 `/rulemason` 建立基线") == 1                # 定义一次，下面三步引用它
+    for step in ("2. 运行命令表的「ruff」", "4. 改了前端时", "4. **直接改完只跑 ruff 与测试**"):
+        assert "按「只修本次引入」处理" in _line(text, step), step
+    assert text.count("修掉本次改动引入的问题") == 1 and "改动前就有的问题不修" in text
 
 
 def test_workflow_gate_uses_automatic_review_not_simplify():
@@ -409,7 +411,7 @@ def test_rules_wording_key_sections():
     assert "不删除、不放宽" in tests and gates.count("按「改既有测试时」一节处理") == 2
     assert "只带本次计划内的文件" in commit and "git worktree" in commit
     front = _line(gates, "4. 改了前端时")
-    assert "修掉本次改动引入的问题" in front and "建立 ESLint 基线" in front      # 与 ruff 一步对称，不要求修既有问题
+    assert "按「只修本次引入」处理" in front and "建立基线（前端是 ESLint 基线）" in _line(gates, "「只修本次引入」指")   # 与 ruff 一步对称，不要求修既有问题
     python = (ROOT / "rules/python.md").read_text(encoding="utf-8")
     assert "logging" in python and "encoding=\"utf-8\"" in python
     for path in ROOT.glob("rules/*.md"):
@@ -462,9 +464,42 @@ def test_eslint_wording_per_file_and_react_equivalence():
     react = (ROOT / "rules/react.md").read_text(encoding="utf-8")
     start = react.index("重构等价性")
     section = react[start:react.index("机械部分", start)]
-    assert section.count("\n- ") == 6 and "`Map`" in section and "`useState(() => …)`" in section
+    assert section.count("\n- ") == 8
+    for text in ("`Map`", "`useState(() => …)`", "`react-hooks/exhaustive-deps`", "不改依赖数组", "重挂载"):
+        assert text in section, text
     for name in ("antd", "Ant Design", "Space", "MUI", "Chakra"):          # 共享正文不写 UI 库名
         assert name not in section, name
+
+
+RESIDENT_RULES = ("code-style.md", "python.md", "react.md", "agent-coding-caution.md", "workflow-gates.md")
+
+
+def test_resident_rules_stay_within_budget():
+    """每次会话常驻加载的正文有字数上限：要加一句，先合并或删掉一句（AGENTS.md「改共享规则」）。"""
+    total = sum(len((ROOT / "rules" / name).read_text(encoding="utf-8")) for name in RESIDENT_RULES)
+    assert total <= 10300, total
+
+
+def test_rules_refactor_lessons_and_comment_defaults():
+    code_style = (ROOT / "rules/code-style.md").read_text(encoding="utf-8")
+    beyond = _section(code_style, "九条之外")
+    for text in ("打桩", "保留原名转调", "对外接口文档", "日志原文"):
+        assert text in beyond, text
+    fifth = _line(code_style, "5. ")
+    assert "默认不写注释" in fifth and "改动经过" in fifth
+    react = (ROOT / "rules/react.md").read_text(encoding="utf-8")
+    assert "超过三条语句" not in react
+    assert "原因看不出时" in _line(react, "3. ") and "if (!item) return null" not in react
+    gates = (ROOT / "rules/workflow-gates.md").read_text(encoding="utf-8")
+    merge = _section(gates, "合并上游时")
+    for text in ("在合并提交里修好", "另开提交", "经用户同意才跳过钩子"):
+        assert text in merge, text
+    assert gates.index("\n## 合并上游时\n") < gates.index("\n## 提交与推送\n")
+    assert "在改前的提交上跑同一份测试" in gates and "单次通过不算结论" in gates
+    assert "Notion" not in gates
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    commands = skill[skill.index("4. **命令表**"):skill.index("5. **项目工作流规格**")]
+    assert "不抄共享规则里的口径" in commands
 
 
 # ---------- 不走 OpenSpec 的改动与归档（spec-guard） ----------
