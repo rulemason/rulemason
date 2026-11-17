@@ -1,7 +1,7 @@
 # workflow-gates Specification
 
 ## Purpose
-规定包住每个 OpenSpec change 的三个自动检查点（方案写完、写代码前、写完代码后）在本仓库只有一份，接入项目引用后只补自己的命令、红线规则清单与额外步骤，并提供可选的「阶段学习文档同步 Notion」步骤。
+规定包住每个 OpenSpec change 的三个自动检查点（方案写完、写代码前、写完代码后）在本仓库只有一份，接入项目引用后只补自己的命令、红线规则清单与额外步骤。
 
 ## Requirements
 
