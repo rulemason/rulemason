@@ -77,6 +77,7 @@ CODE_FENCE = re.compile(r"^\s*(```|~~~)")                  # 代码块边界：�
 METADATA_LINE = re.compile(r"^\*\*[^*]+\*\*:")          # **ID**: 一类元数据行，OpenSpec 不计入正文
 DELTA_HEADING = re.compile(r"^## (ADDED|MODIFIED|REMOVED|RENAMED) Requirements\s*$", re.M)
 MIN_ARCHIVED = 3                                            # 判断层至少要这么多已归档 change 作测试用例
+JUDGE_SCOPE = "判断审 OpenSpec 方案、界面文案与直接改动的说明"
 ARCHIVE_NAME = re.compile(r"^(\d{4}-\d{2}-\d{2})-")       # openspec archive 生成的归档目录名：日期前缀
 TASK_BOX = re.compile(r"^\s*-\s+\[([^\]]*)\]", re.M)       # tasks.md 的勾选框；框内去掉空白后是 x 或 X 才算完成
 GATE_RECORDS = (                                           # 完成汇报里要写到的两项：(名称, 匹配)
@@ -370,7 +371,7 @@ def ci_refs(root: Path, files: list[str]) -> list[tuple[str, str]]:
     return out
 
 
-def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, since: str | None, entry_issues: list[str], report: Report) -> None:
+def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, since: str | None, after_joined: int | None, entry_issues: list[str], report: Report) -> None:
     """识别表：项目根、语言与包管理、目录与跳过的目录、openspec、归档数与接入日期、CI、未提交改动、工具与版本。"""
     files = scanned.files
     report.facts.append(("项目根", str(root)))
@@ -403,8 +404,7 @@ def identify(root: Path, scanned: Scan, n_archived: int, sel: Selection, since: 
     else:
         joined = since
     report.facts.append(("接入日期", joined))
-    after_joined = str(len(dated_archives(root, since))) if since else "—"
-    report.facts.append(("接入后归档 change", after_joined))
+    report.facts.append(("接入后归档 change", "—" if after_joined is None else str(after_joined)))
     report.facts.append(("判断", judge_label(root, n_archived)))
     refs = ci_refs(root, files)
     if refs:
@@ -1057,6 +1057,20 @@ def judge_label(root: Path, n_archived: int) -> str:
     return f"可选，未启用（条件已满足：要启用时在 AI 工具中运行 /{NAME}）"
 
 
+def judge_onboarding_hint(root: Path, n_archived: int, after_joined: int | None) -> list[str]:
+    """判断条件刚满足、尚未启用时跟在第一行后的一句启用提示；其余情况为空列表。
+    「刚满足」指已归档正好 MIN_ARCHIVED 个，或接入后正好归档 1 个：没有状态文件，靠计数只出现一次。
+    先比计数再查 git 与 key，绝大多数巡检不多起进程。"""
+    if (root / "openspec/judgments.yaml").exists():
+        return []
+    if n_archived != MIN_ARCHIVED and after_joined != 1:
+        return []
+    if judge_blockers(root, n_archived):
+        return []
+    setup = "" if api_key() else f"运行 {NAME} key 配置 key（申请地址 {KEY_URL}），之后"
+    return [f"判断条件刚满足：{setup}在 AI 工具中运行 /{NAME} 并说明要启用判断；{JUDGE_SCOPE}。"]
+
+
 # ---------- 3. 巡检 ----------
 
 def version_findings(sel: Selection, behind: list[str]) -> list[str]:
@@ -1240,12 +1254,14 @@ def collect(root: Path) -> tuple[Report, Next]:
     behind = copies_behind(root, files, sel)
     since = joined_date(root, sel.manifest) if sel.manifest is not None else None
     report = Report()
-    identify(root, scanned, n, sel, since, entry_issues + sel.problems, report)
+    after_joined = len(dated_archives(root, since)) if since else None
+    identify(root, scanned, n, sel, since, after_joined, entry_issues + sel.problems, report)
     layers(root, files, sel, entry_issues, behind, report)
     audit(root, files, sel, behind, since, report)
     nxt = next_stage(root, files, report, sel, behind)
     if nxt.code == "fill_project_info":
         report.next_notes += skill_hint_lines(sel.tools)
+    report.next_notes += judge_onboarding_hint(root, n, after_joined)
     return report, nxt
 
 

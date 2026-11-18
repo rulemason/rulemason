@@ -32,9 +32,9 @@
 - `rules/react.md`：React / TSX 落法（本仓库没有 React，入口不引用）
 - `rules/cjk-typography.md`：写中文文档、方案、规格时阅读
 - `rules/result-check-contracts.md`：改结构化输出或 result-check 要求时阅读
-- `rules/prose-hygiene.md`：写给人读的文案时阅读；`result-check --preset hint`（默认提示）/ `strict`
-- `rules/agent-coding-caution.md`：写码/改码时阅读
-- `rules/product-artifact-caution.md`：写工程交接用产品产物时阅读；结构检查 `--preset product-artifact.hint` / `product-artifact.strict`；验证走查结构检查 `--preset verification-walkthrough.hint` / `verification-walkthrough.strict`
+- `rules/prose-hygiene.md`：写给人读的文案时阅读
+- `rules/agent-coding-caution.md`：写码、改码时阅读
+- `rules/product-artifact-caution.md`：写需求、验收、验证走查等工程交接产物时阅读
 
 本仓库 Python 样板为 `src/rulemason/judge/judge.py` 与 `src/rulemason/check.py`。ruff 豁免见根目录 `pyproject.toml`。
 

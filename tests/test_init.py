@@ -919,6 +919,20 @@ def test_unsafe_opencode_config_is_only_reported(project):
     assert plan.notes[0].startswith(".opencode/opencode.jsonc 的 instructions 缺少")
 
 
+def test_opencode_writing_rules_listed_for_manual_removal(project):
+    """已有配置里还导入着写作类规则：不改写配置，只列出可以手动删去的条目。"""
+    extra = '    ".rulemason/rules/prose-hygiene.md",\n    ".rulemason/rules/cjk-typography.md",\n'
+    text = OPENCODE_OWN.replace('    ".rulemason/rules/code-style.md",\n', '    ".rulemason/rules/code-style.md",\n    ".rulemason/rules/python.md",\n' + extra)
+    write(project, ".opencode/opencode.jsonc", text)
+    plan = init.Plan()
+    init.plan_opencode(project, shared.list_files(project), plan)
+    assert ".opencode/opencode.jsonc" not in plan.writes
+    note = next(n for n in plan.notes if "可手动删去" in n)
+    assert note.startswith(".opencode/opencode.jsonc 的 instructions 仍有")
+    assert ".rulemason/rules/prose-hygiene.md" in note and ".rulemason/rules/cjk-typography.md" in note
+    assert ".rulemason/rules/code-style.md" not in note
+
+
 def test_update_appends_react_to_existing_opencode_config(project, capsys):
     write(project, ".opencode/opencode.jsonc", OPENCODE_OWN.replace('    ".rulemason/rules/code-style.md",\n', '    ".rulemason/rules/code-style.md",\n    ".rulemason/rules/python.md",\n'))
     assert _init(project, tools="claude,opencode") == 0

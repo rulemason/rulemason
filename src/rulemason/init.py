@@ -58,6 +58,8 @@ from rulemason.shared import (
 
 TOOL_DIRS = {".opencode": "opencode", ".claude": "claude", ".cursor": "cursor", ".agents": "codex"}   # 已有目录 → 标注「检测到」；--plan 时据此推断
 README_NAMES = ("README.md", "README.rst", "README")
+# 只在 AGENTS.md 写明阅读场合、不再写进 OpenCode instructions 的规则；旧配置里还有时只提示，不改用户的配置
+ON_DEMAND_RULES = ("rules/cjk-typography.md", "rules/result-check-contracts.md", "rules/prose-hygiene.md", "rules/product-artifact-caution.md")
 OPENSPEC_HINT = f"检查点与方案写法需要 OpenSpec：安装后在项目根运行 openspec init，再运行 {NAME} update 补齐"
 OPENSPEC_INSTALL = "npm install -g @fission-ai/openspec@latest"
 ROW_NAMES = ("判断", "ruff", "测试", "前端 lint", "文案检查")
@@ -562,7 +564,13 @@ def plan_opencode(root: Path, files: list[str], plan: Plan) -> None:
         plan.writes["opencode.jsonc"] = opencode_template(root, files)
         return
     texts = {rel: plan.text(root, rel) for rel in configs}
-    configured = [v for text in texts.values() for v in check.opencode_instruction_values(text)]
+    values = {rel: check.opencode_instruction_values(text) for rel, text in texts.items()}
+    on_demand = {check.shared_ref(root, rel) for rel in ON_DEMAND_RULES}
+    for rel, refs in values.items():
+        leftover = [v for v in refs if v in on_demand]
+        if leftover:
+            plan.notes.append(f"{rel} 的 instructions 仍有 {'、'.join(leftover)}：这些规则已改为按需阅读，可手动删去")
+    configured = [v for refs in values.values() for v in refs]
     missing = [ref for ref in check.rule_refs(root, files) if ref not in configured]
     if not missing:
         # 走到这里说明已有配置引用齐全
@@ -938,7 +946,7 @@ def guide_key(root: Path) -> None:
     blockers = check.judge_blockers(root, check.archived(root))
     if engine.api_key():
         if not blockers and not (root / "openspec/judgments.yaml").exists():
-            print(f"判断条件已满足；判断审 OpenSpec 方案、界面文案与直接改动的说明。要启用，在 AI 工具中运行 /{NAME} 并说明要启用判断。")
+            print(f"判断条件已满足；{check.JUDGE_SCOPE}。要启用，在 AI 工具中运行 /{NAME} 并说明要启用判断。")
         return
     if blockers:
         print(f"判断功能需要 git 与至少 {check.MIN_ARCHIVED} 个已归档 change；满足后运行 {NAME} key 配置 Jev 的 key（申请：{KEY_URL}）")
