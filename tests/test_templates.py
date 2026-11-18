@@ -38,8 +38,9 @@ def test_no_template_references_sibling_rulemason():
             assert "../rulekit/" not in path.read_text(encoding="utf-8"), path
 
 
-def test_skill_is_one_file_and_templates_ship_with_engine():
-    assert sorted(p.name for p in SKILL.iterdir() if not p.name.startswith(".")) == ["SKILL.md"]
+def test_skill_is_body_files_and_templates_ship_with_engine():
+    listed = sorted(p.name for p in SKILL.iterdir() if not p.name.startswith("."))
+    assert listed == sorted(shared.SKILL_FILES) == ["SKILL.md", "cleanup.md"]
     engine_templates = ROOT / "src/rulemason/judge/templates"
     assert sorted(p.name for p in engine_templates.iterdir()) == ["judge.yaml", "judge_cases.yaml", "judgments.yaml"]
 
@@ -187,7 +188,14 @@ def test_skill_sensitive_areas_and_direct_rules():
 
 def test_skill_legacy_cleanup_section():
     skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
-    section = skill[skill.index("## 7. 存量清理（可选，用户提出时才做）"):skill.index("## 8. 汇报")]
+    entry = skill[skill.index("## 7. 存量清理（可选，用户提出时才做）"):skill.index("## 8. 汇报")]
+    assert "`cleanup.md`" in entry and "没读到就停下" in entry
+    assert entry.index("第 1 节") < entry.index("`cleanup.md`")                  # 先过入口闸门，再读清理正文
+    assert "**先存证据**" not in entry and "refactor(cleanup):" not in entry      # 清理正文只住 cleanup.md
+    section = (SKILL / "cleanup.md").read_text(encoding="utf-8")
+    assert "refactor(cleanup-step): <模块> 第 N 步" in section and "只有最后一次" in section
+    assert "计划分的几步" in section and "不是这里 1–6 的流程编号" in section and "每步各提交一次" in section
+    assert "里还有没做完的时" in section and "收尾到此为止" in section and "计划分的几步全部做完时" in section
 
     assert len(section.strip().splitlines()) <= 70
     for step in ("**规划**", "**先存证据**", "**代理指令**", "**恢复**", "**主会话复核**", "**收尾**"):

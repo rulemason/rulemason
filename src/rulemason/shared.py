@@ -43,7 +43,7 @@ COPIED_SHARED = (
     "lint/ruff-base.toml",
     "lint/eslint-base.mjs",
 )
-SKILL_FILES = ("SKILL.md",)                                  # skill 副本只有正文；判断层模板随安装包提供
+SKILL_FILES = ("SKILL.md", "cleanup.md")                     # skill 副本只有正文（清理正文单独一份，进入清理才读）；判断层模板随安装包提供
 TEMPLATES = Path(__file__).parent / "templates"
 VENDOR_DIRS = ("bower_components", "uni_modules", "third_party", "jspm_packages", "Pods")   # 第三方代码，不属于本项目
 VENDOR_MARKERS = ("autoload.php", "modules.txt")            # vendor/ 有 Composer 或 Go 的标记才算第三方；项目也会用它放自己的资源
