@@ -740,6 +740,20 @@ def test_copies_behind_fails_until_update(inited):
     assert nxt.line == "日常巡检：一切一致" and check.exit_code(report) == 0
 
 
+def test_old_single_file_skill_gets_cleanup_body(inited):
+    """skill 副本只有 SKILL.md 的旧项目：check 报副本落后，update 补上 cleanup.md 并记进清单。"""
+    cleanup = ".claude/skills/rulemason/cleanup.md"
+    (inited / cleanup).unlink()
+    manifest = shared.read_manifest(inited)
+    del manifest["files"][cleanup]
+    write_manifest(inited, manifest)
+    report, nxt = check.collect(inited)
+    assert any(item.startswith(f"{check.BEHIND}（1 个文件；") for item in report.layers["接入 生成副本"])
+    assert nxt.code == "update" and check.exit_code(report) == 1
+    assert update.run(inited) == 0
+    assert (inited / cleanup).is_file() and cleanup in shared.read_manifest(inited)["files"]
+
+
 def test_newer_record_is_not_copies_behind(inited):
     _fill_project_info(inited)
     _age_copy(inited, ".rulemason/rules/code-style.md", "99.0.0")
