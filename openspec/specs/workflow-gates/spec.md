@@ -263,7 +263,7 @@ apply 最后一个任务做完、汇报完成之前，SHALL 按顺序执行：1.
 
 ### Requirement: 归档后提示一次启用判断
 
-归档完成后，`rulemason check --json` 的「判断」一行显示条件已满足且未启用，并且「已归档 change」正好是 3 或「接入后归档 change」正好是 1 时，AI SHALL 在汇报末尾提示一次：本机没有 key 时提示运行 `rulemason key`（申请地址 https://typesafe.ai/ ）；已有 key 时提示在 AI 工具中运行 `/rulemason` 并说明要启用判断。两种提示都 SHALL 附一句：判断审 OpenSpec 方案、界面文案与直接改动的说明。AI MUST NOT 代为配置 key 或启用判断；其余情况 MUST NOT 提示。
+归档完成后，AI SHALL 运行 `rulemason check`；报告第一行之后有启用判断的提示时，AI SHALL 在汇报末尾原样转述一次。提示何时出现、写什么由 `check` 决定（见 `rulekit-cli`「check 在判断条件刚满足时提示启用」），检查点正文 MUST NOT 另写这些条件。AI MUST NOT 代为配置 key 或启用判断；`check` 没有给出提示时 MUST NOT 自己提示。
 
 #### Scenario: 第 3 个归档且没有 key
 - **WHEN** 项目归档第 3 个 change，没有 `openspec/judgments.yaml`，本机未配置 key
