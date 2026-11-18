@@ -214,8 +214,22 @@ def test_skill_legacy_cleanup_section():
                  "这两种都不写这次要做的事", "哪一类软指标不算这次要清的内容",
                  "不写具体改哪些",
                  "`init`、`fix_manifest`、`upgrade_machine`、`update` 时按第 1 节停下",
-                 "为 `fill_project_info`、`manual_lint`、`fix_gitignore`、`none` 时继续"):
+                 "为 `fill_project_info`、`manual_lint`、`fix_gitignore`、`none` 时继续",
+                 "缺首行注释单列", "抽样所见，至少", "被读源码断言钉住", "与第一个调用方放在同一步", "直接在当前工作区",
+                 "仓库外的临时目录", "lint 忽略、不入库的目录", "冻结时钟", "`eslint-disable` 增减",
+                 "每个 `export` 都要有外部引用", "对照当前提交核对清单", "实测超标个数与最高值"):
         assert text in section, text
+    principles = section[:section.index("**入口**")]                   # 原则在入口之前，统领后文的做法
+    for text in ("别处按名字或原文依赖的东西不动", "先植入一处改动看它失败", "指标是手段", "放弃这处重构，不去满足 lint",
+                 "行为差异逐项写进汇报", "笔记写明提交号", "同一组参数"):
+        assert text in principles, text
+    plan = section[section.index("**修一个模块**"):section.index("1. **规划**")]
+    for text in ("拆到下一档以内", "当前上限留余量", "不承诺减行", "过期锚点", "改写成渲染断言", "由主会话统一跑"):
+        assert text in plan, text
+    agent = section[section.index("3. **代理指令**"):section.index("4. **恢复**")]    # 这一段原样交给每个代理，写到别处代理收不到
+    for text in ("附上本文开头的七条原则", "交主会话", "拆函数按计划选定的复杂度目标", "不补首行注释", "透传大量参数",
+                 "等价性自查表", "附测试文件与行号"):
+        assert text in agent, text
     gate = skill[skill.index("## 1. 识别"):skill.index("## 2. 补项目信息")]
     assert "`next.code` 只作第 7 节的入口闸门" in gate and "说要做存量清理" in gate
     assert "巡检与这次清理开始时相同" in gate and "不把上次巡检写入文件" in gate
