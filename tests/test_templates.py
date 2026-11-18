@@ -3,10 +3,15 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
+from conftest import write
 
 from rulemason import check, init, shared
 
@@ -40,7 +45,7 @@ def test_no_template_references_sibling_rulemason():
 
 def test_skill_is_body_files_and_templates_ship_with_engine():
     listed = sorted(p.name for p in SKILL.iterdir() if not p.name.startswith("."))
-    assert listed == sorted(shared.SKILL_FILES) == ["SKILL.md", "cleanup.md"]
+    assert listed == sorted(shared.SKILL_FILES) == ["SKILL.md", "cleanup.md", "complexity-probe.mjs"]
     engine_templates = ROOT / "src/rulemason/judge/templates"
     assert sorted(p.name for p in engine_templates.iterdir()) == ["judge.yaml", "judge_cases.yaml", "judgments.yaml"]
 
@@ -217,7 +222,8 @@ def test_skill_legacy_cleanup_section():
                  "为 `fill_project_info`、`manual_lint`、`fix_gitignore`、`none` 时继续",
                  "缺首行注释单列", "抽样所见，至少", "被读源码断言钉住", "与第一个调用方放在同一步", "直接在当前工作区",
                  "仓库外的临时目录", "lint 忽略、不入库的目录", "冻结时钟", "`eslint-disable` 增减",
-                 "每个 `export` 都要有外部引用", "对照当前提交核对清单", "实测超标个数与最高值"):
+                 "每个 `export` 都要有外部引用", "对照当前提交核对清单", "实测超标个数与最高值",
+                 "`complexity-probe.mjs`", "PROBE_ROOT", "项目 lint 实际检查过的", "不在 worktree 里装依赖", "低于 9"):
         assert text in section, text
     principles = section[:section.index("**入口**")]                   # 原则在入口之前，统领后文的做法
     for text in ("别处按名字或原文依赖的东西不动", "先植入一处改动看它失败", "指标是手段", "放弃这处重构，不去满足 lint",
@@ -268,6 +274,66 @@ def test_skill_treats_fill_plan_as_part_of_the_upgrade():
                  "补齐写进项目文件的内容属于这次升级，提交时与副本一起带上", "*_shared/openspec-base/*.yaml", "以 `rulemason update --dry-run` 列出的补齐计划为准",
                  "只查基础条目有没有缺，不能用来认定新增条目是基础版"):
         assert text in skill, text
+
+
+# ---------- 2.1 复杂度探针 ----------
+
+NODE = shutil.which("node")
+# 加载探针配置，只输出各配置块的形状：规则、是否带解析器、插件名
+PROBE_DUMP = ("const c = (await import(process.argv[1])).default;"
+              "console.log(JSON.stringify(c.map((b) => ({rules: b.rules ?? null,"
+              " parser: Boolean(b.languageOptions?.parser), plugins: Object.keys(b.plugins ?? {})}))));")
+
+
+def _load_probe(env: dict[str, str]) -> subprocess.CompletedProcess:
+    probe = (SKILL / "complexity-probe.mjs").as_uri()
+    return subprocess.run([NODE, "--input-type=module", "-e", PROBE_DUMP, probe],
+                          env={**os.environ, **env}, capture_output=True, text=True, encoding="utf-8", timeout=60)
+
+
+def _fake_package(root: Path, name: str, body: str) -> None:
+    write(root, f"node_modules/{name}/package.json", json.dumps({"name": name, "main": "index.js"}))
+    write(root, f"node_modules/{name}/index.js", body)
+
+
+@pytest.mark.skipif(NODE is None, reason="本机没有 Node，探针由接入项目的 ESLint 加载")
+def test_complexity_probe_turns_on_complexity_only(tmp_path):
+    env = {"PROBE_ROOT": str(tmp_path), "PROBE_MAX": "12"}
+    bare = _load_probe(env)
+    assert bare.returncode == 0, bare.stderr
+    blocks = json.loads(bare.stdout)
+    assert [b["rules"] for b in blocks if b["rules"]] == [{"complexity": ["error", 12]}]      # 规则只有 complexity
+    assert not any(b["parser"] or b["plugins"] for b in blocks)                               # 没装的包不引入
+    assert "TS 未测" in bare.stderr and "HTML 未测" in bare.stderr
+
+    _fake_package(tmp_path, "typescript-eslint", "module.exports = { parser: { meta: { name: 'fake' } } };")
+    _fake_package(tmp_path, "eslint-plugin-html", "module.exports = {};")
+    full = _load_probe(env)
+    blocks = json.loads(full.stdout)
+    assert [b["rules"] for b in blocks if b["rules"]] == [{"complexity": ["error", 12]}]
+    assert any(b["parser"] for b in blocks) and any(b["plugins"] == ["html"] for b in blocks)  # 从 PROBE_ROOT 解析到
+    assert "未测" not in full.stderr
+
+    relative = _load_probe({"PROBE_ROOT": ".", "PROBE_MAX": "12"})                           # 相对路径按当前目录展开
+    assert relative.returncode == 0, relative.stderr
+    missing_root = _load_probe({"PROBE_ROOT": "", "PROBE_MAX": "12"})
+    assert missing_root.returncode != 0 and "PROBE_ROOT" in missing_root.stderr
+    for bad in ("", "abc", "0", "-1", "12.5"):                                                  # 阈值必填且为正整数，不给默认值
+        failed = _load_probe({"PROBE_ROOT": str(tmp_path), "PROBE_MAX": bad})
+        assert failed.returncode != 0 and "PROBE_MAX 须为正整数" in failed.stderr, bad
+
+
+@pytest.mark.skipif(NODE is None, reason="本机没有 Node，探针由接入项目的 ESLint 加载")
+def test_complexity_probe_does_not_hide_broken_packages(tmp_path):
+    """装了却加载失败的包照常报错；只有包本身没装才算「未测」。"""
+    _fake_package(tmp_path, "typescript-eslint", "require('missing-inner-dep');")
+    failed = _load_probe({"PROBE_ROOT": str(tmp_path), "PROBE_MAX": "12"})
+    assert failed.returncode != 0 and "missing-inner-dep" in failed.stderr and "TS 未测" not in failed.stderr
+
+
+def test_complexity_probe_avoids_console():
+    """探针随 skill 放进项目，项目用 eslint . 时会扫到它：不能用 rulemason 基础规则禁用的 console。"""
+    assert "console." not in (SKILL / "complexity-probe.mjs").read_text(encoding="utf-8")
 
 
 # ---------- 3. 共享 workflow-gates 与审查子代理 ----------
