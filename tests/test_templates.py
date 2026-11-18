@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-from rulemason import check, shared
+from rulemason import check, init, shared
 
 ROOT = shared.SOURCE_ROOT
 TEMPLATES = shared.TEMPLATES
@@ -60,6 +60,10 @@ def test_blocks_reference_generated_copies():
 
     assert ".rulemason/rules/code-style.md" in code_style and ".rulemason/rules/python.md" in code_style
     assert ".rulemason/rules/workflow-gates.md" in gates
+    entries = (TEMPLATES / "claude.block.md").read_text(encoding="utf-8") + (TEMPLATES / "opencode.jsonc.tmpl").read_text(encoding="utf-8")
+    for rel in init.ON_DEMAND_RULES:                               # 写作类规则不导入入口，只在 Code style 块写明何时读
+        assert f".rulemason/{rel}" in code_style and rel not in entries, rel
+    assert "--preset" not in code_style and "只分发不扫仓" not in code_style   # 这一块每次会话都读，只写阅读场合
 
 
 def test_claude_block_imports_rules_and_maps_simplify_step():
@@ -71,11 +75,7 @@ def test_claude_block_imports_rules_and_maps_simplify_step():
         "@.rulemason/rules/code-style.md",
         "@.rulemason/rules/python.md",
         "@.rulemason/rules/react.md",
-        "@.rulemason/rules/cjk-typography.md",
-        "@.rulemason/rules/result-check-contracts.md",
-        "@.rulemason/rules/prose-hygiene.md",
         "@.rulemason/rules/agent-coding-caution.md",
-        "@.rulemason/rules/product-artifact-caution.md",
         "@.rulemason/rules/workflow-gates.md",
     ]
     assert "/simplify" in mapping and "代码逻辑" in mapping and "行为保持" in mapping
@@ -98,11 +98,7 @@ def test_opencode_and_ruff_templates_point_to_copies():
         ".rulemason/rules/code-style.md",
         ".rulemason/rules/python.md",
         ".rulemason/rules/react.md",
-        ".rulemason/rules/cjk-typography.md",
-        ".rulemason/rules/result-check-contracts.md",
-        ".rulemason/rules/prose-hygiene.md",
         ".rulemason/rules/agent-coding-caution.md",
-        ".rulemason/rules/product-artifact-caution.md",
         ".rulemason/rules/workflow-gates.md",
     ]
     assert 'extend = "$extend"' in ruff and "select" not in ruff
@@ -485,7 +481,7 @@ RESIDENT_RULES = ("code-style.md", "python.md", "react.md", "agent-coding-cautio
 def test_resident_rules_stay_within_budget():
     """每次会话常驻加载的正文有字数上限：要加一句，先合并或删掉一句（AGENTS.md「改共享规则」）。"""
     total = sum(len((ROOT / "rules" / name).read_text(encoding="utf-8")) for name in RESIDENT_RULES)
-    assert total <= 10300, total
+    assert total <= 10100, total
 
 
 def test_rules_refactor_lessons_and_comment_defaults():
@@ -544,8 +540,8 @@ def test_gates_archive_merges_without_asking_and_hints_key_once():
     archive = _section((ROOT / "rules/workflow-gates.md").read_text(encoding="utf-8"), "归档")
     assert "`openspec archive <change 名> --yes`" in archive and "`openspec validate --specs --strict`" in archive
     assert "不就「是否同步主规格」询问用户" in archive and "verification.md" in archive
-    assert "正好是 3" in archive and "「接入后归档 change」正好是 1" in archive and "rulemason key" in archive and "不代用户配置 key" in archive
-    assert "已有 key 就提示在 AI 工具中运行 `/rulemason`" in archive and "判断审 OpenSpec 方案、界面文案与直接改动的说明" in archive
+    assert "运行 `rulemason check`" in archive and "原样转述一次" in archive and "不代用户配置 key" in archive
+    assert "正好是 3" not in archive                                # 提示条件只在 check 里算（test_check 的 judge_onboarding_hint 系列）
 
 
 def test_entry_blocks_say_read_before_direct_edits():

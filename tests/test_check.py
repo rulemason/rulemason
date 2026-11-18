@@ -682,6 +682,61 @@ def test_judge_label_mentions_key_when_conditions_met(joined, monkeypatch, has_k
     assert (shared.KEY_URL in label) is not has_key
 
 
+JUDGE_HINT = "判断条件刚满足"
+
+
+def _hint_project(root, monkeypatch, archives: int, has_key: bool) -> tuple[list[str], int]:
+    """接入日期 2026-11-04 之前归档 archives 个，返回 check 报告各行与退出码。"""
+    set_joined(root, "2026-11-04")
+    _archive(root, archives)
+    monkeypatch.setattr(check, "api_key", lambda: "k" if has_key else "")
+    text, code = check.run(root)
+    return text.splitlines(), code
+
+
+def test_judge_onboarding_hint_at_third_archive_without_key(joined, monkeypatch):
+    lines, code = _hint_project(joined, monkeypatch, 3, has_key=False)
+    assert lines[0] == "日常巡检：一切一致" and code == 0                      # 提示不改变下一步与退出码
+    assert lines[1].startswith(JUDGE_HINT) and "rulemason key" in lines[1] and shared.KEY_URL in lines[1]
+    assert "判断审 OpenSpec 方案、界面文案与直接改动的说明" in lines[1]
+
+
+def test_judge_onboarding_hint_at_first_archive_after_joined_with_key(joined, monkeypatch):
+    _archived_change(joined, "2026-11-05-after", "# 验证\n")
+    lines, code = _hint_project(joined, monkeypatch, 5, has_key=True)          # 接入前 5 个、接入后 1 个
+    assert lines[0] == "日常巡检：一切一致" and code == 0
+    assert lines[1].startswith(JUDGE_HINT) and "在 AI 工具中运行 /rulemason" in lines[1] and shared.KEY_URL not in lines[1]
+    assert "判断审 OpenSpec 方案、界面文案与直接改动的说明" in lines[1]
+
+
+@pytest.mark.parametrize("case", ["before_four", "after_two", "enabled", "no_git", "too_few"])
+def test_judge_onboarding_hint_absent(joined, monkeypatch, case):
+    """计数不再正好、已启用、没有 git、接入后虽是 1 个但总数不到 3 个：都不提示。"""
+    archives = {"before_four": 4, "after_two": 2, "enabled": 5, "no_git": 3, "too_few": 1}[case]
+    if case == "after_two":
+        _archived_change(joined, "2026-11-05-a", "# 验证\n")
+        _archived_change(joined, "2026-11-06-b", "# 验证\n")                 # 已归档 4 个、接入后 2 个
+    if case == "too_few":
+        _archived_change(joined, "2026-11-05-a", "# 验证\n")                 # 接入后 1 个，但总共只有 2 个
+    if case == "enabled":
+        _archived_change(joined, "2026-11-05-a", "# 验证\n")                 # 接入后正好 1 个，但已启用
+        write(joined, "openspec/judgments.yaml", "[]\n")
+    if case == "no_git":
+        monkeypatch.setattr(check, "has_git", lambda root: False)
+    lines, _ = _hint_project(joined, monkeypatch, archives, has_key=False)
+    assert not any(line.startswith(JUDGE_HINT) for line in lines)
+
+
+def test_opencode_leftover_writing_rules_are_not_reported(tmp_path):
+    """OpenCode 配置里多出或删去写作类规则，check 都不报；入口只要求九条、语言落法与检查点。"""
+    refs = [".rulemason/rules/code-style.md", ".rulemason/rules/workflow-gates.md"]
+    for extra in ([], [".rulemason/rules/prose-hygiene.md", ".rulemason/rules/cjk-typography.md"]):
+        write(tmp_path, "opencode.jsonc", json.dumps({"instructions": refs + extra}))
+        assert check._check_opencode(tmp_path, refs) == []
+    write(tmp_path, "opencode.jsonc", json.dumps({"instructions": refs[1:]}))   # 对照：确实读到了这份配置
+    assert check._check_opencode(tmp_path, refs) == [f"OpenCode instructions 未引用 {refs[0]}"]
+
+
 # ---------- 识别与检查口径（init-ux-2） ----------
 
 def test_frontend_dirs_need_ui_framework(tmp_path):
